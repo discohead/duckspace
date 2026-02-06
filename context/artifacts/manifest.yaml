@@ -1,0 +1,155 @@
+version: "1.0"
+artifacts:
+  - path: .orchestrator/artifacts/decisions/adr-001-database-trio.md
+    type: decision-record
+    produced_by: adr-database-trio
+    produced_at: "2026-02-04T23:31:40Z"
+    verified: true
+    checksum: sha256:0ad40775e9f8ac8923c533d836face1d1300fadf1af288fb91ff5aba02372357
+  - path: .orchestrator/artifacts/decisions/adr-002-arrow-data-plane.md
+    type: decision-record
+    produced_by: adr-arrow-data-plane
+    produced_at: "2026-02-04T22:26:31Z"
+    verified: true
+    checksum: sha256:8896ea0f595bb5480ea2e5be02d6d8dd0e41a7f8a9d8a1972f63e8797844ab02
+  - path: .orchestrator/artifacts/decisions/adr-003-visualization-stack.md
+    type: decision-record
+    produced_by: adr-visualization-stack
+    produced_at: "2026-02-04T22:26:32Z"
+    revised_at: "2026-02-05T10:10:00Z"
+    revision: R4
+    verified: true
+    checksum: sha256:cf70266b309bc00f9c48aa899a602324b63526ed2822d400cba22b90fdae5fdb
+  - path: .orchestrator/artifacts/decisions/adr-004-ai-integration.md
+    type: decision-record
+    produced_by: adr-ai-integration
+    produced_at: "2026-02-04T23:30:45Z"
+    verified: true
+    checksum: sha256:817a0e4fcf2062bc9254ea29652b6ac3d355626e21e63b412ce5fef855d3e877
+  - path: .orchestrator/artifacts/decisions/adr-005-process-architecture.md
+    type: decision-record
+    produced_by: adr-process-architecture
+    produced_at: "2026-02-04T22:26:34Z"
+    verified: true
+    checksum: sha256:324ec4d5f7fa286e3dc084a919d5a0d396cd3ca1a93fd0fa60b8c6394ccbf604
+  - path: .orchestrator/artifacts/research/claude-sdk-mcp-acp.md
+    type: research
+    produced_by: research-claude-sdk-mcp-acp
+    produced_at: "2026-02-04T23:10:01Z"
+    verified: true
+    checksum: sha256:477abda020880e4587dc837895ab3c91a3d2372b7d1b6a2a3410d1b14d1eb26e
+  - path: .orchestrator/artifacts/research/rxdb-electron.md
+    type: research
+    produced_by: research-rxdb-electron
+    produced_at: "2026-02-04T23:10:03Z"
+    verified: true
+    checksum: sha256:ae57db67b276b61d9beaf5424005ab47de9bc2440e8dc38bff8310a0331e2d33
+  - path: .orchestrator/artifacts/research/arquero-integration.md
+    type: research
+    produced_by: r4-research-arquero
+    produced_at: "2026-02-05T10:01:00Z"
+    revision: R4
+    verified: true
+    description: "Arquero integration research for datspace visualization pipeline"
+    checksum: sha256:c6d5b7c1747ac1dcfaa5711d6283c04f8ffb28c7a4027979fcb7f2dac4abcb88
+  - path: .orchestrator/artifacts/research/mosaic-evaluation.md
+    type: research
+    produced_by: mosaic-evaluation
+    produced_at: "2026-02-05T11:30:00Z"
+    verified: true
+    description: "Mosaic framework evaluation for datspace - 5-package analysis with per-package go/no-go recommendations"
+    checksum: sha256:9f027f59263572d109bfeaa2887eb1c14b6c04bea7c37fe40a161746f090ceed
+  - path: .orchestrator/artifacts/design/01-system-overview.md
+    type: system-design
+    produced_by: design-system-overview
+    produced_at: "2026-02-05T07:43:30Z"
+    revised_at: "2026-02-05T10:10:00Z"
+    revision: R4
+    verified: true
+    checksum: sha256:7edeca5f870a0561a2fcfcadb4a35914a62b56141eb7fd3f2b90c091d8af5b94
+  - path: .orchestrator/artifacts/design/02-electron-process-model.md
+    type: system-design
+    produced_by: design-electron-process-model
+    produced_at: "2026-02-05T08:05:00Z"
+    verified: true
+    checksum: sha256:c03fd73d0025b6181aae58d5959ca81ea9a699120efea966748759a9b69e80c6
+  - path: .orchestrator/artifacts/design/03-arrow-data-plane.md
+    type: system-design
+    produced_by: design-arrow-data-plane
+    produced_at: "2026-02-05T09:05:00Z"
+    revised_at: "2026-02-05T10:05:00Z"
+    revision: R4
+    verified: true
+    checksum: sha256:c2ee68620950d43e34f9478fa537e637a004660c459855d461bc4c46805248f2
+  - path: .orchestrator/artifacts/design/04-database-integration.md
+    type: system-design
+    produced_by: design-database-integration
+    produced_at: "2026-02-05T08:20:29Z"
+    verified: true
+    checksum: sha256:64cf7e651dfa90b0ef6fcf33d5f7bd70e161c1e9848a108fd3fe0caa08286e83
+  - path: .orchestrator/artifacts/design/05-vector-search-fts.md
+    type: system-design
+    produced_by: design-vector-search-fts
+    produced_at: "2026-02-05T09:34:04Z"
+    verified: true
+    checksum: sha256:8b490efbd53d187f6c2b295bc983923e9bbeac2e092a5146317824ba61857be3
+  - path: .orchestrator/artifacts/design/06-local-ingestion.md
+    type: system-design
+    produced_by: design-local-ingestion
+    produced_at: "2026-02-05T09:34:04Z"
+    verified: true
+    checksum: sha256:218bc7683a0c4332c36a255d34bfd35674bb94b520478cee5e4a733ed22a79fc
+  - path: .orchestrator/artifacts/design/08-visualization-engine.md
+    type: system-design
+    produced_by: design-visualization-engine
+    produced_at: "2026-02-05T09:10:00Z"
+    revised_at: "2026-02-05T10:05:00Z"
+    revision: R4
+    verified: true
+    checksum: sha256:89115f2212199469937381a9b2c4f0784b3ca52cb4a6170bee31fcdb302a3d8e
+  - path: .orchestrator/artifacts/design/07-remote-connectors.md
+    type: system-design
+    produced_by: design-remote-connectors
+    produced_at: "2026-02-05T12:00:00Z"
+    verified: true
+    checksum: sha256:cc6d4c29b9c8742cc844e9b91df35c042b19d5117fdb1397602f8783a604e5eb
+  - path: .orchestrator/artifacts/design/09-ai-integration.md
+    type: system-design
+    produced_by: design-ai-integration
+    produced_at: "2026-02-05T12:00:00Z"
+    verified: true
+    checksum: sha256:be5e844dd144e5922ab90cfb7914210006cbf564a1d5f73f7d2172b4952e9c78
+  - path: .orchestrator/artifacts/design/10-publishing-engine.md
+    type: system-design
+    produced_by: design-publishing-engine
+    produced_at: "2026-02-05T00:05:00Z"
+    verified: true
+    checksum: sha256:b117591cbf7351d452f2ba83d571365a61596aecff1e77b39bf46c68ef47eac6
+  - path: .orchestrator/artifacts/data-model/data-model-spec.md
+    type: data-model
+    produced_by: spec-data-model
+    produced_at: "2026-02-05T00:05:30Z"
+    verified: true
+    checksum: sha256:4b88f12c4b371db42ca25f082cda69fc6c60467813865ebe4e30e8cf31e4ebb0
+  - path: .orchestrator/artifacts/api-spec/ipc-api-spec.md
+    type: api-spec
+    produced_by: spec-ipc-api
+    produced_at: "2026-02-06T03:42:16Z"
+    verified: true
+    description: "Complete IPC and API specification for datspace - Preload Bridge, Arrow IPC, Worker protocols, Event Bus, Error codes"
+    lines: 2280
+    checksum: sha256:c472548870eabb62a776911123e01a234a95bffaf1451c43965654e17bc787cc
+  - path: .orchestrator/artifacts/design/00-architecture-overview.md
+    type: system-design
+    produced_by: integration-architecture-overview
+    produced_at: "2026-02-06T03:55:59Z"
+    verified: true
+    checksum: sha256:01c1f0abe93985a9f3e8d018c178d9707ea37f1e43c8fe06d365c6daefee44f6
+  - path: .orchestrator/artifacts/validation/cross-reference-report.md
+    type: validation-report
+    produced_by: integration-cross-reference-validation
+    produced_at: "2026-02-06T04:07:05Z"
+    verified: true
+    description: "Cross-document consistency validation across all 20 architecture artifacts - 8 checks, all PASS"
+    lines: 466
+    checksum: sha256:01d7bde72d48e6960ebfd535c112f1750eaed539c658efcc3126f25138d53ce4
