@@ -44,27 +44,13 @@ describe('QueryRouter — Regression', () => {
 
   // #12: SQL injection in previewTable
   describe('previewTable SQL injection protection (#12)', () => {
-    it('escapes double-quotes in table name', async () => {
-      await router.previewTable('my"table');
-
-      expect(worker.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'execute_query',
-          sql: expect.stringContaining('my""table'),
-        }),
-      );
-
-      // Should NOT contain an unescaped single double-quote
-      const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      // The table name should be properly escaped: "my""table"
-      expect(sql).toContain('"my""table"');
+    it('rejects table names containing double-quotes', async () => {
+      // I6: strict identifier validation rejects quotes outright
+      await expect(router.previewTable('my"table')).rejects.toThrow('Invalid table name');
     });
 
-    it('handles table name with multiple quotes', async () => {
-      await router.previewTable('a"b"c');
-
-      const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      expect(sql).toContain('"a""b""c"');
+    it('rejects table names with multiple quotes', async () => {
+      await expect(router.previewTable('a"b"c')).rejects.toThrow('Invalid table name');
     });
 
     it('uses default limit of 100 for negative limit', async () => {

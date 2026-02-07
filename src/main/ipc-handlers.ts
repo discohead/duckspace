@@ -1,6 +1,7 @@
 import os from 'node:os';
 import { MessageChannel as NodeMessageChannel, type Worker } from 'node:worker_threads';
-import { IPC_CHANNELS, PUSH_EVENTS } from '@shared/constants';
+import { IPC_CHANNELS, PUSH_EVENTS, TIMEOUTS } from '@shared/constants';
+import { DatspaceConfigSchema } from '@shared/schemas/config-schema';
 import type { AppState } from '@shared/types';
 import {
   app,
@@ -87,6 +88,28 @@ export function setupDataChannel(win: BrowserWindow, duckdbWorker: Worker): void
 }
 
 /**
+ * Wraps an IPC handler with error boundary that logs and re-throws.
+ * Ensures unhandled errors in handlers are visible in logs rather than silently lost.
+ *
+ * @param channel - The IPC channel name (for log context).
+ * @param handler - The async handler function to wrap.
+ * @returns The wrapped handler.
+ */
+function wrapIPCHandler<T extends unknown[], R>(
+  channel: string,
+  handler: (...args: T) => Promise<R>,
+): (...args: T) => Promise<R> {
+  return async (...args: T): Promise<R> => {
+    try {
+      return await handler(...args);
+    } catch (err) {
+      console.error(`IPC handler error [${channel}]:`, err);
+      throw err;
+    }
+  };
+}
+
+/**
  * Registers all IPC handlers for query, lifecycle, and config channels.
  *
  * Must be called before the BrowserWindow is created so handlers are ready
@@ -98,33 +121,54 @@ export function registerIPCHandlers(): void {
   // === Query Channels ===
   ipcMain.handle(
     IPC_CHANNELS.QUERY_EXECUTE,
-    async (_event, args: { sql: string; params?: unknown[] }) => {
-      if (!queryRouter) throw new Error('QueryRouter not initialized');
-      return queryRouter.executeQuery(args.sql, args.params);
-    },
+    wrapIPCHandler(
+      IPC_CHANNELS.QUERY_EXECUTE,
+      async (_event: unknown, args: { sql: string; params?: unknown[] }) => {
+        if (!queryRouter) throw new Error('QueryRouter not initialized');
+        return queryRouter.executeQuery(args.sql, args.params);
+      },
+    ),
   );
 
-  ipcMain.handle(IPC_CHANNELS.QUERY_CANCEL, async (_event, args: { queryId: string }) => {
-    if (!queryRouter) throw new Error('QueryRouter not initialized');
-    return queryRouter.cancelQuery(args.queryId);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.QUERY_CANCEL,
+    wrapIPCHandler(
+      IPC_CHANNELS.QUERY_CANCEL,
+      async (_event: unknown, args: { queryId: string }) => {
+        if (!queryRouter) throw new Error('QueryRouter not initialized');
+        return queryRouter.cancelQuery(args.queryId);
+      },
+    ),
+  );
 
-  ipcMain.handle(IPC_CHANNELS.QUERY_LIST_TABLES, async () => {
-    if (!queryRouter) throw new Error('QueryRouter not initialized');
-    return queryRouter.listTables();
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.QUERY_LIST_TABLES,
+    wrapIPCHandler(IPC_CHANNELS.QUERY_LIST_TABLES, async () => {
+      if (!queryRouter) throw new Error('QueryRouter not initialized');
+      return queryRouter.listTables();
+    }),
+  );
 
-  ipcMain.handle(IPC_CHANNELS.QUERY_DESCRIBE_TABLE, async (_event, args: { tableName: string }) => {
-    if (!queryRouter) throw new Error('QueryRouter not initialized');
-    return queryRouter.describeTable(args.tableName);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.QUERY_DESCRIBE_TABLE,
+    wrapIPCHandler(
+      IPC_CHANNELS.QUERY_DESCRIBE_TABLE,
+      async (_event: unknown, args: { tableName: string }) => {
+        if (!queryRouter) throw new Error('QueryRouter not initialized');
+        return queryRouter.describeTable(args.tableName);
+      },
+    ),
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.CATALOG_PREVIEW,
-    async (_event, args: { tableName: string; limit?: number }) => {
-      if (!queryRouter) throw new Error('QueryRouter not initialized');
-      return queryRouter.previewTable(args.tableName, args.limit);
-    },
+    wrapIPCHandler(
+      IPC_CHANNELS.CATALOG_PREVIEW,
+      async (_event: unknown, args: { tableName: string; limit?: number }) => {
+        if (!queryRouter) throw new Error('QueryRouter not initialized');
+        return queryRouter.previewTable(args.tableName, args.limit);
+      },
+    ),
   );
 
   // === Lifecycle Channels ===
@@ -192,9 +236,19 @@ export function registerIPCHandlers(): void {
     const field = keys[1];
     if (keys.length === 2 && section !== undefined && field !== undefined) {
       const sectionKey = section as keyof typeof config;
+      if (!(sectionKey in config)) return;
       const sectionObj = { ...config[sectionKey] } as Record<string, unknown>;
       sectionObj[field] = args.value;
-      setConfigValue(sectionKey, sectionObj as (typeof config)[typeof sectionKey]);
+
+      // Validate the proposed section against the Zod schema
+      const proposed = { ...config, [sectionKey]: sectionObj };
+      const result = DatspaceConfigSchema.safeParse(proposed);
+      if (!result.success) {
+        console.warn(`config:set rejected [${args.key}]:`, result.error.issues);
+        return;
+      }
+
+      setConfigValue(sectionKey, result.data[sectionKey]);
     }
   });
 
@@ -207,13 +261,25 @@ export function registerIPCHandlers(): void {
 }
 
 /**
- * Returns a promise that resolves when the renderer signals it is ready.
+ * Returns a promise that resolves when the renderer signals it is ready,
+ * or rejects after TIMEOUTS.RENDERER_READY ms.
  *
+ * @param timeoutMs - Override the default timeout (for testing).
  * @returns A promise that resolves once the renderer sends the lifecycle:ready IPC message.
+ * @throws {@link Error} If the renderer does not signal ready within the timeout.
  */
-export function waitForRendererReady(): Promise<void> {
-  return new Promise((resolve) => {
-    rendererReadyResolve = resolve;
+export function waitForRendererReady(timeoutMs?: number): Promise<void> {
+  const ms = timeoutMs ?? TIMEOUTS.RENDERER_READY;
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      rendererReadyResolve = null;
+      reject(new Error(`Renderer did not signal ready within ${ms}ms`));
+    }, ms);
+
+    rendererReadyResolve = () => {
+      clearTimeout(timeout);
+      resolve();
+    };
   });
 }
 

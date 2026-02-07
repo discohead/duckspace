@@ -192,6 +192,10 @@ export class QueryRouter {
    * @returns A query handle for the preview query.
    */
   async previewTable(tableName: string, limit?: number): Promise<QueryHandle> {
+    // I6: Strict identifier validation — reject names with control chars or SQL injection patterns
+    if (!/^[\w$.]+$/u.test(tableName)) {
+      throw new Error(`Invalid table name: "${tableName}"`);
+    }
     const safeTable = tableName.replace(/"/g, '""');
     const raw = limit ?? 0;
     const validLimit = Number.isFinite(raw) && raw > 0 ? Math.min(raw, 10000) : 100;

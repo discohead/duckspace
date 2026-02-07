@@ -317,6 +317,30 @@ describe('QueryRouter', () => {
         }),
       );
     });
+
+    // I6: Strict identifier validation
+    it('rejects table names with SQL injection characters', async () => {
+      await expect(router.previewTable('users"; DROP TABLE users;--')).rejects.toThrow(
+        'Invalid table name',
+      );
+    });
+
+    it('rejects table names with semicolons', async () => {
+      await expect(router.previewTable('users;')).rejects.toThrow('Invalid table name');
+    });
+
+    it('rejects table names with quotes', async () => {
+      await expect(router.previewTable('users"')).rejects.toThrow('Invalid table name');
+    });
+
+    it('accepts valid identifiers with underscores and dots', async () => {
+      await router.previewTable('schema.my_table');
+      expect(worker.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sql: 'SELECT * FROM "schema.my_table" LIMIT 100',
+        }),
+      );
+    });
   });
 
   describe('queryCompleted', () => {

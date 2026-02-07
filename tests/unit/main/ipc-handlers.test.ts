@@ -206,6 +206,95 @@ describe('IPC Handlers', () => {
     });
   });
 
+  // I3: config:set validation
+  describe('config:set validation', () => {
+    it('rejects invalid config value', async () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const handler = mockHandlers.get(IPC_CHANNELS.CONFIG_SET)!;
+
+      // fontSize expects a number — a string will fail Zod validation
+      // (theme has .catch('system') which silently recovers invalid values)
+      await handler({}, { key: 'ui.fontSize', value: 'not-a-number' });
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('config:set rejected'),
+        expect.anything(),
+      );
+      consoleSpy.mockRestore();
+    });
+
+    it('accepts valid config value', async () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { setConfigValue: mockSetConfigValue } = await import('@main/config');
+      vi.mocked(mockSetConfigValue).mockClear();
+
+      const handler = mockHandlers.get(IPC_CHANNELS.CONFIG_SET)!;
+      await handler({}, { key: 'ui.theme', value: 'dark' });
+
+      expect(consoleSpy).not.toHaveBeenCalled();
+      expect(mockSetConfigValue).toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+
+    it('ignores unknown section keys', async () => {
+      const { setConfigValue: mockSetConfigValue } = await import('@main/config');
+      vi.mocked(mockSetConfigValue).mockClear();
+
+      const handler = mockHandlers.get(IPC_CHANNELS.CONFIG_SET)!;
+      await handler({}, { key: 'unknown.field', value: 'test' });
+
+      expect(mockSetConfigValue).not.toHaveBeenCalled();
+    });
+  });
+
+  // C5: IPC error boundary logging
+  describe('wrapIPCHandler error boundary', () => {
+    it('logs and re-throws errors from query:execute', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      // queryRouter is null => handler throws
+      setQueryRouter(null as any);
+
+      const handler = mockHandlers.get(IPC_CHANNELS.QUERY_EXECUTE)!;
+      await expect(handler({}, { sql: 'SELECT 1' })).rejects.toThrow('QueryRouter not initialized');
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('IPC handler error'),
+        expect.any(Error),
+      );
+      consoleSpy.mockRestore();
+    });
+
+    it('logs and re-throws errors from query:cancel', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      setQueryRouter(null as any);
+
+      const handler = mockHandlers.get(IPC_CHANNELS.QUERY_CANCEL)!;
+      await expect(handler({}, { queryId: 'q1' })).rejects.toThrow('QueryRouter not initialized');
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('IPC handler error'),
+        expect.any(Error),
+      );
+      consoleSpy.mockRestore();
+    });
+  });
+
+  // C7: waitForRendererReady timeout
+  describe('waitForRendererReady timeout', () => {
+    it('rejects after timeout if renderer never signals ready', async () => {
+      const promise = waitForRendererReady(500);
+      vi.advanceTimersByTime(501);
+
+      await expect(promise).rejects.toThrow('Renderer did not signal ready within 500ms');
+    });
+
+    it('resolves before timeout on ready signal', async () => {
+      const promise = waitForRendererReady(5000);
+      const handler = mockHandlers.get(IPC_CHANNELS.LIFECYCLE_READY)!;
+      await handler({});
+
+      await expect(promise).resolves.toBeUndefined();
+    });
+  });
+
   describe('sendShutdownPrepare', () => {
     it('sends shutdown-prepare to window', () => {
       const mockWindow = {
