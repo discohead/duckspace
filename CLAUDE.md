@@ -1,43 +1,86 @@
-# datspace Development Guidelines
+# CLAUDE.md
 
-Auto-generated from all feature plans. Last updated: 2026-02-05
-
-## Active Technologies
-
-- TypeScript 5.4+, Node.js (via Electron v33+) + Electron v33+, @duckdb/node-api ^1.4.4 (Neo client), @uwdata/flechette ^2.3.0, React 18, Dexie.js ^4.3.0 + dexie-react-hooks (001-electron-foundation)
-- DuckDB (`~/Library/Application Support/Datspace/analytics.duckdb`), Dexie.js (IndexedDB in Renderer), JSON config file (001-electron-foundation)
-
-## Project Structure
-
-```text
-src/
-├── main/          # Electron Main Process (lifecycle, IPC, query routing)
-├── preload/       # contextBridge typed API (window.datspace)
-├── renderer/      # React UI, Dexie.js stores, Arrow decode
-├── workers/       # DuckDB Worker Thread (N-API addon, Arrow IPC)
-└── shared/        # Types, constants, error taxonomy
-
-tests/
-├── unit/
-├── integration/
-└── e2e/
-```
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Commands
 
-npm test && npm run lint
+```bash
+# Development
+npx electron-forge start              # Launch app in dev mode
+
+# Testing
+npm test                              # Run unit + integration tests (vitest)
+npm run test:watch                    # Watch mode
+npx vitest run tests/unit/main/config.test.ts  # Run a single test file
+npm run test:e2e                      # E2e tests (Playwright)
+
+# Type checking (this is the lint command)
+npm run lint                          # tsc --noEmit
+
+# Build
+npm run package                       # Package for distribution
+npm run make                          # Create distributable (DMG/ZIP)
+```
+
+## Architecture
+
+Datspace is a desktop analytics workspace (Electron + DuckDB + Arrow IPC). Three processes communicate via two planes:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Main Process                                            │
+│  lifecycle.ts → startupSequence / shutdownSequence      │
+│  ipc-handlers.ts → ipcMain.handle (control plane)       │
+│  query-router.ts → dispatches SQL to Worker             │
+│  worker-manager.ts → spawn/health/restart Worker        │
+│  config.ts → reads/writes ~/Library/.../config.json     │
+└────────┬──────────────────────────┬─────────────────────┘
+         │ IPC (invoke/handle)      │ MessagePort bridge
+         │ control plane            │ data plane (Arrow IPC)
+┌────────▼────────┐    ┌───────────▼──────────────────────┐
+│ Renderer        │    │ DuckDB Worker Thread              │
+│  React 18 UI    │    │  duckdb-worker.ts → message loop  │
+│  Dexie.js state │    │  duckdb-connection.ts → N-API     │
+│  Arrow decode   │    │  arrow-stream.ts → batch output   │
+│  (flechette)    │    │  Runs: to_arrow_ipc(SQL)          │
+└─────────────────┘    └──────────────────────────────────┘
+```
+
+**Control plane** (IPC channels in `src/shared/constants.ts`): JSON messages via `ipcMain.handle`/`ipcRenderer.invoke` for queries, catalog, lifecycle, config.
+
+**Data plane** (MessagePort): Arrow IPC buffers transferred zero-copy from Worker → Main bridge → Renderer. Backpressure via ACK messages (window size 4, ~8 MB max in-flight).
+
+### Build System
+
+- **Electron Forge + Vite plugin**. Three Vite configs: `vite.main.config.ts`, `vite.preload.config.ts`, `vite.renderer.config.ts`.
+- **Worker build**: NOT a Forge target. Built via `closeBundle` plugin hook in `vite.main.config.ts` as a separate `viteBuild()` into `.vite/build/duckdb-worker.js`.
+- **Entry files**: `src/main-entry.ts` and `src/preload-entry.ts` are thin wrappers to avoid Vite output filename collisions in `.vite/build/`.
+- **Renderer HTML**: `index.html` must be at project root (Forge Vite plugin sets dev server root there).
+- **Preload path**: `path.join(__dirname, 'preload-entry.js')` — relative to `.vite/build/`.
+
+### Key Patterns
+
+- **Path aliases**: `@main/*`, `@renderer/*`, `@workers/*`, `@shared/*`, `@preload/*` (defined in `tsconfig.json`, mirrored in each Vite config).
+- **Preload bridge**: `window.datspace` exposed via `contextBridge` with namespaces: `query`, `catalog`, `lifecycle`. Types in `src/preload/api.ts` and `src/shared/types.ts`.
+- **Dexie.js in Renderer**: 9 tables (`tabs`, `queries`, `catalog_entries`, `column_schemas`, `query_history`, `preferences`, `worker_health`, `recovery_log`, `app_state`). Reactive hooks via `dexie-react-hooks` in `src/renderer/stores/hooks.ts`.
+- **Error taxonomy**: `src/shared/errors.ts` — E1xxx (database), E6xxx (system). `DatspaceError.toIPCError()` for safe serialization across process boundaries.
+- **Startup sequence** (8 steps in `lifecycle.ts`): config → IPC handlers → spawn Worker → create QueryRouter → create BrowserWindow → setup MessagePort → wait renderer ready → start health monitoring.
 
 ## Code Style
 
-TypeScript: Follow standard conventions
-- Arrow IPC for all data-plane transfers (Constitution Principle I)
-- No JSON serialization in data-plane hot paths
-- Process isolation: Main owns lifecycle, Workers own databases, Renderer owns UI
-- Dexie.js runs in Renderer (documented Principle IV deviation)
+- **Arrow IPC for all data-plane transfers** — no JSON serialization in data hot paths (Constitution Principle I).
+- **Process isolation**: Main owns lifecycle/routing, Workers own databases, Renderer owns UI. Main must NOT relay data-plane buffers after MessagePort setup.
+- DuckDB `@duckdb/node-api` (Neo client) — does NOT have `estimated_size` in `information_schema.tables`.
+- Worker error responses (`type: 'error'`) must be handled by all QueryRouter promise-based handlers, not just the expected response type.
+- All shared types in `src/shared/types.ts`, all shared constants in `src/shared/constants.ts`.
 
-## Recent Changes
+## Testing
 
-- 001-electron-foundation: Added TypeScript 5.4+ + Electron v33+ + DuckDB + Arrow IPC + React + Dexie.js
+- **Vitest** for unit/integration (runs in Node environment). Config: `vitest.config.ts`.
+- Tests mirror source structure: `tests/unit/main/`, `tests/unit/renderer/`, `tests/unit/workers/`, `tests/unit/shared/`, `tests/unit/preload/`.
+- Renderer tests use `fake-indexeddb` for Dexie.js, `jsdom` for DOM, `@testing-library/react` for components.
+- **Playwright** for e2e tests in `tests/e2e/`.
 
-<!-- MANUAL ADDITIONS START -->
-<!-- MANUAL ADDITIONS END -->
+## Specs
+
+Feature specifications live in `specs/{feature-id}/` with `spec.md`, `plan.md`, `tasks.md`, and contracts. Constitution at `.specify/memory/constitution.md`.

@@ -34,7 +34,7 @@ Phase 1 does **not** include LanceDB, vector search, embeddings, remote connecto
 | `temp_directory` | `~/Library/Application Support/Datspace/tmp/` | Derived from app data path | Spill-to-disk location for large intermediate results |
 | `access_mode` | `READ_WRITE` | Fixed | MVCC: multiple concurrent readers, single writer |
 
-DuckDB extensions loaded at startup: `parquet`, `json`, `httpfs`, `icu`. Extensions are bundled in `resources/duckdb-extensions/` and pinned to the DuckDB version.
+DuckDB extensions loaded at startup: `parquet`, `json`, `icu`. Extensions are bundled in `resources/duckdb-extensions/` and pinned to the DuckDB version. (`httpfs` is deferred to Phase 3 when remote connectors are in scope.)
 
 ### System Catalog (information_schema)
 

@@ -41,7 +41,7 @@ An analyst opens a query editor tab and types a SQL query against a pre-register
 2. **Given** a table with 1 million rows is registered in the system, **When** the user executes `SELECT * FROM large_table`, **Then** the first rows appear within 1 second and the grid supports virtual scrolling through the full result set without loading all rows into memory.
 3. **Given** a query is running that takes more than 2 seconds, **When** the user clicks a cancel button, **Then** the query stops and a cancellation confirmation appears.
 4. **Given** the user writes a query with a SQL syntax error, **When** they execute the query, **Then** a clear, human-readable error message appears indicating the nature of the syntax problem.
-5. **Given** the user executes a query with parameter placeholders, **When** they provide parameter values, **Then** the query executes with proper parameter binding and returns correct results.
+5. **Given** the user writes SQL with `$1`, `$2` parameter placeholders, **When** the query is executed programmatically with parameter values (via the `window.datspace.query.execute(sql, params)` API), **Then** the query executes with proper parameter binding and returns correct results. *(Note: An interactive parameter input UI is deferred; Phase 1 supports parameters via the API only.)*
 
 ---
 
@@ -183,13 +183,13 @@ An analyst wants to work with multiple queries simultaneously. They can open new
 - AI / Claude Agent SDK integration (deferred: Phase 5)
 - Publishing / export pipeline (deferred: Phase 6)
 - Cross-platform support (deferred: Phase 7)
+- Settings tab content/UI (deferred: settings tab type is declared in the schema but the settings panel UI is deferred to Phase 2 when configuration options become meaningful)
 
 ## Dependencies
 
-- **Electron v28+**: Application runtime providing Chromium + Node.js
+- **Electron v33+**: Application runtime providing Chromium + Node.js (v33+ required for Node-API v9 compatibility with @duckdb/node-api prebuilt binaries; v28 is EOL -- see research.md RQ-3)
 - **DuckDB native addon**: Analytical SQL engine with Arrow output support
-- **Apache Arrow JS**: Arrow IPC deserialization in the Renderer
+- **@uwdata/flechette ^2.3.0**: Arrow IPC deserialization in the Renderer (4x smaller, 1.3-5.4x faster than apache-arrow; recommended by DuckDB team -- see research.md RQ-2)
 - **Dexie.js + dexie-react-hooks**: Reactive IndexedDB state management
 - **React**: UI component framework
-- **@electron/rebuild**: Native addon compilation for Electron's Node.js version
 - **datspace Constitution v1.0.0**: Governance document defining immutable architectural principles (Arrow-first, embedded-only, process isolation, stream-and-scan, macOS-first, single-user local-first)

@@ -335,7 +335,7 @@ const unsub = window.datspace.lifecycle.onWorkerHealth((health) => {
 
 ---
 
-### `catalog:list`
+### `query:listTables`
 
 List all registered tables and views in DuckDB's catalog.
 
@@ -406,7 +406,7 @@ const entries = await window.datspace.catalog.listTables();
 
 ---
 
-### `catalog:describe`
+### `query:describeTable`
 
 Get detailed column schema for a specific table.
 

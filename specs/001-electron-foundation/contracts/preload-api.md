@@ -17,11 +17,11 @@ Phase 1 exposes three namespaces: `query`, `catalog`, and `lifecycle`. Additiona
 | Property | Value |
 |----------|-------|
 | `contextIsolation` | `true` |
-| `sandbox` | `true` |
+| `sandbox` | `false` |
 | `nodeIntegration` | `false` |
 | `webSecurity` | `true` |
 
-The Renderer cannot access `require`, `process`, `Buffer`, `fs`, or any Node.js APIs. All system access flows through the preload bridge methods, which internally use `ipcRenderer.invoke()` for request-response and `ipcRenderer.on()` for push events.
+The Renderer cannot access `require`, `process`, `Buffer`, `fs`, or any Node.js APIs. The preload script runs with `sandbox: false` so it can use `ipcRenderer` and `contextBridge`, but `contextIsolation: true` ensures the Renderer's JavaScript context is fully isolated from the preload. All system access flows through the preload bridge methods exposed via `contextBridge.exposeInMainWorld()`.
 
 ---
 

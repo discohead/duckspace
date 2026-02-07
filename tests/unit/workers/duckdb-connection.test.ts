@@ -1,0 +1,335 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// --------------------------------------------------------------------------
+// Mock @duckdb/node-api
+// --------------------------------------------------------------------------
+const mockRun = vi.fn().mockResolvedValue({
+  getRows: vi.fn().mockResolvedValue([]),
+});
+const mockConnect = vi.fn().mockResolvedValue({
+  run: mockRun,
+});
+const mockCreate = vi.fn().mockResolvedValue({
+  connect: mockConnect,
+});
+
+vi.mock('@duckdb/node-api', () => ({
+  DuckDBInstance: {
+    create: mockCreate,
+  },
+}));
+
+// --------------------------------------------------------------------------
+// Helpers
+// --------------------------------------------------------------------------
+function baseConfig() {
+  return {
+    dbPath: '/tmp/test.duckdb',
+    memoryLimit: '256MB',
+    threads: 2,
+    tempDirectory: '/tmp/duckdb-temp',
+    extensions: ['parquet', 'json'],
+  };
+}
+
+// --------------------------------------------------------------------------
+// Tests
+// --------------------------------------------------------------------------
+describe('duckdb-connection', () => {
+  let mod: typeof import('@workers/duckdb-connection');
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+
+    // Reset mock implementations to defaults after clearAllMocks
+    mockRun.mockResolvedValue({
+      getRows: vi.fn().mockResolvedValue([]),
+    });
+    mockConnect.mockResolvedValue({
+      run: mockRun,
+    });
+    mockCreate.mockResolvedValue({
+      connect: mockConnect,
+    });
+
+    mod = await import('@workers/duckdb-connection');
+  });
+
+  // ========================================================================
+  // initDuckDB
+  // ========================================================================
+
+  describe('initDuckDB', () => {
+    it('creates DuckDB instance with correct config', async () => {
+      const config = baseConfig();
+      await mod.initDuckDB(config);
+
+      expect(mockCreate).toHaveBeenCalledWith(config.dbPath, {
+        access_mode: 'READ_WRITE',
+        memory_limit: config.memoryLimit,
+        threads: String(config.threads),
+        temp_directory: config.tempDirectory,
+      });
+    });
+
+    it('connects to the created instance', async () => {
+      await mod.initDuckDB(baseConfig());
+
+      expect(mockConnect).toHaveBeenCalledOnce();
+    });
+
+    it('loads all configured extensions', async () => {
+      const config = baseConfig();
+      config.extensions = ['parquet', 'json', 'icu'];
+
+      await mod.initDuckDB(config);
+
+      expect(mockRun).toHaveBeenCalledWith('LOAD parquet');
+      expect(mockRun).toHaveBeenCalledWith('LOAD json');
+      expect(mockRun).toHaveBeenCalledWith('LOAD icu');
+    });
+
+    it('creates _query_history system table', async () => {
+      await mod.initDuckDB(baseConfig());
+
+      const runCalls = mockRun.mock.calls.map((c: any[]) => c[0] as string);
+      const createQueryHistory = runCalls.find(
+        (sql: string) => sql.includes('CREATE TABLE IF NOT EXISTS _query_history'),
+      );
+      expect(createQueryHistory).toBeDefined();
+      expect(createQueryHistory).toContain('query_id');
+      expect(createQueryHistory).toContain('sql');
+      expect(createQueryHistory).toContain('execution_time_ms');
+    });
+
+    it('creates _schema_version system table', async () => {
+      await mod.initDuckDB(baseConfig());
+
+      const runCalls = mockRun.mock.calls.map((c: any[]) => c[0] as string);
+      const createSchemaVersion = runCalls.find(
+        (sql: string) => sql.includes('CREATE TABLE IF NOT EXISTS _schema_version'),
+      );
+      expect(createSchemaVersion).toBeDefined();
+      expect(createSchemaVersion).toContain('version');
+      expect(createSchemaVersion).toContain('applied_at');
+    });
+
+    it('creates index on _query_history timestamp', async () => {
+      await mod.initDuckDB(baseConfig());
+
+      const runCalls = mockRun.mock.calls.map((c: any[]) => c[0] as string);
+      const createIndex = runCalls.find(
+        (sql: string) => sql.includes('CREATE INDEX IF NOT EXISTS idx_qh_timestamp'),
+      );
+      expect(createIndex).toBeDefined();
+    });
+
+    it('inserts initial schema version', async () => {
+      await mod.initDuckDB(baseConfig());
+
+      const runCalls = mockRun.mock.calls.map((c: any[]) => c[0] as string);
+      const insertVersion = runCalls.find(
+        (sql: string) => sql.includes("INSERT OR IGNORE INTO _schema_version"),
+      );
+      expect(insertVersion).toBeDefined();
+      expect(insertVersion).toContain('1.0.0');
+    });
+
+    it('sets extension_directory when provided', async () => {
+      const config = {
+        ...baseConfig(),
+        extensionDirectory: '/app/extensions',
+      };
+
+      await mod.initDuckDB(config);
+
+      expect(mockRun).toHaveBeenCalledWith(
+        "SET extension_directory = '/app/extensions'",
+      );
+    });
+
+    it('does not set extension_directory when not provided', async () => {
+      const config = baseConfig();
+      await mod.initDuckDB(config);
+
+      const runCalls = mockRun.mock.calls.map((c: any[]) => c[0] as string);
+      const setExtDir = runCalls.find(
+        (sql: string) => sql.includes('SET extension_directory'),
+      );
+      expect(setExtDir).toBeUndefined();
+    });
+
+    it('loads extensions with empty array', async () => {
+      const config = { ...baseConfig(), extensions: [] };
+      await mod.initDuckDB(config);
+
+      const runCalls = mockRun.mock.calls.map((c: any[]) => c[0] as string);
+      const loadCalls = runCalls.filter(
+        (sql: string) => sql.startsWith('LOAD '),
+      );
+      expect(loadCalls).toHaveLength(0);
+    });
+  });
+
+  // ========================================================================
+  // getConnection / getInstance
+  // ========================================================================
+
+  describe('getConnection', () => {
+    it('throws when not initialized', () => {
+      expect(() => mod.getConnection()).toThrow('DuckDB not initialized');
+    });
+
+    it('returns connection after init', async () => {
+      await mod.initDuckDB(baseConfig());
+      const conn = mod.getConnection();
+
+      expect(conn).toBeDefined();
+      expect(conn.run).toBeTypeOf('function');
+    });
+  });
+
+  describe('getInstance', () => {
+    it('throws when not initialized', () => {
+      expect(() => mod.getInstance()).toThrow('DuckDB not initialized');
+    });
+
+    it('returns instance after init', async () => {
+      await mod.initDuckDB(baseConfig());
+      const instance = mod.getInstance();
+
+      expect(instance).toBeDefined();
+      expect(instance.connect).toBeTypeOf('function');
+    });
+  });
+
+  // ========================================================================
+  // runIntegrityCheck
+  // ========================================================================
+
+  describe('runIntegrityCheck', () => {
+    it('throws when not initialized', async () => {
+      await expect(mod.runIntegrityCheck()).rejects.toThrow('DuckDB not initialized');
+    });
+
+    it('returns true when PRAGMA returns "ok"', async () => {
+      // Mock the integrity check result
+      mockRun.mockResolvedValueOnce({
+        getRows: vi.fn().mockResolvedValue([]),
+      });
+      await mod.initDuckDB(baseConfig());
+
+      // After init, setup the integrity check mock
+      mockRun.mockResolvedValueOnce({
+        getRows: vi.fn().mockResolvedValue([['ok']]),
+      });
+
+      const result = await mod.runIntegrityCheck();
+      expect(result).toBe(true);
+    });
+
+    it('returns false when PRAGMA returns non-ok', async () => {
+      await mod.initDuckDB(baseConfig());
+
+      mockRun.mockResolvedValueOnce({
+        getRows: vi.fn().mockResolvedValue([['damaged']]),
+      });
+
+      const result = await mod.runIntegrityCheck();
+      expect(result).toBe(false);
+    });
+
+    it('returns false when PRAGMA throws', async () => {
+      await mod.initDuckDB(baseConfig());
+
+      mockRun.mockRejectedValueOnce(new Error('database corrupted'));
+
+      const result = await mod.runIntegrityCheck();
+      expect(result).toBe(false);
+    });
+
+    it('returns false when PRAGMA returns empty rows', async () => {
+      await mod.initDuckDB(baseConfig());
+
+      mockRun.mockResolvedValueOnce({
+        getRows: vi.fn().mockResolvedValue([]),
+      });
+
+      const result = await mod.runIntegrityCheck();
+      expect(result).toBe(false);
+    });
+  });
+
+  // ========================================================================
+  // checkpoint
+  // ========================================================================
+
+  describe('checkpoint', () => {
+    it('runs CHECKPOINT when connection exists', async () => {
+      await mod.initDuckDB(baseConfig());
+      mockRun.mockClear();
+
+      await mod.checkpoint();
+
+      expect(mockRun).toHaveBeenCalledWith('CHECKPOINT');
+    });
+
+    it('does not throw when connection is null', async () => {
+      // No init, connection is null
+      await expect(mod.checkpoint()).resolves.toBeUndefined();
+    });
+
+    it('does not throw when CHECKPOINT fails (best effort)', async () => {
+      await mod.initDuckDB(baseConfig());
+      mockRun.mockRejectedValueOnce(new Error('IO error'));
+
+      await expect(mod.checkpoint()).resolves.toBeUndefined();
+    });
+  });
+
+  // ========================================================================
+  // closeDuckDB
+  // ========================================================================
+
+  describe('closeDuckDB', () => {
+    it('checkpoints then nulls references', async () => {
+      await mod.initDuckDB(baseConfig());
+      mockRun.mockClear();
+
+      await mod.closeDuckDB();
+
+      // Should have called CHECKPOINT
+      expect(mockRun).toHaveBeenCalledWith('CHECKPOINT');
+
+      // After close, getConnection/getInstance should throw
+      expect(() => mod.getConnection()).toThrow('DuckDB not initialized');
+      expect(() => mod.getInstance()).toThrow('DuckDB not initialized');
+    });
+
+    it('does not throw when already closed', async () => {
+      await expect(mod.closeDuckDB()).resolves.toBeUndefined();
+    });
+
+    it('handles checkpoint failure during close gracefully', async () => {
+      await mod.initDuckDB(baseConfig());
+      mockRun.mockRejectedValueOnce(new Error('CHECKPOINT failed'));
+
+      // closeDuckDB should still complete even if checkpoint fails
+      await expect(mod.closeDuckDB()).resolves.toBeUndefined();
+
+      // References should still be nulled
+      expect(() => mod.getConnection()).toThrow('DuckDB not initialized');
+      expect(() => mod.getInstance()).toThrow('DuckDB not initialized');
+    });
+
+    it('can re-initialize after close', async () => {
+      await mod.initDuckDB(baseConfig());
+      await mod.closeDuckDB();
+
+      // Re-init
+      await mod.initDuckDB(baseConfig());
+      expect(() => mod.getConnection()).not.toThrow();
+    });
+  });
+});

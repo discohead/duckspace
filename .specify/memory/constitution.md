@@ -26,6 +26,11 @@
     - .specify/templates/checklist-template.md ✅ compatible (generic template)
 
   Deferred items: None
+
+  Amendment 1.0.1 (2026-02-05):
+    - Replaced apache-arrow JS (~500 KB) with @uwdata/flechette (~38 KB) in bundle budget
+    - Flechette is the Arrow IPC decoder selected per research.md RQ-2
+    - Arquero budget separated from Flechette for clarity
 -->
 
 # datspace Constitution
@@ -233,9 +238,9 @@ budgets:
 | Transformers.js + ONNX model | ~31 MB |
 | ECharts (tree-shaken + gl) | ~500 KB |
 | Observable Plot | ~150 KB |
-| Arquero (incl. Flechette) | ~150 KB |
+| Arquero | ~115 KB |
+| @uwdata/flechette (Arrow IPC decoder) | ~38 KB |
 | Dexie.js + React hooks | ~83 KB |
-| apache-arrow JS | ~500 KB |
 
 ### Storage Locations
 
@@ -337,4 +342,4 @@ a principle defined here, this constitution prevails.
 - Runtime guidance for development is anchored in the design documentation
   corpus at `context/artifacts/`.
 
-**Version**: 1.0.0 | **Ratified**: 2026-02-05 | **Last Amended**: 2026-02-05
+**Version**: 1.0.1 | **Ratified**: 2026-02-05 | **Last Amended**: 2026-02-05
