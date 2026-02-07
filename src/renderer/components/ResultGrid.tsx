@@ -42,7 +42,9 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
 
       if (detail.batch.isLast || detail.batch.buffer.byteLength === 0) return;
       const decoded = decodeArrowBatch(detail.batch.buffer);
-      setBatches((prev) => [...prev, decoded]);
+      if (decoded) {
+        setBatches((prev) => [...prev, decoded]);
+      }
     };
 
     window.addEventListener('datspace:arrow-batch', handler);

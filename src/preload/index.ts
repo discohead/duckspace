@@ -79,12 +79,14 @@ ipcRenderer.on(PUSH_EVENTS.PORT, (event: IpcRendererEvent, payload: { channel: s
         // msg.type === 'arrow-error'
         const callbacks = dataCallbacks.get(msg.queryId);
         if (callbacks) {
+          const errorMsg = msg as DataPlaneError;
           const batch: ArrowBatch = {
             buffer: new ArrayBuffer(0),
             index: 0,
             rowCount: 0,
             byteSize: 0,
             isLast: true,
+            error: { code: errorMsg.code, message: errorMsg.message },
           };
           for (const cb of callbacks) cb(batch);
         }

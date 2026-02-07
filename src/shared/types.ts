@@ -246,6 +246,7 @@ export interface WorkerReadyMessage {
         duckdbVersion?: string | undefined;
         extensionsLoaded?: string[] | undefined;
         tableCount?: number | undefined;
+        integrityOk?: boolean | undefined;
       }
     | undefined;
 }
@@ -309,21 +310,13 @@ export interface HeartbeatAck {
     | undefined;
 }
 
-/** Union of all worker control messages flowing over parentPort */
+/**
+ * Union of all worker control messages flowing over parentPort.
+ * Derived from Zod schemas to stay in sync (see worker-schemas.ts).
+ */
 export type WorkerMessage =
-  | WorkerQueryRequest
-  | WorkerCancelRequest
-  | WorkerGetTableInfoRequest
-  | WorkerGetTableInfoResponse
-  | WorkerCatalogUpdate
-  | WorkerReadyMessage
-  | ShutdownRequest
-  | ShutdownComplete
-  | WorkerConfigUpdate
-  | WorkerHealthCheck
-  | WorkerHealthResponse
-  | HeartbeatRequest
-  | HeartbeatAck;
+  | import('@shared/schemas/worker-schemas').WorkerInboundMessage
+  | import('@shared/schemas/worker-schemas').WorkerOutboundMessage;
 
 // ============================================================
 // 4. Entity Types (Dexie.js Collections)
@@ -574,6 +567,8 @@ export interface ArrowBatch {
   byteSize: number;
   /** Whether this is the last batch */
   isLast: boolean;
+  /** Error details when batch represents a data-plane error */
+  error?: { code: string; message: string } | undefined;
 }
 
 /** Worker health status pushed from Main Process to Renderer */

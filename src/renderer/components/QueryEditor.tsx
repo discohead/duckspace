@@ -1,11 +1,8 @@
 import type { ArrowBatch, QueryStatusEvent, QueryTabState, Tab } from '@shared/types';
 import type { ReactElement } from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { db } from '../stores/db';
 import { useActiveTab } from '../stores/hooks';
-
-/** Debounce timer ref for saving SQL to Dexie. */
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * SQL query editor with execution controls and status display.
@@ -20,6 +17,7 @@ export function QueryEditor(): ReactElement {
   const [status, setStatus] = useState<QueryStatusEvent | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync SQL from active tab state when tab changes
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-sync on tab id/state change, not type
@@ -34,8 +32,8 @@ export function QueryEditor(): ReactElement {
   // Debounce-save SQL to Dexie when local state changes
   const debounceSaveSql = useCallback(
     (value: string) => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
         if (activeTab) {
           void db.tabs.update(activeTab.id, {
             'state.sql': value,
@@ -49,7 +47,7 @@ export function QueryEditor(): ReactElement {
   // Clean up debounce timer on unmount
   useEffect(() => {
     return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
   }, []);
 

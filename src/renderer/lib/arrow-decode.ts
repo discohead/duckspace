@@ -24,34 +24,39 @@ export interface DecodedBatch {
  * Decodes an Arrow IPC buffer into a {@link DecodedBatch} with column names, types, and cell accessors.
  *
  * @param buffer - The raw Arrow IPC ArrayBuffer received from the data plane.
- * @returns A decoded batch object with metadata and data access methods.
+ * @returns A decoded batch object with metadata and data access methods, or `null` if decoding fails.
  */
-export function decodeArrowBatch(buffer: ArrayBuffer): DecodedBatch {
-  const table = tableFromIPC(buffer);
+export function decodeArrowBatch(buffer: ArrayBuffer): DecodedBatch | null {
+  try {
+    const table = tableFromIPC(buffer);
 
-  const columns = table.schema.fields.map((f: Field) => f.name);
-  // eslint-disable-next-line @typescript-eslint/no-base-to-string
-  const columnTypes = table.schema.fields.map((f: Field) => String(f.type));
-  const rowCount = table.numRows;
+    const columns = table.schema.fields.map((f: Field) => f.name);
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string
+    const columnTypes = table.schema.fields.map((f: Field) => String(f.type));
+    const rowCount = table.numRows;
 
-  return {
-    columns,
-    rowCount,
-    byteSize: buffer.byteLength,
-    columnTypes,
-    getColumn(name: string): unknown[] | null {
-      const col = table.getChild(name);
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- getChild returns null for missing columns
-      if (!col) return null;
-      return Array.from(col.toArray()) as unknown[];
-    },
-    getCell(rowIndex: number, colIndex: number): unknown {
-      const col = table.getChildAt(colIndex);
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- getChildAt returns null for out-of-bounds
-      if (!col) return null;
-      return col.at(rowIndex) as unknown;
-    },
-  };
+    return {
+      columns,
+      rowCount,
+      byteSize: buffer.byteLength,
+      columnTypes,
+      getColumn(name: string): unknown[] | null {
+        const col = table.getChild(name);
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- getChild returns null for missing columns
+        if (!col) return null;
+        return Array.from(col.toArray()) as unknown[];
+      },
+      getCell(rowIndex: number, colIndex: number): unknown {
+        const col = table.getChildAt(colIndex);
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- getChildAt returns null for out-of-bounds
+        if (!col) return null;
+        return col.at(rowIndex) as unknown;
+      },
+    };
+  } catch (err) {
+    console.error('Failed to decode Arrow IPC buffer:', err);
+    return null;
+  }
 }
 
 /**

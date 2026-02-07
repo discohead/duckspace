@@ -2,6 +2,7 @@ import type React from 'react';
 import type { ReactElement } from 'react';
 import { useCallback, useEffect } from 'react';
 import { CatalogBrowser } from './components/CatalogBrowser';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { QueryEditor } from './components/QueryEditor';
 import { ResultGrid } from './components/ResultGrid';
 import { StatusBar } from './components/StatusBar';
@@ -152,11 +153,13 @@ export function App(): ReactElement {
   };
 
   return (
-    <div style={styles.container}>
-      <TabBar />
-      <main style={styles.main}>{renderContent()}</main>
-      <StatusBar />
-    </div>
+    <ErrorBoundary>
+      <div style={styles.container}>
+        <TabBar />
+        <main style={styles.main}>{renderContent()}</main>
+        <StatusBar />
+      </div>
+    </ErrorBoundary>
   );
 }
 

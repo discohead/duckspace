@@ -31,32 +31,54 @@ describe('decodeArrowBatch', () => {
     const buffer = new ArrayBuffer(256);
     const batch = decodeArrowBatch(buffer);
 
-    expect(batch.columns).toEqual(['id', 'name']);
-    expect(batch.columnTypes).toEqual(['Int32', 'Utf8']);
-    expect(batch.rowCount).toBe(3);
-    expect(batch.byteSize).toBe(256);
+    expect(batch).not.toBeNull();
+    expect(batch!.columns).toEqual(['id', 'name']);
+    expect(batch!.columnTypes).toEqual(['Int32', 'Utf8']);
+    expect(batch!.rowCount).toBe(3);
+    expect(batch!.byteSize).toBe(256);
   });
 
   it('getColumn returns values for existing column', () => {
     const batch = decodeArrowBatch(new ArrayBuffer(100));
-    expect(batch.getColumn('id')).toEqual([1, 2, 3]);
-    expect(batch.getColumn('name')).toEqual(['a', 'b', 'c']);
+    expect(batch).not.toBeNull();
+    expect(batch!.getColumn('id')).toEqual([1, 2, 3]);
+    expect(batch!.getColumn('name')).toEqual(['a', 'b', 'c']);
   });
 
   it('getColumn returns null for missing column', () => {
     const batch = decodeArrowBatch(new ArrayBuffer(100));
-    expect(batch.getColumn('nonexistent')).toBeNull();
+    expect(batch).not.toBeNull();
+    expect(batch!.getColumn('nonexistent')).toBeNull();
   });
 
   it('getCell returns value at row/col', () => {
     const batch = decodeArrowBatch(new ArrayBuffer(100));
-    expect(batch.getCell(0, 0)).toBe(1);
-    expect(batch.getCell(2, 1)).toBe('c');
+    expect(batch).not.toBeNull();
+    expect(batch!.getCell(0, 0)).toBe(1);
+    expect(batch!.getCell(2, 1)).toBe('c');
   });
 
   it('getCell returns null for out-of-bounds column', () => {
     const batch = decodeArrowBatch(new ArrayBuffer(100));
-    expect(batch.getCell(0, 99)).toBeNull();
+    expect(batch).not.toBeNull();
+    expect(batch!.getCell(0, 99)).toBeNull();
+  });
+
+  // I10: returns null on corrupt buffer
+  it('returns null when tableFromIPC throws', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { tableFromIPC } = await import('@uwdata/flechette');
+    vi.mocked(tableFromIPC).mockImplementationOnce(() => {
+      throw new Error('Invalid Arrow IPC stream');
+    });
+
+    const result = decodeArrowBatch(new ArrayBuffer(4));
+    expect(result).toBeNull();
+    expect(consoleSpy).toHaveBeenCalledWith(
+      'Failed to decode Arrow IPC buffer:',
+      expect.any(Error),
+    );
+    consoleSpy.mockRestore();
   });
 });
 

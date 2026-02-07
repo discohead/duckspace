@@ -729,7 +729,7 @@ describe('preload/index', () => {
     });
 
     describe('arrow-error messages', () => {
-      it('dispatches arrow-error with isLast=true and zero-filled batch', async () => {
+      it('dispatches arrow-error with isLast=true, zero-filled batch, and error details', async () => {
         const electron = await loadPreload();
         const { api } = getExposedApi(electron);
 
@@ -757,6 +757,35 @@ describe('preload/index', () => {
         expect(batch.rowCount).toBe(0);
         expect(batch.byteSize).toBe(0);
         expect(batch.isLast).toBe(true);
+        // I9: error details are propagated
+        expect(batch.error).toEqual({ code: 'E1001', message: 'syntax error' });
+      });
+
+      it('non-error batches have no error field', async () => {
+        const electron = await loadPreload();
+        const { api } = getExposedApi(electron);
+
+        const callback = vi.fn();
+        api.query.onData('q1', callback);
+
+        const port = createMockMessagePort();
+        const portHandler = handlers.get(PUSH_EVENTS.PORT);
+        portHandler?.({ ports: [port] }, { channel: 'duckdb-data' });
+
+        port.onmessage?.({
+          data: {
+            type: 'arrow-batch',
+            queryId: 'q1',
+            index: 0,
+            rowCount: 10,
+            byteSize: 100,
+            buffer: new ArrayBuffer(100),
+          },
+        } as MessageEvent);
+
+        expect(callback).toHaveBeenCalledOnce();
+        const batch = callback.mock.calls[0]![0];
+        expect(batch.error).toBeUndefined();
       });
 
       it('does not dispatch when no callbacks for queryId', async () => {
