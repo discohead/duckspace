@@ -5,7 +5,7 @@ import tsdoc from 'eslint-plugin-tsdoc';
 
 export default tseslint.config(
   // Global ignores
-  { ignores: ['node_modules', 'dist', '.vite', 'coverage', '*.config.*', 'forge.config.ts'] },
+  { ignores: ['node_modules', 'dist', '.vite', 'coverage', '*.config.*', 'forge.config.ts', '.claude'] },
 
   // Base JS rules
   js.configs.recommended,
