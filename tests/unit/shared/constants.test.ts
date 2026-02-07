@@ -1,18 +1,18 @@
-import { describe, it, expect } from 'vitest';
 import {
-  IPC_CHANNELS,
-  PUSH_EVENTS,
-  DATA_CHANNELS,
-  TIMEOUTS,
+  APP_NAME,
   BACKPRESSURE,
-  HEALTH_CHECK,
+  DATA_CHANNELS,
   DEFAULT_CONFIG,
   DEFAULT_PREFERENCES,
-  WORKER_V8_HEAP_LIMIT_MB,
-  APP_NAME,
   DEXIE_DB_NAME,
   DEXIE_SCHEMA_VERSION,
+  HEALTH_CHECK,
+  IPC_CHANNELS,
+  PUSH_EVENTS,
+  TIMEOUTS,
+  WORKER_V8_HEAP_LIMIT_MB,
 } from '@shared/constants';
+import { describe, expect, it } from 'vitest';
 
 describe('IPC_CHANNELS', () => {
   it('defines all required query channels', () => {

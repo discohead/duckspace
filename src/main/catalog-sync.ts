@@ -1,7 +1,6 @@
+import type { Worker } from 'node:worker_threads';
+import type { CatalogEntry, WorkerCatalogUpdate } from '@shared/types';
 import type { BrowserWindow } from 'electron';
-import type { Worker } from 'worker_threads';
-import type { CatalogEntry, ColumnSchema } from '@shared/types';
-import { PUSH_EVENTS } from '@shared/constants';
 
 /**
  * CatalogSyncBridge: pushes catalog updates from Worker to Renderer via Dexie.js.
@@ -11,10 +10,20 @@ export class CatalogSyncBridge {
   private mainWindow: BrowserWindow | null = null;
   private worker: Worker | null = null;
 
+  /**
+   * Sets the main window reference for forwarding catalog updates to the renderer.
+   *
+   * @param win - The main BrowserWindow instance.
+   */
   setMainWindow(win: BrowserWindow): void {
     this.mainWindow = win;
   }
 
+  /**
+   * Attaches a worker thread and begins listening for catalog_update messages.
+   *
+   * @param worker - The DuckDB worker thread to listen to.
+   */
   setWorker(worker: Worker): void {
     this.worker = worker;
     this.setupWorkerListener();
@@ -24,35 +33,37 @@ export class CatalogSyncBridge {
     if (!this.worker) return;
 
     this.worker.on('message', (msg: Record<string, unknown>) => {
-      if (msg.type === 'catalog_update') {
-        this.pushCatalogUpdate(msg);
+      if (msg['type'] === 'catalog_update') {
+        this.pushCatalogUpdate(msg as unknown as WorkerCatalogUpdate);
       }
     });
   }
 
-  private pushCatalogUpdate(msg: Record<string, unknown>): void {
+  private pushCatalogUpdate(msg: WorkerCatalogUpdate): void {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
 
+    /* eslint-disable @typescript-eslint/no-unnecessary-condition -- defensive: worker messages may omit optional fields at runtime */
     const entry: CatalogEntry = {
-      id: `catalog-${msg.table as string}`,
-      name: msg.table as string,
+      id: `catalog-${msg.table}`,
+      name: msg.table,
       schema: 'main',
-      type: (msg.registrationType as 'table' | 'view') ?? 'table',
+      type: msg.registrationType ?? 'table',
       status: 'active',
-      rowCount: (msg.rowCount as number) ?? 0,
-      sizeBytes: (msg.sizeBytes as number) ?? 0,
-      columnCount: ((msg.columns as ColumnSchema[]) ?? []).length,
+      rowCount: msg.rowCount ?? 0,
+      sizeBytes: msg.sizeBytes ?? 0,
+      columnCount: (msg.columns ?? []).length,
       registeredAt: new Date().toISOString(),
     };
+    /* eslint-enable @typescript-eslint/no-unnecessary-condition */
 
     this.mainWindow.webContents.send('catalog:update', {
       entry,
-      columns: (msg.columns as ColumnSchema[]) ?? [],
+      columns: msg.columns,
     });
   }
 
   /** Trigger a full catalog refresh by querying the Worker */
-  async refreshCatalog(): Promise<void> {
+  refreshCatalog(): void {
     if (!this.worker) return;
     this.worker.postMessage({ type: 'list_tables' });
   }

@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { QueryRouter } from '@main/query-router';
 import { ERROR_CODES } from '@shared/errors';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock crypto.randomUUID
 vi.mock('crypto', () => ({
@@ -13,14 +13,16 @@ function createMockWorker() {
     postMessage: vi.fn(),
     on: vi.fn((event: string, handler: (...args: any[]) => void) => {
       if (!listeners.has(event)) listeners.set(event, new Set());
-      listeners.get(event)!.add(handler);
+      listeners.get(event)?.add(handler);
     }),
     removeListener: vi.fn((event: string, handler: (...args: any[]) => void) => {
       listeners.get(event)?.delete(handler);
     }),
     // Helper to simulate worker messages
     _emit(event: string, ...args: any[]) {
-      listeners.get(event)?.forEach((h) => h(...args));
+      listeners.get(event)?.forEach((h) => {
+        h(...args);
+      });
     },
     _listeners: listeners,
   };
@@ -148,7 +150,17 @@ describe('QueryRouter', () => {
   describe('listTables', () => {
     it('resolves with table list from worker', async () => {
       const tables = [
-        { id: '1', name: 'users', schema: 'main', type: 'table' as const, status: 'active' as const, rowCount: 100, sizeBytes: 1024, columnCount: 3, registeredAt: '' },
+        {
+          id: '1',
+          name: 'users',
+          schema: 'main',
+          type: 'table' as const,
+          status: 'active' as const,
+          rowCount: 100,
+          sizeBytes: 1024,
+          columnCount: 3,
+          registeredAt: '',
+        },
       ];
 
       const promise = router.listTables();
@@ -180,8 +192,20 @@ describe('QueryRouter', () => {
   describe('describeTable', () => {
     it('resolves with column schemas', async () => {
       const columns = [
-        { name: 'id', duckdbType: 'INTEGER', arrowType: 'Int32', nullable: false, ordinalPosition: 0 },
-        { name: 'name', duckdbType: 'VARCHAR', arrowType: 'Utf8', nullable: true, ordinalPosition: 1 },
+        {
+          name: 'id',
+          duckdbType: 'INTEGER',
+          arrowType: 'Int32',
+          nullable: false,
+          ordinalPosition: 0,
+        },
+        {
+          name: 'name',
+          duckdbType: 'VARCHAR',
+          arrowType: 'Utf8',
+          nullable: true,
+          ordinalPosition: 1,
+        },
       ];
 
       const promise = router.describeTable('users');
@@ -203,7 +227,15 @@ describe('QueryRouter', () => {
       });
 
       // Then send correct table
-      const columns = [{ name: 'id', duckdbType: 'INTEGER', arrowType: 'Int32', nullable: false, ordinalPosition: 0 }];
+      const columns = [
+        {
+          name: 'id',
+          duckdbType: 'INTEGER',
+          arrowType: 'Int32',
+          nullable: false,
+          ordinalPosition: 0,
+        },
+      ];
       worker._emit('message', { type: 'table_info', tableName: 'users', columns });
 
       const result = await promise;
@@ -266,8 +298,8 @@ describe('QueryRouter', () => {
   describe('beginShutdown', () => {
     it('cancels all active queries', async () => {
       // Override randomUUID to return different IDs
-      const crypto = await import('crypto');
-      let callCount = 0;
+      const crypto = await import('node:crypto');
+      const _callCount = 0;
       vi.mocked(crypto.randomUUID)
         .mockImplementationOnce(() => 'q1' as any)
         .mockImplementationOnce(() => 'q2' as any);

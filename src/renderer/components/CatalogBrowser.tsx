@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { useCatalogEntries, useColumnSchemas } from '../stores/hooks';
 import type { CatalogEntry, ColumnSchemaRecord } from '@shared/types';
+import type React from 'react';
+import { useState } from 'react';
+import { useCatalogEntries, useColumnSchemas } from '../stores/hooks';
 
 /** Type badge color mapping */
 const typeBadgeStyles: Record<CatalogEntry['type'], React.CSSProperties> = {
@@ -25,11 +26,11 @@ const typeBadgeStyles: Record<CatalogEntry['type'], React.CSSProperties> = {
 };
 
 /** Inner component that renders column schemas for the selected entry */
-const ColumnSchemaTable: React.FC<{ entry: CatalogEntry }> = ({ entry }) => {
+const COLUMN_SCHEMA_TABLE: React.FC<{ entry: CatalogEntry }> = ({ entry }) => {
   const columns = useColumnSchemas(entry.id);
 
   const handlePreview = (): void => {
-    window.datspace.catalog.previewTable(entry.name);
+    void window.datspace.catalog.previewTable(entry.name);
   };
 
   return (
@@ -49,24 +50,22 @@ const ColumnSchemaTable: React.FC<{ entry: CatalogEntry }> = ({ entry }) => {
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
-            {['Column', 'DuckDB Type', 'Arrow Type', 'Nullable'].map(
-              (header) => (
-                <th
-                  key={header}
-                  style={{
-                    padding: '8px 12px',
-                    textAlign: 'left',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: '#6b7280',
-                    borderBottom: '2px solid #e5e7eb',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  {header}
-                </th>
-              ),
-            )}
+            {['Column', 'DuckDB Type', 'Arrow Type', 'Nullable'].map((header) => (
+              <th
+                key={header}
+                style={{
+                  padding: '8px 12px',
+                  textAlign: 'left',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#6b7280',
+                  borderBottom: '2px solid #e5e7eb',
+                  textTransform: 'uppercase',
+                }}
+              >
+                {header}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -134,6 +133,7 @@ const ColumnSchemaTable: React.FC<{ entry: CatalogEntry }> = ({ entry }) => {
       </table>
 
       <button
+        type="button"
         onClick={handlePreview}
         style={{
           padding: '6px 16px',
@@ -152,16 +152,19 @@ const ColumnSchemaTable: React.FC<{ entry: CatalogEntry }> = ({ entry }) => {
   );
 };
 
-const CatalogBrowser: React.FC = () => {
+/**
+ * Two-panel catalog browser that lists registered tables/views and displays column schemas.
+ * The left panel shows table names with type badges and row/column counts;
+ * the right panel renders a detailed column schema table for the selected entry.
+ */
+export const CatalogBrowser: React.FC = () => {
   const entries = useCatalogEntries();
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
 
-  const selectedEntry = entries?.find(
-    (e: CatalogEntry) => e.id === selectedEntryId,
-  );
+  const selectedEntry = entries?.find((e: CatalogEntry) => e.id === selectedEntryId);
 
   // Empty state: no tables registered
-  if (entries !== undefined && entries.length === 0) {
+  if (entries?.length === 0) {
     return (
       <div
         style={{
@@ -204,30 +207,30 @@ const CatalogBrowser: React.FC = () => {
         {entries?.map((entry: CatalogEntry) => {
           const isSelected = entry.id === selectedEntryId;
           return (
+            // biome-ignore lint/a11y/useSemanticElements: clickable list item with keyboard support
             <div
               key={entry.id}
-              onClick={() => setSelectedEntryId(entry.id)}
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                setSelectedEntryId(entry.id);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') setSelectedEntryId(entry.id);
+              }}
               style={{
                 padding: '10px 16px',
                 cursor: 'pointer',
                 borderBottom: '1px solid #f3f4f6',
                 backgroundColor: isSelected ? '#eff6ff' : undefined,
-                borderLeft: isSelected
-                  ? '3px solid #3b82f6'
-                  : '3px solid transparent',
+                borderLeft: isSelected ? '3px solid #3b82f6' : '3px solid transparent',
               }}
             >
-              <div
-                style={{ fontWeight: 500, fontSize: '13px', color: '#1f2937' }}
-              >
-                {entry.name}{' '}
-                <span style={typeBadgeStyles[entry.type]}>{entry.type}</span>
+              <div style={{ fontWeight: 500, fontSize: '13px', color: '#1f2937' }}>
+                {entry.name} <span style={typeBadgeStyles[entry.type]}>{entry.type}</span>
               </div>
-              <div
-                style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}
-              >
-                {entry.rowCount.toLocaleString()} rows &middot;{' '}
-                {entry.columnCount} columns
+              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
+                {entry.rowCount.toLocaleString()} rows &middot; {entry.columnCount} columns
               </div>
             </div>
           );
@@ -236,7 +239,7 @@ const CatalogBrowser: React.FC = () => {
 
       {/* Right panel - Table detail */}
       {selectedEntry ? (
-        <ColumnSchemaTable entry={selectedEntry} />
+        <COLUMN_SCHEMA_TABLE entry={selectedEntry} />
       ) : (
         <div
           style={{
@@ -254,5 +257,3 @@ const CatalogBrowser: React.FC = () => {
     </div>
   );
 };
-
-export default CatalogBrowser;

@@ -1,17 +1,17 @@
 import 'fake-indexeddb/auto';
-import Dexie from 'dexie';
 import { DatspaceDB } from '@renderer/stores/db';
 import type {
-  Tab,
-  Query,
+  AppStateEntry,
   CatalogEntry,
   ColumnSchemaRecord,
-  QueryHistoryRecord,
   Preference,
-  WorkerHealthRecord,
+  Query,
+  QueryHistoryRecord,
   RecoveryLogEntry,
-  AppStateEntry,
+  Tab,
+  WorkerHealthRecord,
 } from '@shared/types';
+import Dexie from 'dexie';
 
 let testDb: DatspaceDB;
 
@@ -142,7 +142,12 @@ describe('DatspaceDB', () => {
     });
 
     it('can query by status index', async () => {
-      const removed: CatalogEntry = { ...sampleEntry, id: 'cat-2', name: 'old_table', status: 'removed' };
+      const removed: CatalogEntry = {
+        ...sampleEntry,
+        id: 'cat-2',
+        name: 'old_table',
+        status: 'removed',
+      };
       await testDb.catalog_entries.bulkAdd([sampleEntry, removed]);
 
       const active = await testDb.catalog_entries.where('status').equals('active').toArray();
@@ -250,10 +255,7 @@ describe('DatspaceDB', () => {
         .toArray();
       expect(analyticsQueries).toHaveLength(2);
 
-      const favoriteQueries = await testDb.query_history
-        .where('tags')
-        .equals('favorite')
-        .toArray();
+      const favoriteQueries = await testDb.query_history.where('tags').equals('favorite').toArray();
       expect(favoriteQueries).toHaveLength(1);
       expect(favoriteQueries[0].id).toBe('qh-1');
     });

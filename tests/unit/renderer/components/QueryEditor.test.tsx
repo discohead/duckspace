@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
+
 import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockActiveTab = {
   id: 'tab-1',
@@ -20,7 +20,7 @@ vi.mock('@renderer/stores/hooks', () => ({
 }));
 
 vi.mock('@renderer/stores/db', () => ({
-  default: {
+  db: {
     tabs: { update: vi.fn().mockResolvedValue(1) },
     queries: {
       add: vi.fn().mockResolvedValue('q-1'),
@@ -29,7 +29,7 @@ vi.mock('@renderer/stores/db', () => ({
   },
 }));
 
-import QueryEditor from '@renderer/components/QueryEditor';
+import { QueryEditor } from '@renderer/components/QueryEditor';
 
 describe('QueryEditor', () => {
   beforeEach(() => {
@@ -138,7 +138,7 @@ describe('QueryEditor', () => {
   it('updates textarea value on change', async () => {
     const { fireEvent } = await import('@testing-library/react');
     render(<QueryEditor />);
-    const textarea = screen.getByPlaceholderText('Enter SQL query...') as HTMLTextAreaElement;
+    const textarea = screen.getByPlaceholderText('Enter SQL query...');
     fireEvent.change(textarea, { target: { value: 'SELECT * FROM products' } });
     expect(textarea.value).toBe('SELECT * FROM products');
   });
@@ -175,7 +175,7 @@ describe('QueryEditor', () => {
     });
 
     // Trigger a status update matching the current queryId
-    statusCallback!({
+    statusCallback?.({
       queryId: 'q-123',
       phase: 'scanning',
       elapsedMs: 150,

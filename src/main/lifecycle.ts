@@ -1,27 +1,27 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { PUSH_EVENTS, TIMEOUTS } from '@shared/constants';
 import { app, BrowserWindow } from 'electron';
-import fs from 'fs';
-import path from 'path';
 import {
-  loadConfig,
   computeMemoryLimit,
   computeThreadCount,
+  ensureDirectories,
   getDatabasePath,
   getTempDirectory,
-  ensureDirectories,
+  loadConfig,
 } from './config';
-import { WorkerManager } from './worker-manager';
-import { QueryRouter } from './query-router';
 import {
   registerIPCHandlers,
-  setQueryRouter,
-  setWorkerManager,
+  sendShutdownPrepare,
   setMainWindowRef,
+  setQueryRouter,
   setupDataChannel,
+  setWorkerManager,
   waitForRendererReady,
   waitForShutdownAck,
-  sendShutdownPrepare,
 } from './ipc-handlers';
-import { TIMEOUTS, PUSH_EVENTS } from '@shared/constants';
+import { QueryRouter } from './query-router';
+import { WorkerManager } from './worker-manager';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -30,14 +30,29 @@ let mainWindow: BrowserWindow | null = null;
 let workerManager: WorkerManager | null = null;
 let queryRouter: QueryRouter | null = null;
 
+/**
+ * Returns the current main BrowserWindow instance.
+ *
+ * @returns The main window, or null if not yet created or already closed.
+ */
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
 }
 
+/**
+ * Returns the current WorkerManager instance.
+ *
+ * @returns The worker manager, or null if not yet initialized.
+ */
 export function getWorkerManager(): WorkerManager | null {
   return workerManager;
 }
 
+/**
+ * Returns the current QueryRouter instance.
+ *
+ * @returns The query router, or null if not yet initialized.
+ */
 export function getQueryRouter(): QueryRouter | null {
   return queryRouter;
 }
@@ -46,7 +61,7 @@ export function getQueryRouter(): QueryRouter | null {
 let boundsDebounce: ReturnType<typeof setTimeout> | null = null;
 
 function setupWindowBoundsTracking(win: BrowserWindow): void {
-  const saveBounds = () => {
+  const saveBounds = (): void => {
     if (boundsDebounce) clearTimeout(boundsDebounce);
     boundsDebounce = setTimeout(() => {
       if (!win.isDestroyed()) {
@@ -86,16 +101,23 @@ function createWindow(): BrowserWindow {
   setupWindowBoundsTracking(win);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    void win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    win.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
-    );
+    void win.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
   }
 
   return win;
 }
 
+/**
+ * Executes the 8-step application startup sequence.
+ *
+ * Steps: load config, register IPC handlers, spawn DuckDB worker, create QueryRouter,
+ * create BrowserWindow, setup MessagePort data channel, wait for renderer ready,
+ * and start health monitoring.
+ *
+ * @throws {@link Error} If the worker fails to spawn or the renderer does not signal ready.
+ */
 export async function startupSequence(): Promise<void> {
   // Step 1: Read configuration
   const config = loadConfig();
@@ -120,7 +142,7 @@ export async function startupSequence(): Promise<void> {
     threads: computeThreadCount(),
     tempDirectory: getTempDirectory(),
     extensions: config.duckdb.extensions,
-    extensionDirectory,
+    ...(extensionDirectory !== undefined ? { extensionDirectory } : {}),
     v8HeapLimitMB: config.workers.v8HeapLimitMB,
     healthCheckIntervalMs: config.workers.healthCheckIntervalMs,
     heartbeatTimeoutMs: config.workers.heartbeatTimeoutMs,
@@ -131,7 +153,8 @@ export async function startupSequence(): Promise<void> {
   await workerManager.spawn();
 
   // Step 4: Create QueryRouter
-  const worker = workerManager.getWorker()!;
+  const worker = workerManager.getWorker();
+  if (!worker) throw new Error('Worker not available after spawn');
   queryRouter = new QueryRouter(worker);
   setQueryRouter(queryRouter);
 
@@ -155,6 +178,12 @@ export async function startupSequence(): Promise<void> {
   });
 }
 
+/**
+ * Executes the graceful shutdown sequence.
+ *
+ * Stops accepting queries, notifies the renderer, waits for acknowledgment,
+ * shuts down the DuckDB worker, cleans the temp directory, and quits the app.
+ */
 export async function shutdownSequence(): Promise<void> {
   // Step 1: Stop accepting queries
   if (queryRouter) {

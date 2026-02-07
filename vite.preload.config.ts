@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import path from 'path';
 
+// biome-ignore lint/style/noDefaultExport: Required by Vite
 export default defineConfig({
   resolve: {
     alias: {

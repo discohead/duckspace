@@ -1,26 +1,31 @@
-import Dexie, { type Table } from 'dexie';
 import type {
-  Tab,
-  Query,
+  AppStateEntry,
   CatalogEntry,
   ColumnSchemaRecord,
-  QueryHistoryRecord,
   Preference,
-  WorkerHealthRecord,
+  Query,
+  QueryHistoryRecord,
   RecoveryLogEntry,
-  AppStateEntry,
+  Tab,
+  WorkerHealthRecord,
 } from '@shared/types';
+import Dexie, { type Table } from 'dexie';
 
+/**
+ * Dexie.js database for the renderer process.
+ * Defines 9 IndexedDB tables for tabs, queries, catalog, preferences, worker health,
+ * recovery logs, and general app state. Schema indexes are declared in the constructor.
+ */
 export class DatspaceDB extends Dexie {
-  tabs!: Table<Tab, string>;
-  queries!: Table<Query, string>;
-  catalog_entries!: Table<CatalogEntry, string>;
-  column_schemas!: Table<ColumnSchemaRecord, string>;
-  query_history!: Table<QueryHistoryRecord, string>;
-  preferences!: Table<Preference, string>;
-  worker_health!: Table<WorkerHealthRecord, string>;
-  recovery_log!: Table<RecoveryLogEntry, string>;
-  app_state!: Table<AppStateEntry, string>;
+  declare tabs: Table<Tab, string>;
+  declare queries: Table<Query, string>;
+  declare catalog_entries: Table<CatalogEntry, string>;
+  declare column_schemas: Table<ColumnSchemaRecord, string>;
+  declare query_history: Table<QueryHistoryRecord, string>;
+  declare preferences: Table<Preference, string>;
+  declare worker_health: Table<WorkerHealthRecord, string>;
+  declare recovery_log: Table<RecoveryLogEntry, string>;
+  declare app_state: Table<AppStateEntry, string>;
 
   constructor() {
     super('Datspace');
@@ -39,5 +44,5 @@ export class DatspaceDB extends Dexie {
   }
 }
 
-const db = new DatspaceDB();
-export default db;
+/** Singleton Dexie.js database instance used throughout the renderer process. */
+export const db = new DatspaceDB();

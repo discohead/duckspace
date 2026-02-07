@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import os from 'os';
-import type { DatspaceConfig } from '@shared/types';
+import os from 'node:os';
 import { DEFAULT_CONFIG } from '@shared/constants';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock electron's app module before imports
 vi.mock('electron', () => ({
@@ -25,18 +24,18 @@ vi.mock('fs', () => ({
 }));
 
 // Import after mocks
-import fs from 'fs';
+import fs from 'node:fs';
 import {
-  loadConfig,
-  saveConfig,
-  getConfig,
-  getConfigValue,
-  setConfigValue,
   computeMemoryLimit,
   computeThreadCount,
+  ensureDirectories,
+  getConfig,
+  getConfigValue,
   getDatabasePath,
   getTempDirectory,
-  ensureDirectories,
+  loadConfig,
+  saveConfig,
+  setConfigValue,
 } from '@main/config';
 
 // Access the internal deepMerge and validateConfig via module internals
@@ -138,24 +137,18 @@ describe('config module', () => {
     it('clamps font size to 10-24', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
 
-      vi.mocked(fs.readFileSync).mockReturnValue(
-        JSON.stringify({ ui: { fontSize: 6 } }),
-      );
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ ui: { fontSize: 6 } }));
       let config = loadConfig();
       expect(config.ui.fontSize).toBe(10);
 
-      vi.mocked(fs.readFileSync).mockReturnValue(
-        JSON.stringify({ ui: { fontSize: 72 } }),
-      );
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ ui: { fontSize: 72 } }));
       config = loadConfig();
       expect(config.ui.fontSize).toBe(24);
     });
 
     it('resets invalid theme to system', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue(
-        JSON.stringify({ ui: { theme: 'neon' } }),
-      );
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ ui: { theme: 'neon' } }));
 
       const config = loadConfig();
       expect(config.ui.theme).toBe('system');
@@ -173,9 +166,7 @@ describe('config module', () => {
 
     it('allows defaultQueryLimit of 0', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue(
-        JSON.stringify({ ui: { defaultQueryLimit: 0 } }),
-      );
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ ui: { defaultQueryLimit: 0 } }));
 
       const config = loadConfig();
       expect(config.ui.defaultQueryLimit).toBe(0);
@@ -221,10 +212,7 @@ describe('config module', () => {
 
       saveConfig(DEFAULT_CONFIG);
 
-      expect(fs.mkdirSync).toHaveBeenCalledWith(
-        expect.any(String),
-        { recursive: true },
-      );
+      expect(fs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true });
     });
 
     it('writes JSON with indentation', () => {
@@ -290,18 +278,16 @@ describe('config module', () => {
       expect(result).toMatch(/^\d+MB$/);
 
       // Verify it's ~50% of system memory
-      const totalMB = Math.round(os.totalmem() / (1024 * 1024));
-      const expectedMB = Math.round(totalMB * 0.5);
-      expect(result).toBe(`${expectedMB}MB`);
+      const totalMb = Math.round(os.totalmem() / (1024 * 1024));
+      const expectedMb = Math.round(totalMb * 0.5);
+      expect(result).toBe(`${expectedMb}MB`);
     });
   });
 
   describe('computeThreadCount', () => {
     it('uses explicit thread count when set', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue(
-        JSON.stringify({ duckdb: { threads: 4 } }),
-      );
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ duckdb: { threads: 4 } }));
       loadConfig();
 
       expect(computeThreadCount()).toBe(4);
@@ -345,10 +331,7 @@ describe('config module', () => {
 
       ensureDirectories();
 
-      expect(fs.mkdirSync).toHaveBeenCalledWith(
-        expect.any(String),
-        { recursive: true },
-      );
+      expect(fs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true });
     });
   });
 });

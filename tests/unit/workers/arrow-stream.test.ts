@@ -1,16 +1,26 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ArrowStream } from '@workers/arrow-stream';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 function createMockPort() {
+  const listeners = new Map<string, ((...args: any[]) => void)[]>();
   const port: any = {
-    onmessage: null as ((event: MessageEvent) => void) | null,
     postMessage: vi.fn(),
+    on(event: string, handler: (...args: any[]) => void) {
+      const existing = listeners.get(event) ?? [];
+      existing.push(handler);
+      listeners.set(event, existing);
+      return port;
+    },
+    _listeners: listeners,
   };
   return port;
 }
 
 function simulateMessage(port: any, data: any) {
-  port.onmessage({ data } as MessageEvent);
+  const handlers = port._listeners.get('message') ?? [];
+  for (const handler of handlers) {
+    handler(data);
+  }
 }
 
 function createMockConnection(rows: any[][] = []) {
@@ -33,7 +43,8 @@ describe('ArrowStream', () => {
   describe('setDataPort', () => {
     it('sets up message handler on port', () => {
       stream.setDataPort(port);
-      expect(port.onmessage).toBeTypeOf('function');
+      const handlers = port._listeners.get('message') ?? [];
+      expect(handlers.length).toBeGreaterThan(0);
     });
   });
 
@@ -116,8 +127,8 @@ describe('ArrowStream', () => {
       const endCall = calls.find((c: any) => c[0].type === 'arrow-end');
 
       expect(batchCall).toBeDefined();
-      expect(batchCall![0].queryId).toBe('q1');
-      expect(batchCall![0].byteSize).toBe(4);
+      expect(batchCall?.[0].queryId).toBe('q1');
+      expect(batchCall?.[0].byteSize).toBe(4);
       expect(endCall).toBeDefined();
     });
 
@@ -127,9 +138,7 @@ describe('ArrowStream', () => {
 
       await stream.streamQuery(conn, 'q1', 'SELECT * FROM users');
 
-      expect(conn.run).toHaveBeenCalledWith(
-        'SELECT * FROM to_arrow_ipc((SELECT * FROM users))',
-      );
+      expect(conn.run).toHaveBeenCalledWith('SELECT * FROM to_arrow_ipc((SELECT * FROM users))');
     });
 
     it('passes params when provided', async () => {
@@ -138,10 +147,7 @@ describe('ArrowStream', () => {
 
       await stream.streamQuery(conn, 'q1', 'SELECT $1', ['hello']);
 
-      expect(conn.run).toHaveBeenCalledWith(
-        'SELECT * FROM to_arrow_ipc((SELECT $1))',
-        'hello',
-      );
+      expect(conn.run).toHaveBeenCalledWith('SELECT * FROM to_arrow_ipc((SELECT $1))', ['hello']);
     });
 
     it('returns early for pre-cancelled queries', async () => {
@@ -175,9 +181,7 @@ describe('ArrowStream', () => {
         run: vi.fn().mockRejectedValue(new Error('syntax error in SQL')),
       };
 
-      await expect(
-        stream.streamQuery(conn, 'q1', 'SELEC 1'),
-      ).rejects.toThrow('syntax error');
+      await expect(stream.streamQuery(conn, 'q1', 'SELEC 1')).rejects.toThrow('syntax error');
 
       expect(port.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -194,9 +198,7 @@ describe('ArrowStream', () => {
         run: vi.fn().mockRejectedValue(new Error('Out of Memory: allocation failed')),
       };
 
-      await expect(
-        stream.streamQuery(conn, 'q1', 'SELECT *'),
-      ).rejects.toThrow();
+      await expect(stream.streamQuery(conn, 'q1', 'SELECT *')).rejects.toThrow();
 
       expect(port.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -212,9 +214,7 @@ describe('ArrowStream', () => {
         run: vi.fn().mockRejectedValue(new Error('Table "foo" does not exist')),
       };
 
-      await expect(
-        stream.streamQuery(conn, 'q1', 'SELECT * FROM foo'),
-      ).rejects.toThrow();
+      await expect(stream.streamQuery(conn, 'q1', 'SELECT * FROM foo')).rejects.toThrow();
 
       expect(port.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({

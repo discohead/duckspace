@@ -1,29 +1,35 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import type { ArrowBatch, QueryStatusEvent, QueryTabState, Tab } from '@shared/types';
+import type { ReactElement } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { db } from '../stores/db';
 import { useActiveTab } from '../stores/hooks';
-import db from '../stores/db';
-import type { QueryStatusEvent, Tab, QueryTabState } from '@shared/types';
 
 /** Debounce timer ref for saving SQL to Dexie. */
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-export default function QueryEditor() {
+/**
+ * SQL query editor with execution controls and status display.
+ * Provides a textarea for SQL input, execute/cancel buttons, and inline error reporting.
+ * Debounce-saves SQL text to Dexie.js and streams Arrow IPC results via custom events.
+ */
+export function QueryEditor(): ReactElement {
   const activeTab = useActiveTab();
 
   const [sql, setSql] = useState('');
   const [queryId, setQueryId] = useState<string | null>(null);
   const [status, setStatus] = useState<QueryStatusEvent | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [error, setError] = useState<{ code: string; message: string } | null>(
-    null,
-  );
+  const [error, setError] = useState<{ code: string; message: string } | null>(null);
 
   // Sync SQL from active tab state when tab changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-sync on tab id/state change, not type
   useEffect(() => {
-    if (activeTab && activeTab.type === 'query') {
+    if (activeTab?.type === 'query') {
       const tabState = activeTab.state as QueryTabState;
-      setSql(tabState.sql ?? '');
+      setSql(tabState.sql);
     }
-  }, [activeTab?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab?.id, activeTab?.state]);
 
   // Debounce-save SQL to Dexie when local state changes
   const debounceSaveSql = useCallback(
@@ -31,13 +37,13 @@ export default function QueryEditor() {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         if (activeTab) {
-          db.tabs.update(activeTab.id, {
+          void db.tabs.update(activeTab.id, {
             'state.sql': value,
           } as Partial<Tab>);
         }
       }, 250);
     },
-    [activeTab?.id], // eslint-disable-line react-hooks/exhaustive-deps
+    [activeTab?.id, activeTab], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Clean up debounce timer on unmount
@@ -49,7 +55,7 @@ export default function QueryEditor() {
 
   const handleSqlChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const value = e.target.value;
+      const value = (e.target as HTMLTextAreaElement).value;
       setSql(value);
       debounceSaveSql(value);
     },
@@ -58,13 +64,11 @@ export default function QueryEditor() {
 
   // Subscribe to query status updates
   useEffect(() => {
-    const unsubscribe = window.datspace.query.onStatus(
-      (statusEvent: QueryStatusEvent) => {
-        if (queryId && statusEvent.queryId === queryId) {
-          setStatus(statusEvent);
-        }
-      },
-    );
+    const unsubscribe = window.datspace.query.onStatus((statusEvent: QueryStatusEvent) => {
+      if (queryId && statusEvent.queryId === queryId) {
+        setStatus(statusEvent);
+      }
+    });
     return unsubscribe;
   }, [queryId]);
 
@@ -72,7 +76,7 @@ export default function QueryEditor() {
   useEffect(() => {
     if (!queryId || !isExecuting) return;
 
-    const unsubscribe = window.datspace.query.onData(queryId, (batch) => {
+    const unsubscribe = window.datspace.query.onData(queryId, (batch: ArrowBatch) => {
       // Fire custom event so ResultGrid can listen
       window.dispatchEvent(
         new CustomEvent('datspace:arrow-batch', {
@@ -84,7 +88,7 @@ export default function QueryEditor() {
       if (batch.isLast) {
         setIsExecuting(false);
         setQueryId(null);
-        db.queries.update(queryId, {
+        void db.queries.update(queryId, {
           status: 'completed',
           completedAt: new Date().toISOString(),
         });
@@ -178,7 +182,10 @@ export default function QueryEditor() {
         }}
       >
         <button
-          onClick={handleExecute}
+          type="button"
+          onClick={() => {
+            void handleExecute();
+          }}
           disabled={isExecuting || !sql.trim()}
           style={{
             padding: '6px 16px',
@@ -197,7 +204,10 @@ export default function QueryEditor() {
 
         {isExecuting && (
           <button
-            onClick={handleCancel}
+            type="button"
+            onClick={() => {
+              void handleCancel();
+            }}
             style={{
               padding: '6px 16px',
               backgroundColor: '#ef4444',

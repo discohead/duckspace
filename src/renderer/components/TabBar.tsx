@@ -1,7 +1,7 @@
-import React from 'react';
-import { useTabs } from '../stores/hooks';
-import db from '../stores/db';
 import type { Tab } from '@shared/types';
+import type React from 'react';
+import { db } from '../stores/db';
+import { useTabs } from '../stores/hooks';
 
 const typeIcons: Record<Tab['type'], string> = {
   query: 'Q',
@@ -9,7 +9,13 @@ const typeIcons: Record<Tab['type'], string> = {
   settings: 'S',
 };
 
-function TabBar(): React.JSX.Element {
+/**
+ * Horizontal tab bar that displays open workspace tabs with activate, close, and create controls.
+ * Supports query, catalog, and settings tab types with type-specific icons.
+ *
+ * @returns The rendered tab bar element.
+ */
+export function TabBar(): React.JSX.Element {
   const tabs = useTabs();
 
   const activateTab = async (tabId: string): Promise<void> => {
@@ -35,23 +41,25 @@ function TabBar(): React.JSX.Element {
         const closedIndex = tabs.indexOf(closingTab);
         const nearestIndex = Math.min(closedIndex, remaining.length - 1);
         const nearestTab = remaining[nearestIndex];
-        await db.tabs.update(nearestTab.id, { active: true });
+        if (nearestTab) {
+          await db.tabs.update(nearestTab.id, { active: true });
+        }
       }
 
       // Reorder remaining tabs
       const reordered = remaining.sort((a, b) => a.order - b.order);
       for (let i = 0; i < reordered.length; i++) {
-        await db.tabs.update(reordered[i].id, { order: i });
+        const tab = reordered[i];
+        if (tab) {
+          await db.tabs.update(tab.id, { order: i });
+        }
       }
     });
   };
 
   const createTab = async (): Promise<void> => {
-    const currentTabs = (await db.tabs.toArray()) ?? [];
-    const maxOrder = currentTabs.reduce(
-      (max, t) => Math.max(max, t.order),
-      -1,
-    );
+    const currentTabs = await db.tabs.toArray();
+    const maxOrder = currentTabs.reduce((max, t) => Math.max(max, t.order), -1);
 
     await db.transaction('rw', db.tabs, async () => {
       await db.tabs.toCollection().modify({ active: false });
@@ -84,7 +92,9 @@ function TabBar(): React.JSX.Element {
         <button
           key={tab.id}
           type="button"
-          onClick={() => activateTab(tab.id)}
+          onClick={() => {
+            void activateTab(tab.id);
+          }}
           style={{
             padding: '4px 12px',
             cursor: 'pointer',
@@ -105,7 +115,7 @@ function TabBar(): React.JSX.Element {
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              closeTab(tab.id);
+              void closeTab(tab.id);
             }}
             style={{
               width: 16,
@@ -133,7 +143,9 @@ function TabBar(): React.JSX.Element {
       ))}
       <button
         type="button"
-        onClick={createTab}
+        onClick={() => {
+          void createTab();
+        }}
         style={{
           padding: '4px 8px',
           backgroundColor: 'transparent',
@@ -148,5 +160,3 @@ function TabBar(): React.JSX.Element {
     </div>
   );
 }
-
-export default TabBar;

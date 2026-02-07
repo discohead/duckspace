@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 
 const steps = [
   'Open a new query tab to write and execute SQL',
@@ -6,7 +6,11 @@ const steps = [
   'Use keyboard shortcuts: Cmd+T (new tab), Cmd+W (close tab)',
 ];
 
-const WelcomeView: React.FC = () => {
+/**
+ * Landing page shown when no tabs are open.
+ * Displays the Datspace branding and a numbered getting-started guide.
+ */
+export const WelcomeView: React.FC = () => {
   return (
     <div
       style={{
@@ -60,6 +64,7 @@ const WelcomeView: React.FC = () => {
         >
           {steps.map((text, index) => (
             <div
+              // biome-ignore lint/suspicious/noArrayIndexKey: static list of getting-started steps
               key={index}
               style={{
                 display: 'flex',
@@ -99,5 +104,3 @@ const WelcomeView: React.FC = () => {
     </div>
   );
 };
-
-export default WelcomeView;

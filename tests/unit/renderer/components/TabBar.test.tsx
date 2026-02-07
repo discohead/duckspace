@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockTabs = [
   {
@@ -31,7 +31,7 @@ vi.mock('@renderer/stores/hooks', () => ({
 vi.mock('@renderer/stores/db', () => {
   const modify = vi.fn().mockResolvedValue(0);
   return {
-    default: {
+    db: {
       tabs: {
         toCollection: vi.fn().mockReturnValue({ modify }),
         update: vi.fn().mockResolvedValue(1),
@@ -39,9 +39,7 @@ vi.mock('@renderer/stores/db', () => {
         add: vi.fn().mockResolvedValue('new-id'),
         toArray: vi.fn().mockResolvedValue([]),
       },
-      transaction: vi.fn(
-        (_mode: string, _table: unknown, fn: () => unknown) => fn(),
-      ),
+      transaction: vi.fn((_mode: string, _table: unknown, fn: () => unknown) => fn()),
     },
   };
 });
@@ -53,8 +51,8 @@ beforeEach(() => {
   });
 });
 
-import TabBar from '@renderer/components/TabBar';
-import db from '@renderer/stores/db';
+import { TabBar } from '@renderer/components/TabBar';
+import { db } from '@renderer/stores/db';
 
 describe('TabBar', () => {
   beforeEach(() => {
@@ -88,14 +86,14 @@ describe('TabBar', () => {
     render(<TabBar />);
     const activeButton = screen.getByText('Query 1').closest('button');
     expect(activeButton).toBeDefined();
-    expect(activeButton!.style.fontWeight).toBe('600');
+    expect(activeButton?.style.fontWeight).toBe('600');
   });
 
   it('inactive tab has normal fontWeight', () => {
     render(<TabBar />);
     const inactiveButton = screen.getByText('Catalog').closest('button');
     expect(inactiveButton).toBeDefined();
-    expect(inactiveButton!.style.fontWeight).toBe('normal');
+    expect(inactiveButton?.style.fontWeight).toBe('normal');
   });
 
   it('renders "+" button for creating new tabs', () => {

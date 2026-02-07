@@ -1,31 +1,50 @@
-import { useLiveQuery } from 'dexie-react-hooks';
-import db from './db';
 import type {
-  Tab,
-  Query,
-  WorkerHealthRecord,
-  Preference,
   AppStateEntry,
   CatalogEntry,
   ColumnSchemaRecord,
+  Preference,
+  Query,
+  Tab,
+  WorkerHealthRecord,
 } from '@shared/types';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from './db';
 
-/** Returns all tabs ordered by display position. */
+/**
+ * Returns all tabs ordered by display position.
+ * Reactively updates when tabs are added, removed, or reordered in Dexie.js.
+ *
+ * @returns An array of tabs sorted by `order`, or `undefined` while loading.
+ */
 export function useTabs(): Tab[] | undefined {
   return useLiveQuery(() => db.tabs.orderBy('order').toArray());
 }
 
-/** Returns the currently active tab. */
+/**
+ * Returns the currently active tab (the one with `active === true`).
+ *
+ * @returns The active tab, or `undefined` if none is active or still loading.
+ */
 export function useActiveTab(): Tab | undefined {
-  return useLiveQuery(() => db.tabs.filter((tab) => tab.active).first());
+  return useLiveQuery(() => db.tabs.filter((tab: Tab) => tab.active).first());
 }
 
-/** Returns the DuckDB worker health record. */
+/**
+ * Returns the DuckDB worker health record for status indicators.
+ *
+ * @returns The worker health record, or `undefined` while loading.
+ */
 export function useWorkerHealth(): WorkerHealthRecord | undefined {
   return useLiveQuery(() => db.worker_health.get('duckdb'));
 }
 
-/** Returns a preference value by key, falling back to defaultValue if not found. */
+/**
+ * Returns a preference value by key, falling back to a default if not found.
+ *
+ * @param key - The preference key to look up.
+ * @param defaultValue - The fallback value when the preference does not exist.
+ * @returns The stored preference value cast to `T`, or `defaultValue`.
+ */
 export function usePreference<T>(key: string, defaultValue: T): T {
   return (
     useLiveQuery(
@@ -39,25 +58,35 @@ export function usePreference<T>(key: string, defaultValue: T): T {
   );
 }
 
-/** Returns an app_state value by key. */
+/**
+ * Returns a typed value from the `app_state` table by key.
+ *
+ * @param key - The app state key to look up.
+ * @returns The stored value cast to `T`, or `undefined` if not found.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- intentional: callers specify T for type-safe casting
 export function useAppState<T>(key: string): T | undefined {
-  return useLiveQuery(
-    async () => {
-      const entry: AppStateEntry | undefined = await db.app_state.get(key);
-      return entry ? (entry.value as T) : undefined;
-    },
-    [key],
-  );
+  return useLiveQuery(async () => {
+    const entry: AppStateEntry | undefined = await db.app_state.get(key);
+    return entry ? (entry.value as T) : undefined;
+  }, [key]);
 }
 
-/** Returns all queries with status 'running'. */
+/**
+ * Returns all queries currently in the `running` state.
+ *
+ * @returns An array of running queries, or `undefined` while loading.
+ */
 export function useRunningQueries(): Query[] | undefined {
-  return useLiveQuery(() =>
-    db.queries.where('status').equals('running').toArray(),
-  );
+  return useLiveQuery(() => db.queries.where('status').equals('running').toArray());
 }
 
-/** Returns the most recent query for a given tab (sorted by startedAt descending). */
+/**
+ * Returns the most recent query for a given tab, sorted by `startedAt` descending.
+ *
+ * @param tabId - The tab ID to filter queries by.
+ * @returns The most recent query for the tab, or `undefined` if none exists.
+ */
 export function useCurrentQuery(tabId: string): Query | undefined {
   return useLiveQuery(
     () =>
@@ -66,31 +95,30 @@ export function useCurrentQuery(tabId: string): Query | undefined {
         .equals(tabId)
         .reverse()
         .sortBy('startedAt')
-        .then((queries) => queries[0]),
+        .then((queries: Query[]) => queries[0]),
     [tabId],
   );
 }
 
-/** Returns all active catalog entries sorted by name. */
+/**
+ * Returns all catalog entries with `status === 'active'`, sorted alphabetically by name.
+ *
+ * @returns An array of active catalog entries, or `undefined` while loading.
+ */
 export function useCatalogEntries(): CatalogEntry[] | undefined {
-  return useLiveQuery(() =>
-    db.catalog_entries
-      .where('status')
-      .equals('active')
-      .sortBy('name'),
-  );
+  return useLiveQuery(() => db.catalog_entries.where('status').equals('active').sortBy('name'));
 }
 
-/** Returns column schemas for a catalog entry, sorted by ordinal position. */
-export function useColumnSchemas(
-  catalogEntryId: string,
-): ColumnSchemaRecord[] | undefined {
+/**
+ * Returns column schemas for a catalog entry, sorted by ordinal position.
+ *
+ * @param catalogEntryId - The catalog entry ID to fetch column schemas for.
+ * @returns An array of column schema records, or `undefined` while loading.
+ */
+export function useColumnSchemas(catalogEntryId: string): ColumnSchemaRecord[] | undefined {
   return useLiveQuery(
     () =>
-      db.column_schemas
-        .where('catalogEntryId')
-        .equals(catalogEntryId)
-        .sortBy('ordinalPosition'),
+      db.column_schemas.where('catalogEntryId').equals(catalogEntryId).sortBy('ordinalPosition'),
     [catalogEntryId],
   );
 }

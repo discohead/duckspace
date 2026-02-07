@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+
+import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockEntries = [
   {
@@ -45,7 +45,7 @@ vi.mock('@renderer/stores/hooks', () => ({
   ]),
 }));
 
-import CatalogBrowser from '@renderer/components/CatalogBrowser';
+import { CatalogBrowser } from '@renderer/components/CatalogBrowser';
 
 describe('CatalogBrowser', () => {
   beforeEach(() => {
@@ -79,9 +79,7 @@ describe('CatalogBrowser', () => {
     currentEntries = [];
     render(<CatalogBrowser />);
     expect(
-      screen.getByText(
-        'No tables registered. Execute CREATE TABLE or import data.',
-      ),
+      screen.getByText('No tables registered. Execute CREATE TABLE or import data.'),
     ).toBeDefined();
   });
 
@@ -113,9 +111,7 @@ describe('CatalogBrowser', () => {
 
   it('shows "Select a table to view its schema" when no selection', () => {
     render(<CatalogBrowser />);
-    expect(
-      screen.getByText('Select a table to view its schema'),
-    ).toBeDefined();
+    expect(screen.getByText('Select a table to view its schema')).toBeDefined();
   });
 
   it('clicking a table entry shows its column schema', () => {

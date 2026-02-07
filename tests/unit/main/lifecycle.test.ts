@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Mocks – declared before any imports that reference them
@@ -106,36 +106,29 @@ vi.stubGlobal('MAIN_WINDOW_VITE_NAME', 'main_window');
 // Imports (after all vi.mock calls)
 // ---------------------------------------------------------------------------
 
-import fs from 'fs';
-import { app, BrowserWindow } from 'electron';
-import {
-  getMainWindow,
-  getWorkerManager,
-  getQueryRouter,
-  startupSequence,
-  shutdownSequence,
-} from '@main/lifecycle';
-import {
-  loadConfig,
-  ensureDirectories,
-  computeMemoryLimit,
-  computeThreadCount,
-  getDatabasePath,
-  getTempDirectory,
-} from '@main/config';
-import { WorkerManager } from '@main/worker-manager';
-import { QueryRouter } from '@main/query-router';
+import fs from 'node:fs';
+import { ensureDirectories, loadConfig } from '@main/config';
 import {
   registerIPCHandlers,
-  setQueryRouter,
-  setWorkerManager,
+  sendShutdownPrepare,
   setMainWindowRef,
+  setQueryRouter,
   setupDataChannel,
+  setWorkerManager,
   waitForRendererReady,
   waitForShutdownAck,
-  sendShutdownPrepare,
 } from '@main/ipc-handlers';
-import { TIMEOUTS, PUSH_EVENTS } from '@shared/constants';
+import {
+  getMainWindow,
+  getQueryRouter,
+  getWorkerManager,
+  shutdownSequence,
+  startupSequence,
+} from '@main/lifecycle';
+import { QueryRouter } from '@main/query-router';
+import { WorkerManager } from '@main/worker-manager';
+import { PUSH_EVENTS, TIMEOUTS } from '@shared/constants';
+import { app, BrowserWindow } from 'electron';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -338,10 +331,7 @@ describe('lifecycle module', () => {
     it('sets up data channel between window and worker', async () => {
       await startupSequence();
 
-      expect(setupDataChannel).toHaveBeenCalledWith(
-        mockBrowserWindow,
-        mockWorkerInstance,
-      );
+      expect(setupDataChannel).toHaveBeenCalledWith(mockBrowserWindow, mockWorkerInstance);
     });
 
     it('waits for renderer ready before starting health monitoring', async () => {
@@ -371,10 +361,7 @@ describe('lifecycle module', () => {
     it('registers ready-to-show listener on the window', async () => {
       await startupSequence();
 
-      expect(mockBrowserWindow.once).toHaveBeenCalledWith(
-        'ready-to-show',
-        expect.any(Function),
-      );
+      expect(mockBrowserWindow.once).toHaveBeenCalledWith('ready-to-show', expect.any(Function));
     });
   });
 
@@ -442,14 +429,14 @@ describe('lifecycle module', () => {
         withFileTypes: true,
       });
       expect(fs.rmSync).toHaveBeenCalledTimes(2);
-      expect(fs.rmSync).toHaveBeenCalledWith(
-        expect.stringContaining('query-123.tmp'),
-        { recursive: true, force: true },
-      );
-      expect(fs.rmSync).toHaveBeenCalledWith(
-        expect.stringContaining('cache'),
-        { recursive: true, force: true },
-      );
+      expect(fs.rmSync).toHaveBeenCalledWith(expect.stringContaining('query-123.tmp'), {
+        recursive: true,
+        force: true,
+      });
+      expect(fs.rmSync).toHaveBeenCalledWith(expect.stringContaining('cache'), {
+        recursive: true,
+        force: true,
+      });
     });
 
     it('handles missing tmp directory gracefully', async () => {
@@ -463,10 +450,7 @@ describe('lifecycle module', () => {
     });
 
     it('handles per-entry rmSync failures gracefully', async () => {
-      const mockEntries = [
-        { name: 'locked-file.tmp' },
-        { name: 'normal-file.tmp' },
-      ];
+      const mockEntries = [{ name: 'locked-file.tmp' }, { name: 'normal-file.tmp' }];
       vi.mocked(fs.readdirSync).mockReturnValue(mockEntries as any);
 
       let callCount = 0;
@@ -506,9 +490,7 @@ describe('lifecycle module', () => {
     it('registers move and resize listeners on the window', async () => {
       await startupSequence();
 
-      const onCalls = mockBrowserWindow.on.mock.calls.map(
-        (call: [string, unknown]) => call[0],
-      );
+      const onCalls = mockBrowserWindow.on.mock.calls.map((call: [string, unknown]) => call[0]);
       expect(onCalls).toContain('move');
       expect(onCalls).toContain('resize');
     });
@@ -521,7 +503,7 @@ describe('lifecycle module', () => {
         (call: [string, unknown]) => call[0] === 'move',
       );
       expect(moveCall).toBeDefined();
-      const moveHandler = moveCall![1] as () => void;
+      const moveHandler = moveCall?.[1] as () => void;
 
       // Trigger move rapidly
       moveHandler();
@@ -548,7 +530,7 @@ describe('lifecycle module', () => {
       const moveCall = mockBrowserWindow.on.mock.calls.find(
         (call: [string, unknown]) => call[0] === 'move',
       );
-      const moveHandler = moveCall![1] as () => void;
+      const moveHandler = moveCall?.[1] as () => void;
 
       mockBrowserWindow.isDestroyed.mockReturnValue(true);
 
@@ -564,7 +546,7 @@ describe('lifecycle module', () => {
       const resizeCall = mockBrowserWindow.on.mock.calls.find(
         (call: [string, unknown]) => call[0] === 'resize',
       );
-      const resizeHandler = resizeCall![1] as () => void;
+      const resizeHandler = resizeCall?.[1] as () => void;
 
       // First event
       resizeHandler();

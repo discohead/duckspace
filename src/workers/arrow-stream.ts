@@ -6,17 +6,25 @@
  * a sliding-window ACK protocol for backpressure control.
  */
 
+import type { MessagePort } from 'node:worker_threads';
+import type { DuckDBConnection, DuckDBValue } from '@duckdb/node-api';
+import { BACKPRESSURE } from '@shared/constants';
 import type {
   ArrowBatchMessage,
-  StreamEndMessage,
-  DataPlaneError,
   BatchAckMessage,
+  DataPlaneError,
+  StreamEndMessage,
 } from '@shared/types';
-import { BACKPRESSURE } from '@shared/constants';
 
 /** Polling interval (ms) when waiting for the ACK window to drain. */
 const ACK_POLL_INTERVAL_MS = 10;
 
+/**
+ * Streams Arrow IPC batches from DuckDB query results to the renderer via a MessagePort.
+ *
+ * Implements a sliding-window ACK protocol for backpressure control,
+ * ensuring the renderer is not overwhelmed by large result sets.
+ */
 export class ArrowStream {
   private dataPort: MessagePort | null = null;
   private pendingAcks = new Map<string, Set<number>>(); // queryId -> set of unacked batch indices
@@ -28,7 +36,9 @@ export class ArrowStream {
    */
   setDataPort(port: MessagePort): void {
     this.dataPort = port;
-    this.dataPort.onmessage = (event: MessageEvent) => this.handleAck(event.data);
+    this.dataPort.on('message', (data: unknown) => {
+      this.handleAck(data);
+    });
   }
 
   /**
@@ -41,7 +51,7 @@ export class ArrowStream {
 
     const message = msg as Record<string, unknown>;
 
-    if (message.type === 'ack') {
+    if (message['type'] === 'ack') {
       const ack = message as unknown as BatchAckMessage;
       const pending = this.pendingAcks.get(ack.queryId);
       if (pending) {
@@ -50,8 +60,8 @@ export class ArrowStream {
           this.pendingAcks.delete(ack.queryId);
         }
       }
-    } else if (message.type === 'cancel') {
-      const queryId = message.queryId as string;
+    } else if (message['type'] === 'cancel') {
+      const queryId = message['queryId'] as string;
       if (queryId) {
         this.cancelled.add(queryId);
       }
@@ -65,7 +75,7 @@ export class ArrowStream {
    * Returns summary statistics on completion.
    */
   async streamQuery(
-    connection: any, // DuckDB connection (typed loosely to avoid coupling to N-API types)
+    connection: DuckDBConnection,
     queryId: string,
     sql: string,
     params?: unknown[],
@@ -73,7 +83,7 @@ export class ArrowStream {
     const startMs = Date.now();
     let batchesSent = 0;
     let totalBytes = 0;
-    let totalRows = 0;
+    const totalRows = 0;
 
     // Check for pre-cancellation
     if (this.cancelled.has(queryId)) {
@@ -84,10 +94,11 @@ export class ArrowStream {
 
     try {
       // Wrap user SQL with DuckDB's to_arrow_ipc() to produce an Arrow IPC buffer
-      const wrappedSQL = `SELECT * FROM to_arrow_ipc((${sql}))`;
-      const result = params && params.length > 0
-        ? await connection.run(wrappedSQL, ...params)
-        : await connection.run(wrappedSQL);
+      const wrappedSql = `SELECT * FROM to_arrow_ipc((${sql}))`;
+      const result =
+        params && params.length > 0
+          ? await connection.run(wrappedSql, params as DuckDBValue[])
+          : await connection.run(wrappedSql);
       const rows = await result.getRows();
 
       // Check for cancellation after query execution
@@ -97,10 +108,11 @@ export class ArrowStream {
         return { totalRows: 0, totalBatches: 0, totalBytes: 0, durationMs: Date.now() - startMs };
       }
 
-      if (rows.length > 0 && rows[0][0]) {
+      const firstRow = rows[0];
+      if (firstRow?.[0]) {
         // The IPC buffer from DuckDB may be backed by a SharedArrayBuffer.
         // We MUST create an owned copy before transferring ownership.
-        const ipcBuffer: Uint8Array = rows[0][0];
+        const ipcBuffer = firstRow[0] as unknown as Uint8Array;
         const buffer = new ArrayBuffer(ipcBuffer.byteLength);
         new Uint8Array(buffer).set(ipcBuffer);
 
@@ -111,7 +123,12 @@ export class ArrowStream {
         if (!windowOpen) {
           // Cancelled while waiting
           this.sendEnd(queryId, batchesSent, totalRows, totalBytes, Date.now() - startMs);
-          return { totalRows, totalBatches: batchesSent, totalBytes, durationMs: Date.now() - startMs };
+          return {
+            totalRows,
+            totalBatches: batchesSent,
+            totalBytes,
+            durationMs: Date.now() - startMs,
+          };
         }
 
         // Send the Arrow IPC batch
@@ -151,7 +168,7 @@ export class ArrowStream {
    * Returns false if the query is cancelled while waiting.
    */
   private async waitForWindow(queryId: string): Promise<boolean> {
-    while (true) {
+    for (;;) {
       if (this.cancelled.has(queryId)) {
         return false;
       }
@@ -187,7 +204,7 @@ export class ArrowStream {
     if (!this.pendingAcks.has(queryId)) {
       this.pendingAcks.set(queryId, new Set());
     }
-    this.pendingAcks.get(queryId)!.add(index);
+    this.pendingAcks.get(queryId)?.add(index);
 
     // Transfer the ArrayBuffer (zero-copy handoff)
     this.dataPort.postMessage({ ...msg, buffer }, [buffer]);

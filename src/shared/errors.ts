@@ -16,6 +16,12 @@ import type { IPCError } from './types';
 // Error Code Constants
 // ---------------------------------------------------------------------------
 
+/**
+ * Enumeration of all structured error codes used across the application.
+ *
+ * E1xxx codes represent database errors (DuckDB query, schema, resource).
+ * E6xxx codes represent system errors (worker lifecycle, IPC, memory).
+ */
 export const ERROR_CODES = {
   // Database errors (E1xxx)
   QUERY_SYNTAX_ERROR: 'E1001',
@@ -38,12 +44,17 @@ export const ERROR_CODES = {
   SHUTTING_DOWN: 'E6006',
 } as const;
 
+/** Union type of all valid error code string literals (e.g., 'E1001', 'E6003'). */
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
 
 // ---------------------------------------------------------------------------
 // Error Metadata
 // ---------------------------------------------------------------------------
 
+/**
+ * Metadata lookup table for error codes, providing human-readable names,
+ * retryability flags, and default messages for each error code.
+ */
 export const ERROR_METADATA: Record<
   string,
   { name: string; retryable: boolean; defaultMessage: string }
@@ -134,16 +145,30 @@ export const ERROR_METADATA: Record<
 // DatspaceError Class
 // ---------------------------------------------------------------------------
 
+/**
+ * Structured error class for all Datspace application errors.
+ *
+ * Extends `Error` with a machine-readable code, retryability flag, and optional
+ * details. Use {@link DatspaceError.toIPCError} to serialize for safe transport
+ * across process boundaries (Main, Worker, Renderer).
+ */
 export class DatspaceError extends Error {
   readonly code: string;
   readonly retryable: boolean;
-  readonly retryAfterMs?: number;
-  readonly details?: Record<string, unknown>;
+  readonly retryAfterMs?: number | undefined;
+  readonly details?: Record<string, unknown> | undefined;
 
+  /**
+   * Create a new DatspaceError.
+   *
+   * @param code - Error code from {@link ERROR_CODES} (e.g., 'E1001').
+   * @param message - Human-readable message; falls back to the default from {@link ERROR_METADATA}.
+   * @param options - Optional retry delay and arbitrary detail payload.
+   */
   constructor(
     code: string,
     message?: string,
-    options?: { retryAfterMs?: number; details?: Record<string, unknown> },
+    options?: { retryAfterMs?: number | undefined; details?: Record<string, unknown> | undefined },
   ) {
     const meta = ERROR_METADATA[code];
     super(message ?? meta?.defaultMessage ?? 'Unknown error');
@@ -177,52 +202,85 @@ export class DatspaceError extends Error {
 // Factory Functions
 // ---------------------------------------------------------------------------
 
+/**
+ * Create a QUERY_SYNTAX_ERROR (E1001) for malformed SQL.
+ *
+ * @param message - The syntax error message from DuckDB.
+ * @returns A non-retryable DatspaceError.
+ */
 export function querySyntaxError(message: string): DatspaceError {
   return new DatspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR, message);
 }
 
+/**
+ * Create a TABLE_NOT_FOUND error (E1004) for missing tables.
+ *
+ * @param tableName - Name of the table that was not found.
+ * @returns A non-retryable DatspaceError.
+ */
 export function tableNotFoundError(tableName: string): DatspaceError {
-  return new DatspaceError(
-    ERROR_CODES.TABLE_NOT_FOUND,
-    `Table '${tableName}' does not exist`,
-  );
+  return new DatspaceError(ERROR_CODES.TABLE_NOT_FOUND, `Table '${tableName}' does not exist`);
 }
 
-export function columnNotFoundError(
-  columnName: string,
-  tableName: string,
-): DatspaceError {
+/**
+ * Create a COLUMN_NOT_FOUND error (E1005) for missing columns.
+ *
+ * @param columnName - Name of the column that was not found.
+ * @param tableName - Name of the table the column was expected in.
+ * @returns A non-retryable DatspaceError.
+ */
+export function columnNotFoundError(columnName: string, tableName: string): DatspaceError {
   const msg = tableName
     ? `Column '${columnName}' does not exist in table '${tableName}'`
     : `Column '${columnName}' does not exist`;
   return new DatspaceError(ERROR_CODES.COLUMN_NOT_FOUND, msg);
 }
 
+/**
+ * Create a QUERY_TIMEOUT error (E1002) when a query exceeds its time limit.
+ *
+ * @param timeoutMs - The timeout threshold in milliseconds that was exceeded.
+ * @returns A retryable DatspaceError with retryAfterMs capped at 5000ms.
+ */
 export function queryTimeoutError(timeoutMs: number): DatspaceError {
   return new DatspaceError(
     ERROR_CODES.QUERY_TIMEOUT,
-    `Query execution timed out after ${timeoutMs}ms`,
+    `Query execution timed out after ${String(timeoutMs)}ms`,
     { retryAfterMs: Math.min(timeoutMs, 5_000) },
   );
 }
 
+/**
+ * Create a QUERY_CANCELLED error (E1003) when a query is explicitly cancelled.
+ *
+ * @param queryId - Identifier of the cancelled query.
+ * @returns A non-retryable DatspaceError with the queryId in details.
+ */
 export function queryCancelledError(queryId: string): DatspaceError {
-  return new DatspaceError(
-    ERROR_CODES.QUERY_CANCELLED,
-    `Query '${queryId}' was cancelled`,
-    { details: { queryId } },
-  );
+  return new DatspaceError(ERROR_CODES.QUERY_CANCELLED, `Query '${queryId}' was cancelled`, {
+    details: { queryId },
+  });
 }
 
-export function outOfMemoryError(
-  details?: Record<string, unknown>,
-): DatspaceError {
+/**
+ * Create an OUT_OF_MEMORY error (E1007) when DuckDB exceeds its memory limit.
+ *
+ * @param details - Optional memory usage details (e.g., heapUsed, heapTotal).
+ * @returns A retryable DatspaceError with a 1-second retry delay.
+ */
+export function outOfMemoryError(details?: Record<string, unknown>): DatspaceError {
   return new DatspaceError(ERROR_CODES.OUT_OF_MEMORY, undefined, {
     retryAfterMs: 1_000,
     details,
   });
 }
 
+/**
+ * Create a WORKER_CRASHED error (E6001) when the DuckDB worker terminates unexpectedly.
+ *
+ * @param message - Optional crash reason or exit code description.
+ * @returns A retryable DatspaceError with a 2-second retry delay.
+ */
 export function workerCrashedError(message?: string): DatspaceError {
   return new DatspaceError(
     ERROR_CODES.WORKER_CRASHED,
@@ -231,27 +289,47 @@ export function workerCrashedError(message?: string): DatspaceError {
   );
 }
 
+/**
+ * Create a WORKER_UNRESPONSIVE error (E6002) when the worker fails to respond to health checks.
+ *
+ * @returns A retryable DatspaceError with a 3-second retry delay.
+ */
 export function workerUnresponsiveError(): DatspaceError {
   return new DatspaceError(ERROR_CODES.WORKER_UNRESPONSIVE, undefined, {
     retryAfterMs: 3_000,
   });
 }
 
-export function ipcTimeoutError(
-  channel: string,
-  timeoutMs: number,
-): DatspaceError {
+/**
+ * Create an IPC_TIMEOUT error (E6003) when an IPC request exceeds its deadline.
+ *
+ * @param channel - The IPC channel name that timed out.
+ * @param timeoutMs - The timeout threshold in milliseconds.
+ * @returns A retryable DatspaceError with a 1-second retry delay.
+ */
+export function ipcTimeoutError(channel: string, timeoutMs: number): DatspaceError {
   return new DatspaceError(
     ERROR_CODES.IPC_TIMEOUT,
-    `IPC request on channel '${channel}' timed out after ${timeoutMs}ms`,
+    `IPC request on channel '${channel}' timed out after ${String(timeoutMs)}ms`,
     { retryAfterMs: 1_000, details: { channel, timeoutMs } },
   );
 }
 
+/**
+ * Create a SHUTTING_DOWN error (E6006) to reject requests during application shutdown.
+ *
+ * @returns A non-retryable DatspaceError.
+ */
 export function shuttingDownError(): DatspaceError {
   return new DatspaceError(ERROR_CODES.SHUTTING_DOWN);
 }
 
+/**
+ * Create a MUTATION_REJECTED error (E1012) when a DDL/DML statement is blocked.
+ *
+ * @param sql - The rejected SQL statement (truncated to 200 chars in message, 1000 in details).
+ * @returns A non-retryable DatspaceError.
+ */
 export function mutationRejectedError(sql: string): DatspaceError {
   return new DatspaceError(
     ERROR_CODES.MUTATION_REJECTED,
@@ -260,6 +338,12 @@ export function mutationRejectedError(sql: string): DatspaceError {
   );
 }
 
+/**
+ * Create a DATABASE_CORRUPT error (E1010) when a database integrity check fails.
+ *
+ * @param details - Optional description of the corruption detected.
+ * @returns A non-retryable DatspaceError.
+ */
 export function databaseCorruptError(details?: string): DatspaceError {
   return new DatspaceError(
     ERROR_CODES.DATABASE_CORRUPT,
@@ -267,6 +351,12 @@ export function databaseCorruptError(details?: string): DatspaceError {
   );
 }
 
+/**
+ * Create a PORT_DISCONNECTED error (E6004) when a MessagePort channel is lost.
+ *
+ * @param channel - The name of the disconnected channel.
+ * @returns A retryable DatspaceError with a 1-second retry delay.
+ */
 export function portDisconnectedError(channel: string): DatspaceError {
   return new DatspaceError(
     ERROR_CODES.PORT_DISCONNECTED,

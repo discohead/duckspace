@@ -1,5 +1,6 @@
-import { DuckDBInstance } from '@duckdb/node-api';
+import { type DuckDBConnection, DuckDBInstance } from '@duckdb/node-api';
 
+/** Configuration for initializing a DuckDB instance within the worker thread. */
 export interface DuckDBConfig {
   dbPath: string;
   memoryLimit: string;
@@ -11,8 +12,17 @@ export interface DuckDBConfig {
 }
 
 let instance: DuckDBInstance | null = null;
-let connection: any | null = null;
+let connection: DuckDBConnection | null = null;
 
+/**
+ * Initializes the DuckDB instance and connection with the given configuration.
+ *
+ * Creates the database, opens a connection, loads extensions, and creates
+ * system tables (_query_history, _schema_version).
+ *
+ * @param config - Database path, memory limits, threads, and extensions to load.
+ * @throws {@link Error} If instance creation or extension loading fails.
+ */
 export async function initDuckDB(config: DuckDBConfig): Promise<void> {
   // Create instance with config
   instance = await DuckDBInstance.create(config.dbPath, {
@@ -78,16 +88,34 @@ async function createSystemTables(): Promise<void> {
   `);
 }
 
-export function getConnection(): any {
+/**
+ * Returns the active DuckDB connection.
+ *
+ * @returns The current DuckDB connection.
+ * @throws {@link Error} If DuckDB has not been initialized.
+ */
+export function getConnection(): DuckDBConnection {
   if (!connection) throw new Error('DuckDB not initialized');
   return connection;
 }
 
+/**
+ * Returns the active DuckDB instance.
+ *
+ * @returns The current DuckDB instance.
+ * @throws {@link Error} If DuckDB has not been initialized.
+ */
 export function getInstance(): DuckDBInstance {
   if (!instance) throw new Error('DuckDB not initialized');
   return instance;
 }
 
+/**
+ * Runs a DuckDB PRAGMA integrity_check on the database.
+ *
+ * @returns True if the integrity check passes, false otherwise.
+ * @throws {@link Error} If DuckDB has not been initialized.
+ */
 export async function runIntegrityCheck(): Promise<boolean> {
   if (!connection) throw new Error('DuckDB not initialized');
   try {
@@ -99,6 +127,12 @@ export async function runIntegrityCheck(): Promise<boolean> {
   }
 }
 
+/**
+ * Forces a WAL checkpoint to flush data to the main database file.
+ *
+ * Best-effort operation; failures are silently ignored since WAL replay
+ * handles recovery on the next startup.
+ */
 export async function checkpoint(): Promise<void> {
   if (!connection) return;
   try {
@@ -108,6 +142,11 @@ export async function checkpoint(): Promise<void> {
   }
 }
 
+/**
+ * Closes the DuckDB connection and releases the instance.
+ *
+ * Performs a checkpoint before closing to flush pending WAL data.
+ */
 export async function closeDuckDB(): Promise<void> {
   if (connection) {
     await checkpoint();

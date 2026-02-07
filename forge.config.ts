@@ -39,4 +39,5 @@ const config: ForgeConfig = {
   ],
 };
 
+// biome-ignore lint/style/noDefaultExport: Required by Electron Forge
 export default config;

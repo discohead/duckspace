@@ -58,18 +58,18 @@ vi.mock('dexie-react-hooks', () => ({
 }));
 
 // Mock db module
-vi.mock('@renderer/stores/db', () => ({ default: mockDb }));
+vi.mock('@renderer/stores/db', () => ({ db: mockDb }));
 
 import {
-  useTabs,
   useActiveTab,
-  useWorkerHealth,
-  usePreference,
   useAppState,
-  useRunningQueries,
-  useCurrentQuery,
   useCatalogEntries,
   useColumnSchemas,
+  useCurrentQuery,
+  usePreference,
+  useRunningQueries,
+  useTabs,
+  useWorkerHealth,
 } from '@renderer/stores/hooks';
 
 beforeEach(() => {
@@ -156,10 +156,7 @@ describe('usePreference', () => {
 describe('useAppState', () => {
   it('calls useLiveQuery with deps array containing the key', () => {
     useAppState('shutdown_status');
-    expect(mockUseLiveQuery).toHaveBeenCalledWith(
-      expect.any(Function),
-      ['shutdown_status'],
-    );
+    expect(mockUseLiveQuery).toHaveBeenCalledWith(expect.any(Function), ['shutdown_status']);
   });
 
   it('query function calls db.app_state.get with the key', () => {
@@ -186,10 +183,7 @@ describe('useCurrentQuery', () => {
   it('calls useLiveQuery with deps array containing tabId', () => {
     mockSortBy.mockResolvedValue([]);
     useCurrentQuery('tab-1');
-    expect(mockUseLiveQuery).toHaveBeenCalledWith(
-      expect.any(Function),
-      ['tab-1'],
-    );
+    expect(mockUseLiveQuery).toHaveBeenCalledWith(expect.any(Function), ['tab-1']);
   });
 
   it('query function calls db.queries.where("tabId").equals(tabId).reverse().sortBy("startedAt")', () => {
@@ -219,10 +213,7 @@ describe('useCatalogEntries', () => {
 describe('useColumnSchemas', () => {
   it('calls useLiveQuery with deps array containing catalogEntryId', () => {
     useColumnSchemas('cat-1');
-    expect(mockUseLiveQuery).toHaveBeenCalledWith(
-      expect.any(Function),
-      ['cat-1'],
-    );
+    expect(mockUseLiveQuery).toHaveBeenCalledWith(expect.any(Function), ['cat-1']);
   });
 
   it('query function calls db.column_schemas.where("catalogEntryId").equals(id).sortBy("ordinalPosition")', () => {

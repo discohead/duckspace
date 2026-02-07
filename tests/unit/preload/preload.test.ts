@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { IPC_CHANNELS, PUSH_EVENTS } from '@shared/constants';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // --------------------------------------------------------------------------
 // Mock electron module
@@ -38,9 +38,8 @@ async function loadPreload() {
   return electron;
 }
 
-function getExposedAPI(electron: any) {
-  const call = (electron.contextBridge.exposeInMainWorld as ReturnType<typeof vi.fn>).mock
-    .calls[0];
+function getExposedApi(electron: any) {
+  const call = (electron.contextBridge.exposeInMainWorld as ReturnType<typeof vi.fn>).mock.calls[0];
   return { name: call[0] as string, api: call[1] };
 }
 
@@ -84,7 +83,7 @@ describe('preload/index', () => {
 
     it('exposes query namespace with all methods', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       expect(api.query).toBeDefined();
       expect(api.query.execute).toBeTypeOf('function');
@@ -96,7 +95,7 @@ describe('preload/index', () => {
 
     it('exposes catalog namespace with all methods', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       expect(api.catalog).toBeDefined();
       expect(api.catalog.listTables).toBeTypeOf('function');
@@ -106,7 +105,7 @@ describe('preload/index', () => {
 
     it('exposes lifecycle namespace with all methods', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       expect(api.lifecycle).toBeDefined();
       expect(api.lifecycle.ready).toBeTypeOf('function');
@@ -125,47 +124,46 @@ describe('preload/index', () => {
   describe('query.execute', () => {
     it('calls ipcRenderer.invoke with QUERY_EXECUTE channel and payload', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       await api.query.execute('SELECT 1', [42]);
 
-      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(
-        IPC_CHANNELS.QUERY_EXECUTE,
-        { sql: 'SELECT 1', params: [42] },
-      );
+      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.QUERY_EXECUTE, {
+        sql: 'SELECT 1',
+        params: [42],
+      });
     });
 
     it('passes undefined params when not provided', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       await api.query.execute('SELECT 1');
 
-      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(
-        IPC_CHANNELS.QUERY_EXECUTE,
-        { sql: 'SELECT 1', params: undefined },
-      );
+      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.QUERY_EXECUTE, {
+        sql: 'SELECT 1',
+        params: undefined,
+      });
     });
   });
 
   describe('query.cancel', () => {
     it('calls ipcRenderer.invoke with QUERY_CANCEL channel', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       await api.query.cancel('q-123');
 
-      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(
-        IPC_CHANNELS.QUERY_CANCEL,
-        { queryId: 'q-123' },
-      );
+      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.QUERY_CANCEL, {
+        queryId: 'q-123',
+      });
     });
   });
 
   describe('query.onStatus', () => {
     it('registers listener on QUERY_PROGRESS channel', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       const callback = vi.fn();
       api.query.onStatus(callback);
@@ -178,7 +176,7 @@ describe('preload/index', () => {
 
     it('forwards status data to callback (strips IpcRendererEvent)', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       const callback = vi.fn();
       api.query.onStatus(callback);
@@ -187,7 +185,7 @@ describe('preload/index', () => {
       const onCall = (electron.ipcRenderer.on as ReturnType<typeof vi.fn>).mock.calls.find(
         (c: any[]) => c[0] === PUSH_EVENTS.QUERY_PROGRESS,
       );
-      const wrappedHandler = onCall![1];
+      const wrappedHandler = onCall?.[1];
 
       const statusData = {
         queryId: 'q1',
@@ -202,7 +200,7 @@ describe('preload/index', () => {
 
     it('returns an unsubscribe function that removes listener', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       const unsub = api.query.onStatus(vi.fn());
       unsub();
@@ -217,7 +215,7 @@ describe('preload/index', () => {
   describe('query.onData', () => {
     it('registers a data callback for a queryId', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       const callback = vi.fn();
       const unsub = api.query.onData('q1', callback);
@@ -227,7 +225,7 @@ describe('preload/index', () => {
 
     it('allows multiple callbacks for the same queryId', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       const cb1 = vi.fn();
       const cb2 = vi.fn();
@@ -240,7 +238,7 @@ describe('preload/index', () => {
 
     it('unsubscribe removes the specific callback', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       const cb1 = vi.fn();
       const cb2 = vi.fn();
@@ -252,9 +250,9 @@ describe('preload/index', () => {
       // Verify cb1 removed but cb2 still active via port dispatch
       const port = createMockMessagePort();
       const portHandler = handlers.get(PUSH_EVENTS.PORT);
-      portHandler!({ ports: [port] }, { channel: 'duckdb-data' });
+      portHandler?.({ ports: [port] }, { channel: 'duckdb-data' });
 
-      port.onmessage!({
+      port.onmessage?.({
         data: {
           type: 'arrow-batch',
           queryId: 'q1',
@@ -271,7 +269,7 @@ describe('preload/index', () => {
 
     it('unsubscribe cleans up the Set when last callback removed', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       const cb = vi.fn();
       const unsub = api.query.onData('q1', cb);
@@ -286,7 +284,7 @@ describe('preload/index', () => {
   describe('query.onQueryHistory', () => {
     it('registers listener on QUERY_HISTORY channel', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       const callback = vi.fn();
       api.query.onQueryHistory(callback);
@@ -299,7 +297,7 @@ describe('preload/index', () => {
 
     it('returns unsubscribe function', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       const unsub = api.query.onQueryHistory(vi.fn());
       unsub();
@@ -318,53 +316,50 @@ describe('preload/index', () => {
   describe('catalog.listTables', () => {
     it('calls ipcRenderer.invoke with QUERY_LIST_TABLES', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       await api.catalog.listTables();
 
-      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(
-        IPC_CHANNELS.QUERY_LIST_TABLES,
-      );
+      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.QUERY_LIST_TABLES);
     });
   });
 
   describe('catalog.describeTable', () => {
     it('calls ipcRenderer.invoke with QUERY_DESCRIBE_TABLE and tableName', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       await api.catalog.describeTable('users');
 
-      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(
-        IPC_CHANNELS.QUERY_DESCRIBE_TABLE,
-        { tableName: 'users' },
-      );
+      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.QUERY_DESCRIBE_TABLE, {
+        tableName: 'users',
+      });
     });
   });
 
   describe('catalog.previewTable', () => {
     it('calls ipcRenderer.invoke with CATALOG_PREVIEW, default limit 100', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       await api.catalog.previewTable('products');
 
-      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(
-        IPC_CHANNELS.CATALOG_PREVIEW,
-        { tableName: 'products', limit: 100 },
-      );
+      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.CATALOG_PREVIEW, {
+        tableName: 'products',
+        limit: 100,
+      });
     });
 
     it('passes explicit limit when provided', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       await api.catalog.previewTable('products', 50);
 
-      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(
-        IPC_CHANNELS.CATALOG_PREVIEW,
-        { tableName: 'products', limit: 50 },
-      );
+      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.CATALOG_PREVIEW, {
+        tableName: 'products',
+        limit: 50,
+      });
     });
   });
 
@@ -375,20 +370,18 @@ describe('preload/index', () => {
   describe('lifecycle.ready', () => {
     it('calls ipcRenderer.invoke with LIFECYCLE_READY', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       await api.lifecycle.ready();
 
-      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(
-        IPC_CHANNELS.LIFECYCLE_READY,
-      );
+      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.LIFECYCLE_READY);
     });
   });
 
   describe('lifecycle.getAppState', () => {
     it('calls ipcRenderer.invoke with LIFECYCLE_GET_APP_STATE', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       await api.lifecycle.getAppState();
 
@@ -401,20 +394,18 @@ describe('preload/index', () => {
   describe('lifecycle.shutdownAck', () => {
     it('calls ipcRenderer.invoke with LIFECYCLE_SHUTDOWN_ACK', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       await api.lifecycle.shutdownAck();
 
-      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(
-        IPC_CHANNELS.LIFECYCLE_SHUTDOWN_ACK,
-      );
+      expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.LIFECYCLE_SHUTDOWN_ACK);
     });
   });
 
   describe('lifecycle.onWorkerHealth', () => {
     it('registers listener on WORKER_STATUS channel', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       api.lifecycle.onWorkerHealth(vi.fn());
 
@@ -426,7 +417,7 @@ describe('preload/index', () => {
 
     it('returns unsubscribe function', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       const unsub = api.lifecycle.onWorkerHealth(vi.fn());
       unsub();
@@ -441,7 +432,7 @@ describe('preload/index', () => {
   describe('lifecycle.onShutdownPrepare', () => {
     it('registers listener on SHUTDOWN_PREPARE channel', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       api.lifecycle.onShutdownPrepare(vi.fn());
 
@@ -453,7 +444,7 @@ describe('preload/index', () => {
 
     it('returns unsubscribe function', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       const unsub = api.lifecycle.onShutdownPrepare(vi.fn());
       unsub();
@@ -468,7 +459,7 @@ describe('preload/index', () => {
   describe('lifecycle.onBoundsChanged', () => {
     it('registers listener on WINDOW_BOUNDS_CHANGED channel', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       api.lifecycle.onBoundsChanged(vi.fn());
 
@@ -480,7 +471,7 @@ describe('preload/index', () => {
 
     it('forwards bounds data to callback', async () => {
       const electron = await loadPreload();
-      const { api } = getExposedAPI(electron);
+      const { api } = getExposedApi(electron);
 
       const callback = vi.fn();
       api.lifecycle.onBoundsChanged(callback);
@@ -488,7 +479,7 @@ describe('preload/index', () => {
       const onCall = (electron.ipcRenderer.on as ReturnType<typeof vi.fn>).mock.calls.find(
         (c: any[]) => c[0] === PUSH_EVENTS.WINDOW_BOUNDS_CHANGED,
       );
-      const wrappedHandler = onCall![1];
+      const wrappedHandler = onCall?.[1];
 
       const bounds = { x: 100, y: 200, width: 800, height: 600 };
       wrappedHandler({} /* IpcRendererEvent */, bounds);
@@ -514,7 +505,7 @@ describe('preload/index', () => {
 
       const portHandler = handlers.get(PUSH_EVENTS.PORT);
       // event.ports is empty
-      portHandler!({ ports: [] }, { channel: 'duckdb-data' });
+      portHandler?.({ ports: [] }, { channel: 'duckdb-data' });
       // Should not throw
     });
 
@@ -523,7 +514,7 @@ describe('preload/index', () => {
 
       const port = createMockMessagePort();
       const portHandler = handlers.get(PUSH_EVENTS.PORT);
-      portHandler!({ ports: [port] }, { channel: 'duckdb-data' });
+      portHandler?.({ ports: [port] }, { channel: 'duckdb-data' });
 
       expect(port.onmessage).toBeTypeOf('function');
       expect(port.start).toHaveBeenCalledOnce();
@@ -534,7 +525,7 @@ describe('preload/index', () => {
 
       const port = createMockMessagePort();
       const portHandler = handlers.get(PUSH_EVENTS.PORT);
-      portHandler!({ ports: [port] }, { channel: 'some-other-channel' });
+      portHandler?.({ ports: [port] }, { channel: 'some-other-channel' });
 
       expect(port.onmessage).toBeNull();
     });
@@ -542,17 +533,17 @@ describe('preload/index', () => {
     describe('arrow-batch messages', () => {
       it('dispatches arrow-batch to registered data callbacks', async () => {
         const electron = await loadPreload();
-        const { api } = getExposedAPI(electron);
+        const { api } = getExposedApi(electron);
 
         const callback = vi.fn();
         api.query.onData('q1', callback);
 
         const port = createMockMessagePort();
         const portHandler = handlers.get(PUSH_EVENTS.PORT);
-        portHandler!({ ports: [port] }, { channel: 'duckdb-data' });
+        portHandler?.({ ports: [port] }, { channel: 'duckdb-data' });
 
         const testBuffer = new ArrayBuffer(16);
-        port.onmessage!({
+        port.onmessage?.({
           data: {
             type: 'arrow-batch',
             queryId: 'q1',
@@ -574,16 +565,16 @@ describe('preload/index', () => {
 
       it('uses empty ArrayBuffer when no __transferredBuffers', async () => {
         const electron = await loadPreload();
-        const { api } = getExposedAPI(electron);
+        const { api } = getExposedApi(electron);
 
         const callback = vi.fn();
         api.query.onData('q1', callback);
 
         const port = createMockMessagePort();
         const portHandler = handlers.get(PUSH_EVENTS.PORT);
-        portHandler!({ ports: [port] }, { channel: 'duckdb-data' });
+        portHandler?.({ ports: [port] }, { channel: 'duckdb-data' });
 
-        port.onmessage!({
+        port.onmessage?.({
           data: {
             type: 'arrow-batch',
             queryId: 'q1',
@@ -601,15 +592,15 @@ describe('preload/index', () => {
 
       it('sends ACK for arrow-batch messages', async () => {
         const electron = await loadPreload();
-        const { api } = getExposedAPI(electron);
+        const { api } = getExposedApi(electron);
 
         api.query.onData('q1', vi.fn());
 
         const port = createMockMessagePort();
         const portHandler = handlers.get(PUSH_EVENTS.PORT);
-        portHandler!({ ports: [port] }, { channel: 'duckdb-data' });
+        portHandler?.({ ports: [port] }, { channel: 'duckdb-data' });
 
-        port.onmessage!({
+        port.onmessage?.({
           data: {
             type: 'arrow-batch',
             queryId: 'q1',
@@ -632,9 +623,9 @@ describe('preload/index', () => {
 
         const port = createMockMessagePort();
         const portHandler = handlers.get(PUSH_EVENTS.PORT);
-        portHandler!({ ports: [port] }, { channel: 'duckdb-data' });
+        portHandler?.({ ports: [port] }, { channel: 'duckdb-data' });
 
-        port.onmessage!({
+        port.onmessage?.({
           data: {
             type: 'arrow-batch',
             queryId: 'q-unknown',
@@ -650,7 +641,7 @@ describe('preload/index', () => {
 
       it('dispatches to all registered callbacks for a queryId', async () => {
         const electron = await loadPreload();
-        const { api } = getExposedAPI(electron);
+        const { api } = getExposedApi(electron);
 
         const cb1 = vi.fn();
         const cb2 = vi.fn();
@@ -659,9 +650,9 @@ describe('preload/index', () => {
 
         const port = createMockMessagePort();
         const portHandler = handlers.get(PUSH_EVENTS.PORT);
-        portHandler!({ ports: [port] }, { channel: 'duckdb-data' });
+        portHandler?.({ ports: [port] }, { channel: 'duckdb-data' });
 
-        port.onmessage!({
+        port.onmessage?.({
           data: {
             type: 'arrow-batch',
             queryId: 'q1',
@@ -680,16 +671,16 @@ describe('preload/index', () => {
     describe('arrow-end messages', () => {
       it('dispatches arrow-end with isLast=true and correct fields', async () => {
         const electron = await loadPreload();
-        const { api } = getExposedAPI(electron);
+        const { api } = getExposedApi(electron);
 
         const callback = vi.fn();
         api.query.onData('q1', callback);
 
         const port = createMockMessagePort();
         const portHandler = handlers.get(PUSH_EVENTS.PORT);
-        portHandler!({ ports: [port] }, { channel: 'duckdb-data' });
+        portHandler?.({ ports: [port] }, { channel: 'duckdb-data' });
 
-        port.onmessage!({
+        port.onmessage?.({
           data: {
             type: 'arrow-end',
             queryId: 'q1',
@@ -715,10 +706,10 @@ describe('preload/index', () => {
 
         const port = createMockMessagePort();
         const portHandler = handlers.get(PUSH_EVENTS.PORT);
-        portHandler!({ ports: [port] }, { channel: 'duckdb-data' });
+        portHandler?.({ ports: [port] }, { channel: 'duckdb-data' });
 
         // Should not throw
-        port.onmessage!({
+        port.onmessage?.({
           data: {
             type: 'arrow-end',
             queryId: 'q-no-listener',
@@ -734,16 +725,16 @@ describe('preload/index', () => {
     describe('arrow-error messages', () => {
       it('dispatches arrow-error with isLast=true and zero-filled batch', async () => {
         const electron = await loadPreload();
-        const { api } = getExposedAPI(electron);
+        const { api } = getExposedApi(electron);
 
         const callback = vi.fn();
         api.query.onData('q1', callback);
 
         const port = createMockMessagePort();
         const portHandler = handlers.get(PUSH_EVENTS.PORT);
-        portHandler!({ ports: [port] }, { channel: 'duckdb-data' });
+        portHandler?.({ ports: [port] }, { channel: 'duckdb-data' });
 
-        port.onmessage!({
+        port.onmessage?.({
           data: {
             type: 'arrow-error',
             queryId: 'q1',
@@ -767,10 +758,10 @@ describe('preload/index', () => {
 
         const port = createMockMessagePort();
         const portHandler = handlers.get(PUSH_EVENTS.PORT);
-        portHandler!({ ports: [port] }, { channel: 'duckdb-data' });
+        portHandler?.({ ports: [port] }, { channel: 'duckdb-data' });
 
         // Should not throw
-        port.onmessage!({
+        port.onmessage?.({
           data: {
             type: 'arrow-error',
             queryId: 'q-no-listener',

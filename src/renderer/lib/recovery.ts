@@ -1,9 +1,12 @@
-import db from '../stores/db';
-import type { RecoveryLogEntry, CatalogEntry, ColumnSchemaRecord } from '@shared/types';
+import type { CatalogEntry, ColumnSchemaRecord, RecoveryLogEntry } from '@shared/types';
+import { db } from '../stores/db';
 
 /**
- * T051: Check shutdown status and trigger recovery if needed.
- * Called during renderer bootstrap.
+ * Checks the previous session's shutdown status and triggers crash recovery if needed.
+ * Called during renderer bootstrap. Performs integrity verification and catalog reconciliation
+ * when an unclean shutdown is detected.
+ *
+ * @returns `true` if recovery was triggered (dirty shutdown), `false` for a clean startup.
  */
 export async function checkAndRecover(): Promise<boolean> {
   const shutdownEntry = await db.app_state.get('shutdown_status');
@@ -33,7 +36,7 @@ export async function checkAndRecover(): Promise<boolean> {
     } catch (err) {
       await writeRecoveryLog({
         type: 'integrity_check',
-        details: `DuckDB integrity check could not be verified: ${err}`,
+        details: `DuckDB integrity check could not be verified: ${String(err)}`,
         outcome: 'degraded',
         affectedWorker: 'duckdb',
       });
@@ -49,14 +52,27 @@ export async function checkAndRecover(): Promise<boolean> {
 }
 
 /**
- * T053: Write a recovery log entry to Dexie.js
+ * Writes a timestamped recovery log entry to the Dexie.js `recovery_log` table.
+ * Automatically generates an ID and timestamp.
+ *
+ * @param entry - The log entry fields (excluding `id` and `timestamp`).
  */
-export async function writeRecoveryLog(entry: Omit<RecoveryLogEntry, 'id' | 'timestamp'>): Promise<void> {
+export async function writeRecoveryLog(
+  entry: Omit<RecoveryLogEntry, 'id' | 'timestamp'>,
+): Promise<void> {
   await db.recovery_log.add({
     id: crypto.randomUUID(),
     timestamp: new Date().toISOString(),
     ...entry,
   });
+}
+
+interface DuckDbTableInfo {
+  name: string;
+  type: 'table' | 'view';
+  rowCount: number;
+  sizeBytes: number;
+  columnCount: number;
 }
 
 /**
@@ -66,12 +82,13 @@ export async function writeRecoveryLog(entry: Omit<RecoveryLogEntry, 'id' | 'tim
 async function reconcileCatalog(): Promise<void> {
   try {
     // Fetch current DuckDB tables via preload
-    const duckdbTables = await window.datspace.catalog.listTables();
+    const duckdbTables: DuckDbTableInfo[] =
+      (await window.datspace.catalog.listTables()) as unknown as DuckDbTableInfo[];
 
     // Get current Dexie entries
     const dexieEntries = await db.catalog_entries.toArray();
     const dexieByName = new Map(dexieEntries.map((e) => [e.name, e]));
-    const duckdbByName = new Map(duckdbTables.map((t) => [t.name, t]));
+    const duckdbByName = new Map(duckdbTables.map((t: DuckDbTableInfo) => [t.name, t]));
 
     // Create missing entries (tables in DuckDB but not in Dexie)
     for (const [name, table] of duckdbByName) {
@@ -104,7 +121,9 @@ async function reconcileCatalog(): Promise<void> {
             };
             await db.column_schemas.put(record);
           }
-        } catch { /* best effort */ }
+        } catch {
+          /* best effort */
+        }
       }
     }
 
@@ -123,7 +142,7 @@ async function reconcileCatalog(): Promise<void> {
   } catch (err) {
     await writeRecoveryLog({
       type: 'wal_recovery',
-      details: `Catalog reconciliation failed: ${err}`,
+      details: `Catalog reconciliation failed: ${String(err)}`,
       outcome: 'degraded',
     });
   }

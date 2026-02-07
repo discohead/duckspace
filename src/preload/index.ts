@@ -1,10 +1,38 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { DatspaceAPI } from './api';
-import type { QueryStatus, ArrowBatch, WorkerHealth, QueryHistoryPushRecord } from '@shared/types';
-import { IPC_CHANNELS, PUSH_EVENTS } from '@shared/constants';
+/**
+ * Electron preload script that sets up the `window.datspace` bridge.
+ *
+ * Runs in the Renderer's isolated preload context. Uses `contextBridge.exposeInMainWorld`
+ * to expose a safe API surface to the Renderer without granting full Node.js access.
+ * Handles MessagePort receipt for the Arrow IPC data plane and wires up IPC
+ * listeners for push events (query progress, worker health, shutdown).
+ *
+ * @module preload
+ */
 
-// MessagePort storage
-const ports = new Map<string, MessagePort>();
+import { IPC_CHANNELS, PUSH_EVENTS } from '@shared/constants';
+import type {
+  ArrowBatch,
+  ArrowBatchMessage,
+  DataPlaneError,
+  QueryHistoryPushRecord,
+  QueryStatus,
+  StreamEndMessage,
+  WorkerHealth,
+} from '@shared/types';
+import { contextBridge, type IpcRendererEvent, ipcRenderer } from 'electron';
+import type { DatspaceAPI } from './api';
+
+/** Inbound data plane message with transferred buffers attached by the MessagePort */
+type InboundDataPlaneMessage =
+  // biome-ignore lint/style/useNamingConvention: protocol field name used by Electron MessagePort transfer
+  | (ArrowBatchMessage & { __transferredBuffers?: ArrayBuffer[] })
+  | StreamEndMessage
+  | DataPlaneError;
+
+// MessagePort storage — extract the port type from Electron's IpcRendererEvent
+// since the DOM lib is not included in tsconfig
+type ElectronMessagePort = IpcRendererEvent['ports'][number];
+const ports = new Map<string, ElectronMessagePort>();
 const dataCallbacks = new Map<string, Set<(batch: ArrowBatch) => void>>();
 
 // Receive MessagePorts from Main Process
@@ -16,14 +44,13 @@ ipcRenderer.on(PUSH_EVENTS.PORT, (event: IpcRendererEvent, payload: { channel: s
 
   if (payload.channel === 'duckdb-data') {
     port.onmessage = (msgEvent: MessageEvent) => {
-      const msg = msgEvent.data;
+      const msg = msgEvent.data as InboundDataPlaneMessage;
 
       if (msg.type === 'arrow-batch') {
         const callbacks = dataCallbacks.get(msg.queryId);
         if (callbacks) {
           // The ArrayBuffer is transferred alongside the message
-          const transferredBuffers = (msgEvent as MessageEvent).data.__transferredBuffers;
-          const arrowBuffer = transferredBuffers?.[0] ?? new ArrayBuffer(0);
+          const arrowBuffer = msg.__transferredBuffers?.[0] ?? new ArrayBuffer(0);
 
           const batch: ArrowBatch = {
             buffer: arrowBuffer,
@@ -32,7 +59,7 @@ ipcRenderer.on(PUSH_EVENTS.PORT, (event: IpcRendererEvent, payload: { channel: s
             byteSize: msg.byteSize,
             isLast: false,
           };
-          callbacks.forEach((cb) => cb(batch));
+          for (const cb of callbacks) cb(batch);
 
           // Send ACK for backpressure
           port.postMessage({ type: 'ack', queryId: msg.queryId, index: msg.index });
@@ -47,9 +74,10 @@ ipcRenderer.on(PUSH_EVENTS.PORT, (event: IpcRendererEvent, payload: { channel: s
             byteSize: msg.totalBytes,
             isLast: true,
           };
-          callbacks.forEach((cb) => cb(batch));
+          for (const cb of callbacks) cb(batch);
         }
-      } else if (msg.type === 'arrow-error') {
+      } else {
+        // msg.type === 'arrow-error'
         const callbacks = dataCallbacks.get(msg.queryId);
         if (callbacks) {
           const batch: ArrowBatch = {
@@ -59,7 +87,7 @@ ipcRenderer.on(PUSH_EVENTS.PORT, (event: IpcRendererEvent, payload: { channel: s
             byteSize: 0,
             isLast: true,
           };
-          callbacks.forEach((cb) => cb(batch));
+          for (const cb of callbacks) cb(batch);
         }
       }
     };
@@ -72,11 +100,12 @@ const api: DatspaceAPI = {
     execute: (sql: string, params?: unknown[]) =>
       ipcRenderer.invoke(IPC_CHANNELS.QUERY_EXECUTE, { sql, params }),
 
-    cancel: (queryId: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.QUERY_CANCEL, { queryId }),
+    cancel: (queryId: string) => ipcRenderer.invoke(IPC_CHANNELS.QUERY_CANCEL, { queryId }),
 
-    onStatus: (callback: (status: QueryStatus) => void) => {
-      const handler = (_: IpcRendererEvent, data: QueryStatus) => callback(data);
+    onStatus: (callback: (status: QueryStatus) => void): (() => void) => {
+      const handler = (_: IpcRendererEvent, data: QueryStatus): void => {
+        callback(data);
+      };
       ipcRenderer.on(PUSH_EVENTS.QUERY_PROGRESS, handler);
       return () => ipcRenderer.removeListener(PUSH_EVENTS.QUERY_PROGRESS, handler);
     },
@@ -85,7 +114,7 @@ const api: DatspaceAPI = {
       if (!dataCallbacks.has(queryId)) {
         dataCallbacks.set(queryId, new Set());
       }
-      dataCallbacks.get(queryId)!.add(callback);
+      dataCallbacks.get(queryId)?.add(callback);
       return () => {
         const set = dataCallbacks.get(queryId);
         if (set) {
@@ -95,16 +124,17 @@ const api: DatspaceAPI = {
       };
     },
 
-    onQueryHistory: (callback: (record: QueryHistoryPushRecord) => void) => {
-      const handler = (_: IpcRendererEvent, data: QueryHistoryPushRecord) => callback(data);
+    onQueryHistory: (callback: (record: QueryHistoryPushRecord) => void): (() => void) => {
+      const handler = (_: IpcRendererEvent, data: QueryHistoryPushRecord): void => {
+        callback(data);
+      };
       ipcRenderer.on(PUSH_EVENTS.QUERY_HISTORY, handler);
       return () => ipcRenderer.removeListener(PUSH_EVENTS.QUERY_HISTORY, handler);
     },
   },
 
   catalog: {
-    listTables: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.QUERY_LIST_TABLES),
+    listTables: () => ipcRenderer.invoke(IPC_CHANNELS.QUERY_LIST_TABLES),
 
     describeTable: (tableName: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.QUERY_DESCRIBE_TABLE, { tableName }),
@@ -114,29 +144,37 @@ const api: DatspaceAPI = {
   },
 
   lifecycle: {
-    ready: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.LIFECYCLE_READY),
+    ready: () => ipcRenderer.invoke(IPC_CHANNELS.LIFECYCLE_READY),
 
-    getAppState: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.LIFECYCLE_GET_APP_STATE),
+    getAppState: () => ipcRenderer.invoke(IPC_CHANNELS.LIFECYCLE_GET_APP_STATE),
 
-    shutdownAck: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.LIFECYCLE_SHUTDOWN_ACK),
+    shutdownAck: () => ipcRenderer.invoke(IPC_CHANNELS.LIFECYCLE_SHUTDOWN_ACK),
 
-    onWorkerHealth: (callback: (health: WorkerHealth) => void) => {
-      const handler = (_: IpcRendererEvent, data: WorkerHealth) => callback(data);
+    onWorkerHealth: (callback: (health: WorkerHealth) => void): (() => void) => {
+      const handler = (_: IpcRendererEvent, data: WorkerHealth): void => {
+        callback(data);
+      };
       ipcRenderer.on(PUSH_EVENTS.WORKER_STATUS, handler);
       return () => ipcRenderer.removeListener(PUSH_EVENTS.WORKER_STATUS, handler);
     },
 
-    onShutdownPrepare: (callback: () => void) => {
-      const handler = () => callback();
+    onShutdownPrepare: (callback: () => void): (() => void) => {
+      const handler = (): void => {
+        callback();
+      };
       ipcRenderer.on(PUSH_EVENTS.SHUTDOWN_PREPARE, handler);
       return () => ipcRenderer.removeListener(PUSH_EVENTS.SHUTDOWN_PREPARE, handler);
     },
 
-    onBoundsChanged: (callback: (bounds: { x: number; y: number; width: number; height: number }) => void) => {
-      const handler = (_: IpcRendererEvent, bounds: { x: number; y: number; width: number; height: number }) => callback(bounds);
+    onBoundsChanged: (
+      callback: (bounds: { x: number; y: number; width: number; height: number }) => void,
+    ): (() => void) => {
+      const handler = (
+        _: IpcRendererEvent,
+        bounds: { x: number; y: number; width: number; height: number },
+      ): void => {
+        callback(bounds);
+      };
       ipcRenderer.on(PUSH_EVENTS.WINDOW_BOUNDS_CHANGED, handler);
       return () => ipcRenderer.removeListener(PUSH_EVENTS.WINDOW_BOUNDS_CHANGED, handler);
     },

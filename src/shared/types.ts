@@ -25,7 +25,7 @@ export interface QueryExecuteRequest {
   /** SQL string with $1, $2, ... parameter placeholders */
   sql: string;
   /** Parameter values for binding (positional) */
-  params?: unknown[];
+  params?: unknown[] | undefined;
 }
 
 /** Response payload for `query:execute` IPC channel */
@@ -56,13 +56,13 @@ export interface QueryStatusEvent {
   /** Current execution phase */
   phase: 'scanning' | 'filtering' | 'aggregating' | 'sorting' | 'streaming';
   /** Rows scanned so far (if available from DuckDB progress bar) */
-  rowsScanned?: number;
+  rowsScanned?: number | undefined;
   /** Rows after filter application */
-  rowsFiltered?: number;
+  rowsFiltered?: number | undefined;
   /** Number of Arrow batches streamed to Renderer */
   batchesStreamed: number;
   /** Estimated total batches (null if unknown) */
-  estimatedTotalBatches?: number;
+  estimatedTotalBatches?: number | undefined;
   /** Milliseconds since query started */
   elapsedMs: number;
 }
@@ -97,7 +97,7 @@ export interface CatalogPreviewRequest {
   /** DuckDB table or view name */
   tableName: string;
   /** Number of sample rows (default: 100) */
-  limit?: number;
+  limit?: number | undefined;
 }
 
 /** Response payload for `catalog:preview` IPC channel */
@@ -118,7 +118,7 @@ export interface ArrowBatchMessage {
   /** 0-based batch sequence number */
   index: number;
   /** Total batch count (if known; null for streaming) */
-  totalBatches?: number;
+  totalBatches?: number | undefined;
   /** Number of rows in this batch */
   rowCount: number;
   /** Size of the Arrow IPC buffer in bytes */
@@ -168,7 +168,7 @@ export interface DataPlaneCancelMessage {
   /** The queryId to cancel */
   queryId: string;
   /** Cancellation reason */
-  reason?: 'user_cancelled' | 'component_unmounted' | 'timeout' | 'superseded';
+  reason?: 'user_cancelled' | 'component_unmounted' | 'timeout' | 'superseded' | undefined;
 }
 
 /** Union of all data plane message types flowing over the duckdb-data MessagePort */
@@ -191,16 +191,18 @@ export interface WorkerQueryRequest {
   /** Parameterized SQL with $1, $2, ... placeholders */
   sql: string;
   /** Parameter values for binding */
-  params?: unknown[];
+  params?: unknown[] | undefined;
   /** Execution options */
-  options?: {
-    /** Query timeout in milliseconds (default: 30000) */
-    timeout?: number;
-    /** Override default batch size */
-    batchSize?: number;
-    /** Whether this is a read-only query (default: true) */
-    readOnly?: boolean;
-  };
+  options?:
+    | {
+        /** Query timeout in milliseconds (default: 30000) */
+        timeout?: number | undefined;
+        /** Override default batch size */
+        batchSize?: number | undefined;
+        /** Whether this is a read-only query (default: true) */
+        readOnly?: boolean | undefined;
+      }
+    | undefined;
 }
 
 /** Main -> DuckDB Worker: Cancel a running query */
@@ -239,11 +241,13 @@ export interface WorkerCatalogUpdate {
 export interface WorkerReadyMessage {
   type: 'ready';
   worker: 'duckdb';
-  metadata?: {
-    duckdbVersion?: string;
-    extensionsLoaded?: string[];
-    tableCount?: number;
-  };
+  metadata?:
+    | {
+        duckdbVersion?: string | undefined;
+        extensionsLoaded?: string[] | undefined;
+        tableCount?: number | undefined;
+      }
+    | undefined;
 }
 
 /** Main -> Worker: Request graceful shutdown */
@@ -261,9 +265,9 @@ export interface ShutdownComplete {
 export interface WorkerConfigUpdate {
   type: 'configure';
   settings: {
-    memory_limit?: string;
-    threads?: number;
-    temp_directory?: string;
+    memory_limit?: string | undefined;
+    threads?: number | undefined;
+    temp_directory?: string | undefined;
   };
 }
 
@@ -296,11 +300,13 @@ export interface HeartbeatAck {
   /** Worker's self-reported health */
   status: 'healthy' | 'degraded' | 'busy';
   /** Optional diagnostics */
-  details?: {
-    activeQueries?: number;
-    memoryUsageMB?: number;
-    uptime?: number;
-  };
+  details?:
+    | {
+        activeQueries?: number | undefined;
+        memoryUsageMB?: number | undefined;
+        uptime?: number | undefined;
+      }
+    | undefined;
 }
 
 /** Union of all worker control messages flowing over parentPort */
@@ -328,19 +334,19 @@ export type WorkerMessage =
 /** Query tab content state */
 export interface QueryTabState {
   sql: string;
-  cursorPosition?: number;
-  scrollTop?: number;
+  cursorPosition?: number | undefined;
+  scrollTop?: number | undefined;
 }
 
 /** Catalog browser tab content state */
 export interface CatalogTabState {
-  selectedTable?: string;
-  expandedNodes?: string[];
+  selectedTable?: string | undefined;
+  expandedNodes?: string[] | undefined;
 }
 
 /** Settings tab content state */
 export interface SettingsTabState {
-  section?: string;
+  section?: string | undefined;
 }
 
 /** Dexie.js `tabs` collection record */
@@ -364,12 +370,7 @@ export interface Tab {
 // --- Query Execution ---
 
 /** Query execution lifecycle status */
-export type QueryExecutionStatus =
-  | 'idle'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'cancelled';
+export type QueryExecutionStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 /** Dexie.js `queries` collection record */
 export interface Query {
@@ -384,15 +385,15 @@ export interface Query {
   /** ISO timestamp of execution start */
   startedAt: string;
   /** ISO timestamp of completion (if finished) */
-  completedAt?: string;
+  completedAt?: string | undefined;
   /** Duration in milliseconds */
-  executionTimeMs?: number;
+  executionTimeMs?: number | undefined;
   /** Number of rows in the result set */
-  rowCount?: number;
+  rowCount?: number | undefined;
   /** Human-readable error if status is 'failed' */
-  errorMessage?: string;
+  errorMessage?: string | undefined;
   /** Error taxonomy code (E1xxx-E9xxx) */
-  errorCode?: string;
+  errorCode?: string | undefined;
 }
 
 // --- Catalog ---
@@ -418,7 +419,7 @@ export interface CatalogEntry {
   /** ISO timestamp of registration */
   registeredAt: string;
   /** ISO timestamp of last query against this table */
-  lastAccessedAt?: string;
+  lastAccessedAt?: string | undefined;
 }
 
 /** Column schema information */
@@ -474,7 +475,7 @@ export interface QueryHistoryRecord {
   /** Execution outcome */
   status: 'success' | 'error';
   /** Error details if applicable */
-  errorMessage?: string;
+  errorMessage?: string | undefined;
 }
 
 /** Lightweight query history record pushed from DuckDB Worker -> Main -> Renderer */
@@ -490,7 +491,7 @@ export interface QueryHistoryPushRecord {
   /** Execution outcome */
   status: 'success' | 'error';
   /** Error details if applicable */
-  errorMessage?: string;
+  errorMessage?: string | undefined;
 }
 
 // --- Preferences ---
@@ -520,7 +521,7 @@ export interface WorkerHealthRecord {
   /** ISO timestamp of last successful heartbeat */
   lastHeartbeatAt: string;
   /** Most recent error message (if any) */
-  lastErrorMessage?: string;
+  lastErrorMessage?: string | undefined;
   /** ISO timestamp when the worker last started */
   upSince: string;
   /** Number of queries currently executing */
@@ -542,7 +543,7 @@ export interface RecoveryLogEntry {
   /** Recovery outcome */
   outcome: 'recovered' | 'degraded' | 'failed';
   /** Worker ID that was affected (if applicable) */
-  affectedWorker?: string;
+  affectedWorker?: string | undefined;
 }
 
 // --- Application State ---
@@ -582,18 +583,13 @@ export interface WorkerHealth {
   /** Derived health status */
   status: WorkerHealthStatus;
   /** Number of automatic restarts since app launch */
-  restartCount?: number;
+  restartCount?: number | undefined;
   /** Human-readable status message */
-  message?: string;
+  message?: string | undefined;
 }
 
 /** Worker health status values */
-export type WorkerHealthStatus =
-  | 'ready'
-  | 'busy'
-  | 'degraded'
-  | 'restarting'
-  | 'failed';
+export type WorkerHealthStatus = 'ready' | 'busy' | 'degraded' | 'restarting' | 'failed';
 
 /** Application state information returned by lifecycle.getAppState() */
 export interface AppState {
@@ -622,67 +618,19 @@ export interface IPCError {
   /** Whether the client should retry this operation */
   retryable: boolean;
   /** Suggested retry delay in milliseconds (present if retryable) */
-  retryAfterMs?: number;
+  retryAfterMs?: number | undefined;
   /** Additional context for debugging */
-  details?: Record<string, unknown>;
+  details?: Record<string, unknown> | undefined;
   /** Stack trace (development mode only) */
-  stack?: string;
+  stack?: string | undefined;
 }
 
 // ============================================================
 // 6. Configuration
 // ============================================================
 
-/** Root configuration schema for config.json */
-export interface DatspaceConfig {
-  /** DuckDB memory and threading configuration */
-  duckdb: {
-    /** Percentage of system RAM to allocate (10-90) */
-    memoryLimitPercent: number;
-    /** Explicit MB override (null = use percent) */
-    memoryLimitOverrideMB: number | null;
-    /** Thread count (null = os.cpus().length - 2) */
-    threads: number | null;
-    /** Extensions to load at startup */
-    extensions: string[];
-  };
-  /** Application paths (relative to userData) */
-  paths: {
-    /** Database filename */
-    database: string;
-    /** Temp/spill directory */
-    tempDir: string;
-    /** Config file (self-reference) */
-    config: string;
-  };
-  /** Worker health monitoring settings */
-  workers: {
-    /** How often to ping workers in ms (>= 5000) */
-    healthCheckIntervalMs: number;
-    /** Max wait for health check response in ms (>= 1000) */
-    heartbeatTimeoutMs: number;
-    /** Auto-restart limit before marking 'failed' (>= 1) */
-    maxRestartAttempts: number;
-    /** V8 heap limit for worker threads in MB (>= 128) */
-    v8HeapLimitMB: number;
-  };
-  /** UI preferences (also mirrored in Dexie.js preferences collection) */
-  ui: {
-    /** Color theme */
-    theme: 'light' | 'dark' | 'system';
-    /** Base font size in pixels (10-24) */
-    fontSize: number;
-    /** Default LIMIT for unbounded SELECTs (>= 0) */
-    defaultQueryLimit: number;
-  };
-  /** Application lifecycle settings */
-  lifecycle: {
-    /** Max time for graceful shutdown in ms (>= 2000) */
-    shutdownTimeoutMs: number;
-    /** Run CHECKPOINT before closing DuckDB */
-    walCheckpointOnShutdown: boolean;
-  };
-}
+/** Root configuration schema — defined by Zod in schemas/config-schema.ts */
+export type { DatspaceConfig } from './schemas/config-schema';
 
 // ============================================================
 // Preload Bridge API Namespace Types
@@ -711,7 +659,9 @@ export interface LifecycleNamespace {
   shutdownAck(): Promise<void>;
   onWorkerHealth(callback: (health: WorkerHealth) => void): () => void;
   onShutdownPrepare(callback: () => void): () => void;
-  onBoundsChanged(callback: (bounds: { x: number; y: number; width: number; height: number }) => void): () => void;
+  onBoundsChanged(
+    callback: (bounds: { x: number; y: number; width: number; height: number }) => void,
+  ): () => void;
 }
 
 /** Complete preload bridge API exposed as window.datspace */

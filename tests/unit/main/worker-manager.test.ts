@@ -1,5 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { WorkerStatus } from '@main/worker-manager';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock worker_threads
 const mockWorkerInstance = {
@@ -53,17 +52,23 @@ function createMockBrowserWindow() {
 
 function triggerWorkerMessage(msg: Record<string, unknown>) {
   const msgHandlers = mockWorkerInstance._handlers['message'] ?? [];
-  msgHandlers.forEach((h) => h(msg));
+  msgHandlers.forEach((h) => {
+    h(msg);
+  });
 }
 
 function triggerWorkerError(err: Error) {
   const errorHandlers = mockWorkerInstance._handlers['error'] ?? [];
-  errorHandlers.forEach((h) => h(err));
+  errorHandlers.forEach((h) => {
+    h(err);
+  });
 }
 
 function triggerWorkerExit(code: number) {
   const exitHandlers = mockWorkerInstance._handlers['exit'] ?? [];
-  exitHandlers.forEach((h) => h(code));
+  exitHandlers.forEach((h) => {
+    h(code);
+  });
 }
 
 describe('WorkerManager', () => {
@@ -304,9 +309,9 @@ describe('WorkerManager', () => {
 
       // Simulate shutdown-complete
       const shutdownHandlers = mockWorkerInstance._handlers['message'] ?? [];
-      shutdownHandlers.forEach((h) =>
-        h({ type: 'shutdown-complete', worker: 'duckdb' }),
-      );
+      shutdownHandlers.forEach((h) => {
+        h({ type: 'shutdown-complete', worker: 'duckdb' });
+      });
 
       await expect(shutdownPromise).resolves.toBeUndefined();
     });

@@ -35,6 +35,7 @@ function buildWorkerPlugin() {
   };
 }
 
+// biome-ignore lint/style/noDefaultExport: Required by Vite
 export default defineConfig({
   resolve: {
     alias: {

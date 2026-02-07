@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // --------------------------------------------------------------------------
 // Mock @duckdb/node-api
@@ -94,8 +94,8 @@ describe('duckdb-connection', () => {
       await mod.initDuckDB(baseConfig());
 
       const runCalls = mockRun.mock.calls.map((c: any[]) => c[0] as string);
-      const createQueryHistory = runCalls.find(
-        (sql: string) => sql.includes('CREATE TABLE IF NOT EXISTS _query_history'),
+      const createQueryHistory = runCalls.find((sql: string) =>
+        sql.includes('CREATE TABLE IF NOT EXISTS _query_history'),
       );
       expect(createQueryHistory).toBeDefined();
       expect(createQueryHistory).toContain('query_id');
@@ -107,8 +107,8 @@ describe('duckdb-connection', () => {
       await mod.initDuckDB(baseConfig());
 
       const runCalls = mockRun.mock.calls.map((c: any[]) => c[0] as string);
-      const createSchemaVersion = runCalls.find(
-        (sql: string) => sql.includes('CREATE TABLE IF NOT EXISTS _schema_version'),
+      const createSchemaVersion = runCalls.find((sql: string) =>
+        sql.includes('CREATE TABLE IF NOT EXISTS _schema_version'),
       );
       expect(createSchemaVersion).toBeDefined();
       expect(createSchemaVersion).toContain('version');
@@ -119,8 +119,8 @@ describe('duckdb-connection', () => {
       await mod.initDuckDB(baseConfig());
 
       const runCalls = mockRun.mock.calls.map((c: any[]) => c[0] as string);
-      const createIndex = runCalls.find(
-        (sql: string) => sql.includes('CREATE INDEX IF NOT EXISTS idx_qh_timestamp'),
+      const createIndex = runCalls.find((sql: string) =>
+        sql.includes('CREATE INDEX IF NOT EXISTS idx_qh_timestamp'),
       );
       expect(createIndex).toBeDefined();
     });
@@ -129,8 +129,8 @@ describe('duckdb-connection', () => {
       await mod.initDuckDB(baseConfig());
 
       const runCalls = mockRun.mock.calls.map((c: any[]) => c[0] as string);
-      const insertVersion = runCalls.find(
-        (sql: string) => sql.includes("INSERT OR IGNORE INTO _schema_version"),
+      const insertVersion = runCalls.find((sql: string) =>
+        sql.includes('INSERT OR IGNORE INTO _schema_version'),
       );
       expect(insertVersion).toBeDefined();
       expect(insertVersion).toContain('1.0.0');
@@ -144,9 +144,7 @@ describe('duckdb-connection', () => {
 
       await mod.initDuckDB(config);
 
-      expect(mockRun).toHaveBeenCalledWith(
-        "SET extension_directory = '/app/extensions'",
-      );
+      expect(mockRun).toHaveBeenCalledWith("SET extension_directory = '/app/extensions'");
     });
 
     it('does not set extension_directory when not provided', async () => {
@@ -154,9 +152,7 @@ describe('duckdb-connection', () => {
       await mod.initDuckDB(config);
 
       const runCalls = mockRun.mock.calls.map((c: any[]) => c[0] as string);
-      const setExtDir = runCalls.find(
-        (sql: string) => sql.includes('SET extension_directory'),
-      );
+      const setExtDir = runCalls.find((sql: string) => sql.includes('SET extension_directory'));
       expect(setExtDir).toBeUndefined();
     });
 
@@ -165,9 +161,7 @@ describe('duckdb-connection', () => {
       await mod.initDuckDB(config);
 
       const runCalls = mockRun.mock.calls.map((c: any[]) => c[0] as string);
-      const loadCalls = runCalls.filter(
-        (sql: string) => sql.startsWith('LOAD '),
-      );
+      const loadCalls = runCalls.filter((sql: string) => sql.startsWith('LOAD '));
       expect(loadCalls).toHaveLength(0);
     });
   });

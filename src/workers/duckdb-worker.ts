@@ -1,46 +1,68 @@
-import { parentPort, workerData, type MessagePort } from 'worker_threads';
+import { PortSetupMessageSchema, WorkerInboundMessageSchema } from '@shared/schemas/worker-schemas';
+import type {
+  HeartbeatAck,
+  HeartbeatRequest,
+  WorkerCancelRequest,
+  WorkerConfigUpdate,
+  WorkerGetTableInfoRequest,
+  WorkerHealthResponse,
+  WorkerQueryRequest,
+} from '@shared/types';
+import { type MessagePort, parentPort, workerData } from 'worker_threads';
 import {
-  initDuckDB,
-  getConnection,
-  runIntegrityCheck,
   closeDuckDB,
   type DuckDBConfig,
+  getConnection,
+  initDuckDB,
+  runIntegrityCheck,
 } from './duckdb-connection';
-import type {
-  WorkerQueryRequest,
-  WorkerCancelRequest,
-  WorkerHealthResponse,
-  HeartbeatAck,
-} from '@shared/types';
 
 if (!parentPort) {
   throw new Error('duckdb-worker must run as a Worker Thread');
 }
+const port = parentPort;
 
 let dataPort: MessagePort | null = null;
 const activeQueries = new Map<string, { cancelled: boolean }>();
 let startTime = Date.now();
 
-// Handle all incoming messages - use loose typing since 'port' messages
-// are setup messages not part of the WorkerMessage union
-parentPort.on('message', async (msg: { type: string; [key: string]: unknown }) => {
+// Handle all incoming messages with Zod validation
+// eslint-disable-next-line @typescript-eslint/no-misused-promises
+port.on('message', async (msg: { type: string; [key: string]: unknown }) => {
   try {
-    // Port setup message (not part of WorkerMessage union)
-    if (msg.type === 'port' && msg.channel === 'duckdb-data') {
-      dataPort = msg.port as MessagePort;
-      parentPort!.postMessage({ type: 'port-ready', channel: 'duckdb-data' });
+    // Port setup message (not part of WorkerMessage union — separate schema)
+    if (msg.type === 'port') {
+      const portResult = PortSetupMessageSchema.safeParse(msg);
+      if (!portResult.success) {
+        console.error('Invalid port setup message:', portResult.error.issues);
+        return;
+      }
+      dataPort = msg['port'] as MessagePort;
+      port.postMessage({ type: 'port-ready', channel: 'duckdb-data' });
       return;
     }
 
-    switch (msg.type) {
+    // Validate all other inbound messages against the discriminated union
+    const parsed = WorkerInboundMessageSchema.safeParse(msg);
+    if (!parsed.success) {
+      console.error('Invalid worker message:', parsed.error.issues);
+      port.postMessage({
+        type: 'error',
+        message: `Invalid message: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+      });
+      return;
+    }
+
+    const validated = parsed.data;
+    switch (validated.type) {
       case 'execute_query':
-        await handleExecuteQuery(msg as unknown as WorkerQueryRequest);
+        await handleExecuteQuery(validated);
         break;
       case 'cancel_query':
-        handleCancelQuery(msg as unknown as WorkerCancelRequest);
+        handleCancelQuery(validated);
         break;
       case 'get_table_info':
-        await handleGetTableInfo(msg as { type: string; tableName: string });
+        await handleGetTableInfo(validated);
         break;
       case 'list_tables':
         await handleListTables();
@@ -49,17 +71,17 @@ parentPort.on('message', async (msg: { type: string; [key: string]: unknown }) =
         await handleHealthCheck();
         break;
       case 'heartbeat':
-        handleHeartbeat(msg as { type: string; sentAt: number });
+        handleHeartbeat(validated);
         break;
       case 'configure':
-        await handleConfigure(msg as { type: string; settings: Record<string, string | number> });
+        await handleConfigure(validated);
         break;
       case 'shutdown':
         await handleShutdown();
         break;
     }
   } catch (error) {
-    parentPort!.postMessage({
+    port.postMessage({
       type: 'error',
       message: error instanceof Error ? error.message : String(error),
     });
@@ -75,8 +97,8 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
     const conn = getConnection();
     const queryState = activeQueries.get(queryId);
 
-    const wrappedSQL = `SELECT * FROM to_arrow_ipc((${sql}))`;
-    const result = await conn.run(wrappedSQL);
+    const wrappedSql = `SELECT * FROM to_arrow_ipc((${sql}))`;
+    const result = await conn.run(wrappedSql);
     const rows = await result.getRows();
 
     if (queryState?.cancelled) {
@@ -91,20 +113,24 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
       return;
     }
 
-    if (rows.length > 0 && rows[0][0]) {
-      const ipcBuffer: Uint8Array = rows[0][0];
+    const firstRow = rows[0];
+    if (firstRow?.[0]) {
+      const ipcBuffer = firstRow[0] as unknown as Uint8Array;
       // Copy to a new ArrayBuffer so we can transfer ownership
       const buffer = new ArrayBuffer(ipcBuffer.byteLength);
       new Uint8Array(buffer).set(ipcBuffer);
 
-      sendDataPlaneTransfer({
-        type: 'arrow-batch',
-        queryId,
-        index: 0,
-        totalBatches: 1,
-        rowCount: 0,
-        byteSize: buffer.byteLength,
-      }, buffer);
+      sendDataPlaneTransfer(
+        {
+          type: 'arrow-batch',
+          queryId,
+          index: 0,
+          totalBatches: 1,
+          rowCount: 0,
+          byteSize: buffer.byteLength,
+        },
+        buffer,
+      );
 
       sendDataPlaneMessage({
         type: 'arrow-end',
@@ -131,12 +157,14 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
       const escapedSql = sql.replace(/'/g, "''");
       await conn.run(
         `INSERT INTO _query_history (query_id, sql, execution_time_ms, row_count, status)
-         VALUES ('${queryId}', '${escapedSql}', ${executionTimeMs}, 0, 'success')`
+         VALUES ('${queryId}', '${escapedSql}', ${executionTimeMs}, 0, 'success')`,
       );
-    } catch { /* non-critical */ }
+    } catch {
+      /* non-critical */
+    }
 
     // T067: Forward query history record to renderer via Main
-    parentPort!.postMessage({
+    port.postMessage({
       type: 'query_history_record',
       queryId,
       sql,
@@ -161,12 +189,14 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
       const escapedErr = errMsg.replace(/'/g, "''");
       await conn.run(
         `INSERT INTO _query_history (query_id, sql, execution_time_ms, row_count, status, error_message)
-         VALUES ('${queryId}', '${escapedSql}', ${errorExecutionTimeMs}, 0, 'error', '${escapedErr}')`
+         VALUES ('${queryId}', '${escapedSql}', ${errorExecutionTimeMs}, 0, 'error', '${escapedErr}')`,
       );
-    } catch { /* non-critical */ }
+    } catch {
+      /* non-critical */
+    }
 
     // T067: Forward query history record to renderer via Main
-    parentPort!.postMessage({
+    port.postMessage({
       type: 'query_history_record',
       queryId,
       sql,
@@ -204,7 +234,7 @@ async function handleListTables(): Promise<void> {
 
     let columnCount = 0;
     let rowCount = 0;
-    let sizeBytes = 0;
+    const sizeBytes = 0;
     try {
       const colCountResult = await conn.run(`
         SELECT COUNT(*) FROM information_schema.columns
@@ -216,7 +246,9 @@ async function handleListTables(): Promise<void> {
       const rowCountResult = await conn.run(`SELECT COUNT(*) FROM "${tableName}"`);
       const rowCountRows = await rowCountResult.getRows();
       rowCount = Number(rowCountRows[0]?.[0] ?? 0);
-    } catch { /* best effort */ }
+    } catch {
+      /* best effort */
+    }
 
     tables.push({
       id: `catalog-${tableName}`,
@@ -231,10 +263,10 @@ async function handleListTables(): Promise<void> {
     });
   }
 
-  parentPort!.postMessage({ type: 'table_list', tables });
+  port.postMessage({ type: 'table_list', tables });
 }
 
-async function handleGetTableInfo(msg: { type: string; tableName: string }): Promise<void> {
+async function handleGetTableInfo(msg: WorkerGetTableInfoRequest): Promise<void> {
   const conn = getConnection();
   const escapedName = msg.tableName.replace(/'/g, "''");
 
@@ -249,22 +281,24 @@ async function handleGetTableInfo(msg: { type: string; tableName: string }): Pro
   const columns = colRows.map((row: unknown[]) => ({
     name: row[0] as string,
     duckdbType: row[1] as string,
-    arrowType: mapDuckDBToArrowType(row[1] as string),
+    arrowType: mapDuckDbToArrowType(row[1] as string),
     nullable: row[2] as boolean,
     ordinalPosition: (row[3] as number) - 1,
   }));
 
   let rowCount = 0;
-  let sizeBytes = 0;
+  const sizeBytes = 0;
   try {
     const countResult = await conn.run(`SELECT COUNT(*) FROM "${msg.tableName}"`);
     const countRows = await countResult.getRows();
     rowCount = Number(countRows[0]?.[0] ?? 0);
 
     // Size estimation not available in all DuckDB versions; leave as 0
-  } catch { /* best effort */ }
+  } catch {
+    /* best effort */
+  }
 
-  parentPort!.postMessage({
+  port.postMessage({
     type: 'table_info',
     tableName: msg.tableName,
     columns,
@@ -294,10 +328,10 @@ async function handleHealthCheck(): Promise<void> {
     response.status = 'degraded';
   }
 
-  parentPort!.postMessage(response);
+  port.postMessage(response);
 }
 
-function handleHeartbeat(msg: { type: string; sentAt: number }): void {
+function handleHeartbeat(msg: HeartbeatRequest): void {
   const ack: HeartbeatAck = {
     type: 'heartbeat_ack',
     sentAt: msg.sentAt,
@@ -308,10 +342,10 @@ function handleHeartbeat(msg: { type: string; sentAt: number }): void {
       uptime: Date.now() - startTime,
     },
   };
-  parentPort!.postMessage(ack);
+  port.postMessage(ack);
 }
 
-async function handleConfigure(msg: { type: string; settings: Record<string, string | number> }): Promise<void> {
+async function handleConfigure(msg: WorkerConfigUpdate): Promise<void> {
   const conn = getConnection();
   const { settings } = msg;
   if (settings.memory_limit) await conn.run(`SET memory_limit = '${settings.memory_limit}'`);
@@ -324,7 +358,7 @@ async function handleShutdown(): Promise<void> {
     state.cancelled = true;
   }
   await closeDuckDB();
-  parentPort!.postMessage({ type: 'shutdown-complete', worker: 'duckdb' });
+  port.postMessage({ type: 'shutdown-complete', worker: 'duckdb' });
 }
 
 function sendDataPlaneMessage(message: Record<string, unknown>): void {
@@ -332,6 +366,7 @@ function sendDataPlaneMessage(message: Record<string, unknown>): void {
 }
 
 function sendDataPlaneTransfer(envelope: Record<string, unknown>, buffer: ArrayBuffer): void {
+  // biome-ignore lint/style/useNamingConvention: protocol field name used by Electron MessagePort transfer
   if (dataPort) dataPort.postMessage({ ...envelope, __transferredBuffers: [buffer] }, [buffer]);
 }
 
@@ -345,13 +380,27 @@ function classifyErrorCode(message: string): string {
   return 'E1001';
 }
 
-function mapDuckDBToArrowType(duckdbType: string): string {
+function mapDuckDbToArrowType(duckdbType: string): string {
   const typeMap: Record<string, string> = {
-    BOOLEAN: 'Bool', TINYINT: 'Int8', SMALLINT: 'Int16', INTEGER: 'Int32', BIGINT: 'Int64',
-    UTINYINT: 'Uint8', USMALLINT: 'Uint16', UINTEGER: 'Uint32', UBIGINT: 'Uint64',
-    FLOAT: 'Float32', DOUBLE: 'Float64', VARCHAR: 'Utf8', BLOB: 'Binary',
-    DATE: 'Date32', TIME: 'Time64(us)', TIMESTAMP: 'Timestamp(us, UTC)',
-    'TIMESTAMP WITH TIME ZONE': 'Timestamp(us, UTC)', INTERVAL: 'Duration(us)', HUGEINT: 'Decimal128',
+    BOOLEAN: 'Bool',
+    TINYINT: 'Int8',
+    SMALLINT: 'Int16',
+    INTEGER: 'Int32',
+    BIGINT: 'Int64',
+    UTINYINT: 'Uint8',
+    USMALLINT: 'Uint16',
+    UINTEGER: 'Uint32',
+    UBIGINT: 'Uint64',
+    FLOAT: 'Float32',
+    DOUBLE: 'Float64',
+    VARCHAR: 'Utf8',
+    BLOB: 'Binary',
+    DATE: 'Date32',
+    TIME: 'Time64(us)',
+    TIMESTAMP: 'Timestamp(us, UTC)',
+    'TIMESTAMP WITH TIME ZONE': 'Timestamp(us, UTC)',
+    INTERVAL: 'Duration(us)',
+    HUGEINT: 'Decimal128',
   };
   return typeMap[duckdbType.toUpperCase()] ?? 'Utf8';
 }
@@ -425,15 +474,15 @@ async function init(): Promise<void> {
     console.error('Failed to create sample data:', err);
   }
 
-  parentPort!.postMessage({
+  port.postMessage({
     type: 'ready',
     worker: 'duckdb',
     metadata: { extensionsLoaded: config.extensions, integrityOk: ok },
   });
 }
 
-init().catch((err) => {
-  parentPort!.postMessage({
+init().catch((err: unknown) => {
+  port.postMessage({
     type: 'error',
     message: err instanceof Error ? err.message : String(err),
   });

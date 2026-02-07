@@ -1,8 +1,8 @@
 import type {
   ArrowBatch,
   ArrowBatchMessage,
-  StreamEndMessage,
   DataPlaneError,
+  StreamEndMessage,
 } from '@shared/types';
 
 type BatchCallback = (batch: ArrowBatch) => void;
@@ -13,57 +13,106 @@ type EndCallback = (info: {
   totalBytes: number;
   durationMs: number;
 }) => void;
-type ErrorCallback = (error: {
-  queryId: string;
-  code: string;
-  message: string;
-}) => void;
+type ErrorCallback = (error: { queryId: string; code: string; message: string }) => void;
 
+interface DataPlaneMessage {
+  type: string;
+  queryId: string;
+  index?: number;
+  rowCount?: number;
+  byteSize?: number;
+  buffer?: ArrayBuffer;
+  totalRows?: number;
+  totalBatches?: number;
+  totalBytes?: number;
+  durationMs?: number;
+  code?: string;
+  message?: string;
+  batchesSent?: number;
+}
+
+/**
+ * Manages the data-plane MessagePort connection between the renderer and the main process bridge.
+ * Handles Arrow IPC batch delivery with ACK-based backpressure, stream-end signals,
+ * and error propagation. Provides per-query callback registration for batch, end, and error events.
+ */
 export class BackpressureManager {
   private port: MessagePort | null = null;
   private batchCallbacks = new Map<string, BatchCallback>();
   private endCallbacks = new Map<string, EndCallback>();
   private errorCallbacks = new Map<string, ErrorCallback>();
 
+  /**
+   * Assigns the MessagePort for data-plane communication and starts listening for messages.
+   *
+   * @param port - The MessagePort connected to the main process bridge.
+   */
   setPort(port: MessagePort): void {
     this.port = port;
-    this.port.onmessage = (event) => this.handleMessage(event.data);
+    this.port.onmessage = (event: MessageEvent<DataPlaneMessage>) => {
+      this.handleMessage(event.data);
+    };
     this.port.start();
   }
 
-  /** Register callbacks for a query's data stream */
+  /**
+   * Registers a callback for Arrow IPC batch events on a specific query.
+   *
+   * @param queryId - The query to listen for.
+   * @param callback - Invoked for each received batch.
+   * @returns An unsubscribe function.
+   */
   onData(queryId: string, callback: BatchCallback): () => void {
     this.batchCallbacks.set(queryId, callback);
     return () => this.batchCallbacks.delete(queryId);
   }
 
+  /**
+   * Registers a callback for the stream-end signal on a specific query.
+   *
+   * @param queryId - The query to listen for.
+   * @param callback - Invoked when the stream ends with summary statistics.
+   * @returns An unsubscribe function.
+   */
   onEnd(queryId: string, callback: EndCallback): () => void {
     this.endCallbacks.set(queryId, callback);
     return () => this.endCallbacks.delete(queryId);
   }
 
+  /**
+   * Registers a callback for data-plane errors on a specific query.
+   *
+   * @param queryId - The query to listen for.
+   * @param callback - Invoked when an error occurs during streaming.
+   * @returns An unsubscribe function.
+   */
   onError(queryId: string, callback: ErrorCallback): () => void {
     this.errorCallbacks.set(queryId, callback);
     return () => this.errorCallbacks.delete(queryId);
   }
 
-  /** Send a cancel message on the data plane */
-  cancelQuery(queryId: string, reason: string = 'user_cancelled'): void {
+  /**
+   * Sends a cancel message on the data plane and cleans up query callbacks.
+   *
+   * @param queryId - The query to cancel.
+   * @param reason - The cancellation reason sent to the worker.
+   */
+  cancelQuery(queryId: string, reason = 'user_cancelled'): void {
     if (!this.port) return;
     this.port.postMessage({ type: 'cancel', queryId, reason });
     this.cleanup(queryId);
   }
 
-  private handleMessage(msg: any): void {
+  private handleMessage(msg: DataPlaneMessage): void {
     switch (msg.type) {
       case 'arrow-batch':
-        this.handleBatch(msg);
+        this.handleBatch(msg as unknown as ArrowBatchMessage & { buffer: ArrayBuffer });
         break;
       case 'arrow-end':
-        this.handleEnd(msg);
+        this.handleEnd(msg as unknown as StreamEndMessage);
         break;
       case 'arrow-error':
-        this.handleError(msg);
+        this.handleError(msg as unknown as DataPlaneError);
         break;
     }
   }
@@ -125,5 +174,5 @@ export class BackpressureManager {
   }
 }
 
-// Singleton instance
+/** Singleton {@link BackpressureManager} instance used throughout the renderer process. */
 export const backpressureManager = new BackpressureManager();

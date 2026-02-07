@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BackpressureManager } from '@renderer/lib/backpressure';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 function createMockPort() {
   const port: any = {

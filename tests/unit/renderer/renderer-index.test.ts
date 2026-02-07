@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock react-dom/client
 const mockRender = vi.fn();
@@ -38,7 +38,7 @@ vi.mock('@renderer/stores/db', () => {
     query_history: { put: mockQueryHistoryPut },
     worker_health: { put: mockWorkerHealthPut },
   };
-  return { default: mockDb };
+  return { db: mockDb };
 });
 
 // Mock recovery module
@@ -167,8 +167,7 @@ describe('renderer bootstrap', () => {
     mockCheckAndRecover.mockResolvedValue(false);
     await runBootstrap();
     const recoveryCall = mockAppStatePut.mock.calls.find(
-      (call: unknown[]) =>
-        (call[0] as { id: string }).id === 'recovery_triggered',
+      (call: unknown[]) => (call[0] as { id: string }).id === 'recovery_triggered',
     );
     expect(recoveryCall).toBeUndefined();
   });
@@ -232,12 +231,14 @@ describe('renderer bootstrap', () => {
         return () => {};
       },
     );
-    (window.datspace.lifecycle.shutdownAck as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (window.datspace.lifecycle.shutdownAck as ReturnType<typeof vi.fn>).mockResolvedValue(
+      undefined,
+    );
 
     await runBootstrap();
     expect(shutdownCallback).not.toBeNull();
 
-    await shutdownCallback!();
+    await shutdownCallback?.();
 
     expect(mockAppStatePut).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'shutdown_status', value: 'clean' }),
@@ -253,12 +254,14 @@ describe('renderer bootstrap', () => {
         return () => {};
       },
     );
-    (window.datspace.lifecycle.shutdownAck as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (window.datspace.lifecycle.shutdownAck as ReturnType<typeof vi.fn>).mockResolvedValue(
+      undefined,
+    );
 
     await runBootstrap();
     // Make app_state.put throw during shutdown
     mockAppStatePut.mockRejectedValue(new Error('db error'));
-    await shutdownCallback!();
+    await shutdownCallback?.();
 
     expect(window.datspace.lifecycle.shutdownAck).toHaveBeenCalled();
   });
@@ -271,17 +274,19 @@ describe('renderer bootstrap', () => {
         return () => {};
       },
     );
-    (window.datspace.lifecycle.shutdownAck as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (window.datspace.lifecycle.shutdownAck as ReturnType<typeof vi.fn>).mockResolvedValue(
+      undefined,
+    );
 
     // Need to mock db.tabs.filter for the shutdown handler
     const mockFilter = vi.fn().mockReturnValue({
       first: vi.fn().mockResolvedValue({ id: 'active-tab-id', active: true }),
     });
     const dbModule = await import('@renderer/stores/db');
-    (dbModule.default as any).tabs.filter = mockFilter;
+    (dbModule.db as any).tabs.filter = mockFilter;
 
     await runBootstrap();
-    await shutdownCallback!();
+    await shutdownCallback?.();
 
     expect(mockAppStatePut).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'last_active_tab_id', value: 'active-tab-id' }),
@@ -289,7 +294,9 @@ describe('renderer bootstrap', () => {
   });
 
   it('bounds handler saves bounds to db', async () => {
-    let boundsCallback: ((bounds: { x: number; y: number; width: number; height: number }) => Promise<void>) | null = null;
+    let boundsCallback:
+      | ((bounds: { x: number; y: number; width: number; height: number }) => Promise<void>)
+      | null = null;
     (window.datspace.lifecycle.onBoundsChanged as ReturnType<typeof vi.fn>).mockImplementation(
       (cb: (bounds: { x: number; y: number; width: number; height: number }) => Promise<void>) => {
         boundsCallback = cb;
@@ -300,7 +307,7 @@ describe('renderer bootstrap', () => {
     await runBootstrap();
     expect(boundsCallback).not.toBeNull();
 
-    await boundsCallback!({ x: 100, y: 200, width: 1280, height: 800 });
+    await boundsCallback?.({ x: 100, y: 200, width: 1280, height: 800 });
 
     expect(mockAppStatePut).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -322,7 +329,7 @@ describe('renderer bootstrap', () => {
     await runBootstrap();
     expect(queryHistoryCallback).not.toBeNull();
 
-    await queryHistoryCallback!({
+    await queryHistoryCallback?.({
       queryId: 'q-1',
       sql: 'SELECT 1',
       executionTimeMs: 42,
@@ -352,7 +359,7 @@ describe('renderer bootstrap', () => {
     await runBootstrap();
     expect(workerHealthCallback).not.toBeNull();
 
-    await workerHealthCallback!({
+    await workerHealthCallback?.({
       worker: 'duckdb',
       status: 'ready',
       restartCount: 0,

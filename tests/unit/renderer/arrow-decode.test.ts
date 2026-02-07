@@ -1,8 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 // Mock @uwdata/flechette
 vi.mock('@uwdata/flechette', () => ({
-  tableFromIPC: vi.fn((buffer: ArrayBuffer) => {
+  tableFromIPC: vi.fn((_buffer: ArrayBuffer) => {
     // Return a mock table with two columns
     const columns = {
       id: { toArray: () => [1, 2, 3], at: (i: number) => [1, 2, 3][i] },
@@ -24,7 +24,7 @@ vi.mock('@uwdata/flechette', () => ({
   }),
 }));
 
-import { decodeArrowBatch, mergeBatches, type DecodedBatch } from '@renderer/lib/arrow-decode';
+import { type DecodedBatch, decodeArrowBatch, mergeBatches } from '@renderer/lib/arrow-decode';
 
 describe('decodeArrowBatch', () => {
   it('decodes buffer into batch with correct metadata', () => {
@@ -73,7 +73,10 @@ describe('mergeBatches', () => {
         return null;
       }),
       getCell: vi.fn((row: number, col: number) => {
-        const data = [[1, 'a'], [2, 'b']];
+        const data = [
+          [1, 'a'],
+          [2, 'b'],
+        ];
         return data[row]?.[col] ?? null;
       }),
       ...overrides,
@@ -153,7 +156,7 @@ describe('mergeBatches', () => {
   it('getCell returns null for row beyond all batches', () => {
     const b1 = makeBatch({ rowCount: 2 });
 
-    const merged = mergeBatches([b1])!;
+    const _merged = mergeBatches([b1])!;
     // Single batch, so mergeBatches returns it directly
     // Test with multiple batches
     const b2 = makeBatch({ rowCount: 1 });

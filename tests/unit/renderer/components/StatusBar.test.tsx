@@ -1,16 +1,18 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
-import { render, screen } from '@testing-library/react';
 
-let mockWorkerHealth: {
-  id: string;
-  status: string;
-  restartCount: number;
-  lastHeartbeatAt: string;
-  upSince: string;
-  activeQueryCount: number;
-} | undefined = {
+import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+let mockWorkerHealth:
+  | {
+      id: string;
+      status: string;
+      restartCount: number;
+      lastHeartbeatAt: string;
+      upSince: string;
+      activeQueryCount: number;
+    }
+  | undefined = {
   id: 'duckdb',
   status: 'ready',
   restartCount: 0,
@@ -20,7 +22,7 @@ let mockWorkerHealth: {
 };
 
 let mockRunningQueries: { id: string; status: string }[] = [];
-let mockRecoveryTriggered: boolean | undefined = undefined;
+let mockRecoveryTriggered: boolean | undefined;
 
 vi.mock('@renderer/stores/hooks', () => ({
   useWorkerHealth: vi.fn(() => mockWorkerHealth),
@@ -29,12 +31,12 @@ vi.mock('@renderer/stores/hooks', () => ({
 }));
 
 vi.mock('@renderer/stores/db', () => ({
-  default: {
+  db: {
     app_state: { put: vi.fn().mockResolvedValue(undefined) },
   },
 }));
 
-import StatusBar from '@renderer/components/StatusBar';
+import { StatusBar } from '@renderer/components/StatusBar';
 
 describe('StatusBar', () => {
   beforeEach(() => {
@@ -107,9 +109,7 @@ describe('StatusBar', () => {
     mockWorkerHealth = { ...mockWorkerHealth!, status: 'degraded' };
     render(<StatusBar />);
     expect(
-      screen.getByText(
-        'DuckDB engine is experiencing issues. Automatic recovery in progress.',
-      ),
+      screen.getByText('DuckDB engine is experiencing issues. Automatic recovery in progress.'),
     ).toBeDefined();
   });
 
@@ -130,9 +130,7 @@ describe('StatusBar', () => {
       restartCount: 2,
     };
     render(<StatusBar />);
-    expect(
-      screen.getByText('DuckDB engine is restarting (attempt 2).'),
-    ).toBeDefined();
+    expect(screen.getByText('DuckDB engine is restarting (attempt 2).')).toBeDefined();
   });
 
   it('shows recovery banner when recoveryTriggered is true', () => {
@@ -148,8 +146,6 @@ describe('StatusBar', () => {
   it('does not show recovery banner when recoveryTriggered is undefined', () => {
     mockRecoveryTriggered = undefined;
     render(<StatusBar />);
-    expect(
-      screen.queryByText(/Previous session did not shut down cleanly/),
-    ).toBeNull();
+    expect(screen.queryByText(/Previous session did not shut down cleanly/)).toBeNull();
   });
 });

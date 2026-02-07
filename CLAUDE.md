@@ -14,8 +14,20 @@ npm run test:watch                    # Watch mode
 npx vitest run tests/unit/main/config.test.ts  # Run a single test file
 npm run test:e2e                      # E2e tests (Playwright)
 
-# Type checking (this is the lint command)
-npm run lint                          # tsc --noEmit
+# Quality checks
+npm run typecheck                     # tsc --noEmit
+npm run lint                          # biome check + eslint
+npm run lint:fix                      # Auto-fix lint issues
+npm run format                        # Format with biome
+npm run check                         # typecheck + lint
+npm run check:all                     # Full quality suite
+
+# Architecture & dead code
+npm run arch                          # dependency-cruiser rules
+npm run dead-code                     # knip unused code detection
+
+# Mutation testing
+npm run test:mutation                 # Stryker mutation tests
 
 # Build
 npm run package                       # Package for distribution

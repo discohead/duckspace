@@ -1,23 +1,23 @@
-import { describe, it, expect } from 'vitest';
 import {
+  classifyDuckDBError,
+  columnNotFoundError,
+  DatspaceError,
+  databaseCorruptError,
   ERROR_CODES,
   ERROR_METADATA,
-  DatspaceError,
-  querySyntaxError,
-  tableNotFoundError,
-  columnNotFoundError,
-  queryTimeoutError,
-  queryCancelledError,
+  ipcTimeoutError,
+  mutationRejectedError,
   outOfMemoryError,
+  portDisconnectedError,
+  queryCancelledError,
+  querySyntaxError,
+  queryTimeoutError,
+  shuttingDownError,
+  tableNotFoundError,
   workerCrashedError,
   workerUnresponsiveError,
-  ipcTimeoutError,
-  shuttingDownError,
-  mutationRejectedError,
-  databaseCorruptError,
-  portDisconnectedError,
-  classifyDuckDBError,
 } from '@shared/errors';
+import { describe, expect, it } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // ERROR_CODES
@@ -284,7 +284,7 @@ describe('factory functions', () => {
 
   describe('mutationRejectedError', () => {
     it('truncates SQL in message to 200 chars', () => {
-      const longSql = 'DROP TABLE ' + 'x'.repeat(300);
+      const longSql = `DROP TABLE ${'x'.repeat(300)}`;
       const err = mutationRejectedError(longSql);
       expect(err.code).toBe(ERROR_CODES.MUTATION_REJECTED);
       expect(err.message.length).toBeLessThanOrEqual(250); // prefix + 200 chars

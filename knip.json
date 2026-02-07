@@ -1,0 +1,15 @@
+{
+  "entry": [
+    "src/main-entry.ts",
+    "src/preload-entry.ts",
+    "src/workers/duckdb-worker.ts"
+  ],
+  "project": ["src/**/*.ts", "src/**/*.tsx"],
+  "ignore": [
+    "src/**/*.d.ts"
+  ],
+  "ignoreDependencies": [
+    "@electron-forge/*",
+    "@vitejs/plugin-react"
+  ]
+}

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import Module from 'module';
+import Module from 'node:module';
+import { describe, expect, it, vi } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Hoisted mock variables -- available when vi.mock factories are hoisted
@@ -86,10 +86,7 @@ const originalResolveFilename = (Module as any)._resolveFilename;
   options: any,
 ) {
   // Intercept require('./lifecycle') from src/main/index.ts
-  if (
-    request === './lifecycle' &&
-    parent?.filename?.includes('src/main/index')
-  ) {
+  if (request === './lifecycle' && parent?.filename?.includes('src/main/index')) {
     // Return a sentinel that we'll intercept in _cache
     return '__mocked_lifecycle__';
   }
@@ -122,7 +119,7 @@ import '@main/index';
 
 afterAll(() => {
   (Module as any)._resolveFilename = originalResolveFilename;
-  delete require.cache['__mocked_lifecycle__'];
+  require.cache['__mocked_lifecycle__'] = undefined;
 });
 
 // ---------------------------------------------------------------------------
@@ -137,9 +134,7 @@ describe('main/index.ts (entry point side effects)', () => {
   describe('single-instance lock', () => {
     it('registers event handlers when lock is obtained', () => {
       expect(mockApp.requestSingleInstanceLock).toHaveBeenCalled();
-      const registeredEvents = mockApp.on.mock.calls.map(
-        (call: [string, unknown]) => call[0],
-      );
+      const registeredEvents = mockApp.on.mock.calls.map((call: [string, unknown]) => call[0]);
       expect(registeredEvents).toContain('second-instance');
       expect(registeredEvents).toContain('before-quit');
       expect(registeredEvents).toContain('window-all-closed');
@@ -174,7 +169,7 @@ describe('main/index.ts (entry point side effects)', () => {
       expect(mockApp.whenReady).toHaveBeenCalled();
       expect(state.whenReadyResolver).not.toBeNull();
 
-      state.whenReadyResolver!();
+      state.whenReadyResolver?.();
 
       await vi.waitFor(() => {
         expect(mockStartupSequence).toHaveBeenCalled();
@@ -350,9 +345,7 @@ describe('main/index.ts (entry point side effects)', () => {
 
   describe('event registration', () => {
     it('registers all expected app event handlers', () => {
-      const registeredEvents = mockApp.on.mock.calls.map(
-        (call: [string, unknown]) => call[0],
-      );
+      const registeredEvents = mockApp.on.mock.calls.map((call: [string, unknown]) => call[0]);
       expect(registeredEvents).toContain('second-instance');
       expect(registeredEvents).toContain('before-quit');
       expect(registeredEvents).toContain('window-all-closed');

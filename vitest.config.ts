@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import path from 'path';
 
+// biome-ignore lint/style/noDefaultExport: Required by Vitest
 export default defineConfig({
   test: {
     globals: true,
@@ -28,6 +29,15 @@ export default defineConfig({
         'src/preload-entry.ts',
         'src/preload/api.ts',
       ],
+      thresholds: {
+        statements: 80,
+        branches: 80,
+        functions: 80,
+        lines: 80,
+      },
+    },
+    typecheck: {
+      enabled: true,
     },
   },
 });

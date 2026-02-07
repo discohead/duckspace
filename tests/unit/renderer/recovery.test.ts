@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { vi, beforeEach, afterEach, describe, it, expect } from 'vitest';
-import Dexie from 'dexie';
 import type { CatalogEntry, ColumnSchema } from '@shared/types';
+import Dexie from 'dexie';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Import the real DatspaceDB class directly (not from the mocked module)
 // We need a fresh db for each test, but recovery.ts imports db as a singleton.
@@ -114,8 +114,8 @@ describe('checkAndRecover', () => {
     const logs = await testDb.recovery_log.toArray();
     const shutdownLog = logs.find((l) => l.type === 'abnormal_shutdown');
     expect(shutdownLog).toBeDefined();
-    expect(shutdownLog!.outcome).toBe('recovered');
-    expect(shutdownLog!.details).toContain('did not shut down cleanly');
+    expect(shutdownLog?.outcome).toBe('recovered');
+    expect(shutdownLog?.details).toContain('did not shut down cleanly');
   });
 
   it('calls getAppState and writes integrity_check log when dirty', async () => {
@@ -132,9 +132,9 @@ describe('checkAndRecover', () => {
     const logs = await testDb.recovery_log.toArray();
     const integrityLog = logs.find((l) => l.type === 'integrity_check');
     expect(integrityLog).toBeDefined();
-    expect(integrityLog!.outcome).toBe('recovered');
-    expect(integrityLog!.details).toContain('integrity check passed');
-    expect(integrityLog!.affectedWorker).toBe('duckdb');
+    expect(integrityLog?.outcome).toBe('recovered');
+    expect(integrityLog?.details).toContain('integrity check passed');
+    expect(integrityLog?.affectedWorker).toBe('duckdb');
   });
 
   it('calls reconcileCatalog when dirty', async () => {
@@ -151,7 +151,7 @@ describe('checkAndRecover', () => {
     const logs = await testDb.recovery_log.toArray();
     const walLog = logs.find((l) => l.type === 'wal_recovery');
     expect(walLog).toBeDefined();
-    expect(walLog!.details).toContain('Catalog reconciliation complete');
+    expect(walLog?.details).toContain('Catalog reconciliation complete');
   });
 
   it('writes degraded integrity_check log when getAppState throws', async () => {
@@ -167,8 +167,8 @@ describe('checkAndRecover', () => {
     const logs = await testDb.recovery_log.toArray();
     const integrityLog = logs.find((l) => l.type === 'integrity_check');
     expect(integrityLog).toBeDefined();
-    expect(integrityLog!.outcome).toBe('degraded');
-    expect(integrityLog!.details).toContain('could not be verified');
+    expect(integrityLog?.outcome).toBe('degraded');
+    expect(integrityLog?.details).toContain('could not be verified');
   });
 });
 
@@ -234,8 +234,20 @@ describe('reconcileCatalog (via checkAndRecover)', () => {
     mockListTables.mockResolvedValue([duckdbTable]);
 
     const columns: ColumnSchema[] = [
-      { name: 'id', duckdbType: 'INTEGER', arrowType: 'Int32', nullable: false, ordinalPosition: 0 },
-      { name: 'name', duckdbType: 'VARCHAR', arrowType: 'Utf8', nullable: true, ordinalPosition: 1 },
+      {
+        name: 'id',
+        duckdbType: 'INTEGER',
+        arrowType: 'Int32',
+        nullable: false,
+        ordinalPosition: 0,
+      },
+      {
+        name: 'name',
+        duckdbType: 'VARCHAR',
+        arrowType: 'Utf8',
+        nullable: true,
+        ordinalPosition: 1,
+      },
     ];
     mockDescribeTable.mockResolvedValue(columns);
 
@@ -245,9 +257,9 @@ describe('reconcileCatalog (via checkAndRecover)', () => {
     const entries = await testDb.catalog_entries.toArray();
     const newEntry = entries.find((e) => e.name === 'new_table');
     expect(newEntry).toBeDefined();
-    expect(newEntry!.status).toBe('active');
-    expect(newEntry!.type).toBe('table');
-    expect(newEntry!.rowCount).toBe(50);
+    expect(newEntry?.status).toBe('active');
+    expect(newEntry?.type).toBe('table');
+    expect(newEntry?.rowCount).toBe(50);
 
     // Verify column schemas were created
     const colSchemas = await testDb.column_schemas.toArray();
@@ -275,7 +287,7 @@ describe('reconcileCatalog (via checkAndRecover)', () => {
     await checkAndRecover();
 
     const entry = await testDb.catalog_entries.get('cat-orphan');
-    expect(entry!.status).toBe('removed');
+    expect(entry?.status).toBe('removed');
   });
 
   it('does not mark already-removed entries again', async () => {
@@ -298,7 +310,7 @@ describe('reconcileCatalog (via checkAndRecover)', () => {
 
     // Status should remain 'removed', not trigger another update
     const entry = await testDb.catalog_entries.get('cat-old');
-    expect(entry!.status).toBe('removed');
+    expect(entry?.status).toBe('removed');
   });
 
   it('handles listTables errors gracefully', async () => {
@@ -310,8 +322,8 @@ describe('reconcileCatalog (via checkAndRecover)', () => {
     const logs = await testDb.recovery_log.toArray();
     const walLog = logs.find((l) => l.type === 'wal_recovery');
     expect(walLog).toBeDefined();
-    expect(walLog!.outcome).toBe('degraded');
-    expect(walLog!.details).toContain('reconciliation failed');
+    expect(walLog?.outcome).toBe('degraded');
+    expect(walLog?.details).toContain('reconciliation failed');
   });
 
   it('handles describeTable errors gracefully (best effort)', async () => {
@@ -335,7 +347,7 @@ describe('reconcileCatalog (via checkAndRecover)', () => {
     const entries = await testDb.catalog_entries.toArray();
     const entry = entries.find((e) => e.name === 'problematic_table');
     expect(entry).toBeDefined();
-    expect(entry!.status).toBe('active');
+    expect(entry?.status).toBe('active');
 
     // No column schemas should exist since describeTable failed
     const colSchemas = await testDb.column_schemas.toArray();

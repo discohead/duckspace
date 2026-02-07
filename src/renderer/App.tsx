@@ -1,100 +1,128 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import TabBar from './components/TabBar';
-import StatusBar from './components/StatusBar';
-import WelcomeView from './components/WelcomeView';
-import QueryEditor from './components/QueryEditor';
-import ResultGrid from './components/ResultGrid';
-import CatalogBrowser from './components/CatalogBrowser';
+import type React from 'react';
+import type { ReactElement } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { CatalogBrowser } from './components/CatalogBrowser';
+import { QueryEditor } from './components/QueryEditor';
+import { ResultGrid } from './components/ResultGrid';
+import { StatusBar } from './components/StatusBar';
+import { TabBar } from './components/TabBar';
+import { WelcomeView } from './components/WelcomeView';
+import { db } from './stores/db';
 import { useActiveTab, useTabs } from './stores/hooks';
-import db from './stores/db';
 
-export default function App() {
+/**
+ * Root application component that renders the tab bar, main content area, and status bar.
+ * Manages keyboard shortcuts for tab navigation and delegates content rendering based on active tab type.
+ */
+export function App(): ReactElement {
   const tabs = useTabs();
   const activeTab = useActiveTab();
-  const [activeQueryId, setActiveQueryId] = useState<string | null>(null);
+  const [activeQueryId] = useState<string | null>(null);
 
   // T065: Keyboard shortcuts
-  const handleKeyDown = useCallback(async (e: KeyboardEvent) => {
-    const meta = e.metaKey || e.ctrlKey;
+  const handleKeyDown = useCallback(
+    async (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
 
-    // Cmd+T: New tab
-    if (meta && e.key === 't') {
-      e.preventDefault();
-      const currentTabs = await db.tabs.toArray();
-      const maxOrder = currentTabs.reduce((max, t) => Math.max(max, t.order), -1);
-      await db.transaction('rw', db.tabs, async () => {
-        await db.tabs.toCollection().modify({ active: false });
-        await db.tabs.add({
-          id: crypto.randomUUID(),
-          type: 'query',
-          order: maxOrder + 1,
-          title: `Query ${currentTabs.filter((t) => t.type === 'query').length + 1}`,
-          active: true,
-          state: { sql: '' },
-          lastAccessedAt: new Date().toISOString(),
+      // Cmd+T: New tab
+      if (meta && e.key === 't') {
+        e.preventDefault();
+        const currentTabs = await db.tabs.toArray();
+        const maxOrder = currentTabs.reduce((max, t) => Math.max(max, t.order), -1);
+        await db.transaction('rw', db.tabs, async () => {
+          await db.tabs.toCollection().modify({ active: false });
+          await db.tabs.add({
+            id: crypto.randomUUID(),
+            type: 'query',
+            order: maxOrder + 1,
+            title: `Query ${currentTabs.filter((t) => t.type === 'query').length + 1}`,
+            active: true,
+            state: { sql: '' },
+            lastAccessedAt: new Date().toISOString(),
+          });
         });
-      });
-      return;
-    }
+        return;
+      }
 
-    // Cmd+W: Close active tab
-    if (meta && e.key === 'w') {
-      e.preventDefault();
-      if (!tabs || tabs.length === 0) return;
-      const active = tabs.find((t) => t.active);
-      if (!active) return;
+      // Cmd+W: Close active tab
+      if (meta && e.key === 'w') {
+        e.preventDefault();
+        if (!tabs || tabs.length === 0) return;
+        const active = tabs.find((t) => t.active);
+        if (!active) return;
 
-      await db.transaction('rw', db.tabs, async () => {
-        await db.tabs.delete(active.id);
-        const remaining = tabs.filter((t) => t.id !== active.id);
-        if (remaining.length > 0) {
-          const closedIndex = tabs.indexOf(active);
-          const nearestIndex = Math.min(closedIndex, remaining.length - 1);
-          await db.tabs.update(remaining[nearestIndex].id, { active: true });
+        await db.transaction('rw', db.tabs, async () => {
+          await db.tabs.delete(active.id);
+          const remaining = tabs.filter((t) => t.id !== active.id);
+          if (remaining.length > 0) {
+            const closedIndex = tabs.indexOf(active);
+            const nearestIndex = Math.min(closedIndex, remaining.length - 1);
+            const nearestTab = remaining[nearestIndex];
+            if (nearestTab) {
+              await db.tabs.update(nearestTab.id, { active: true });
+            }
+          }
+          const reordered = tabs
+            .filter((t) => t.id !== active.id)
+            .sort((a, b) => a.order - b.order);
+          for (let i = 0; i < reordered.length; i++) {
+            const tab = reordered[i];
+            if (tab) {
+              await db.tabs.update(tab.id, { order: i });
+            }
+          }
+        });
+        return;
+      }
+
+      // Cmd+Shift+[ : Previous tab
+      if (meta && e.shiftKey && e.key === '[') {
+        e.preventDefault();
+        if (!tabs || tabs.length < 2) return;
+        const sorted = [...tabs].sort((a, b) => a.order - b.order);
+        const activeIdx = sorted.findIndex((t) => t.active);
+        const prevIdx = activeIdx <= 0 ? sorted.length - 1 : activeIdx - 1;
+        const prevTab = sorted[prevIdx];
+        if (prevTab) {
+          await db.transaction('rw', db.tabs, async () => {
+            await db.tabs.toCollection().modify({ active: false });
+            await db.tabs.update(prevTab.id, { active: true });
+          });
         }
-        const reordered = tabs.filter((t) => t.id !== active.id).sort((a, b) => a.order - b.order);
-        for (let i = 0; i < reordered.length; i++) {
-          await db.tabs.update(reordered[i].id, { order: i });
+        return;
+      }
+
+      // Cmd+Shift+] : Next tab
+      if (meta && e.shiftKey && e.key === ']') {
+        e.preventDefault();
+        if (!tabs || tabs.length < 2) return;
+        const sorted = [...tabs].sort((a, b) => a.order - b.order);
+        const activeIdx = sorted.findIndex((t) => t.active);
+        const nextIdx = activeIdx >= sorted.length - 1 ? 0 : activeIdx + 1;
+        const nextTab = sorted[nextIdx];
+        if (nextTab) {
+          await db.transaction('rw', db.tabs, async () => {
+            await db.tabs.toCollection().modify({ active: false });
+            await db.tabs.update(nextTab.id, { active: true });
+          });
         }
-      });
-      return;
-    }
-
-    // Cmd+Shift+[ : Previous tab
-    if (meta && e.shiftKey && e.key === '[') {
-      e.preventDefault();
-      if (!tabs || tabs.length < 2) return;
-      const sorted = [...tabs].sort((a, b) => a.order - b.order);
-      const activeIdx = sorted.findIndex((t) => t.active);
-      const prevIdx = activeIdx <= 0 ? sorted.length - 1 : activeIdx - 1;
-      await db.transaction('rw', db.tabs, async () => {
-        await db.tabs.toCollection().modify({ active: false });
-        await db.tabs.update(sorted[prevIdx].id, { active: true });
-      });
-      return;
-    }
-
-    // Cmd+Shift+] : Next tab
-    if (meta && e.shiftKey && e.key === ']') {
-      e.preventDefault();
-      if (!tabs || tabs.length < 2) return;
-      const sorted = [...tabs].sort((a, b) => a.order - b.order);
-      const activeIdx = sorted.findIndex((t) => t.active);
-      const nextIdx = activeIdx >= sorted.length - 1 ? 0 : activeIdx + 1;
-      await db.transaction('rw', db.tabs, async () => {
-        await db.tabs.toCollection().modify({ active: false });
-        await db.tabs.update(sorted[nextIdx].id, { active: true });
-      });
-      return;
-    }
-  }, [tabs]);
+        return;
+      }
+    },
+    [tabs],
+  );
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    const handler = (e: KeyboardEvent): void => {
+      void handleKeyDown(e);
+    };
+    window.addEventListener('keydown', handler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+    };
   }, [handleKeyDown]);
 
-  const renderContent = () => {
+  const renderContent = (): ReactElement => {
     if (!tabs || tabs.length === 0) {
       return <WelcomeView />;
     }
@@ -127,29 +155,28 @@ export default function App() {
   return (
     <div style={styles.container}>
       <TabBar />
-      <main style={styles.main}>
-        {renderContent()}
-      </main>
+      <main style={styles.main}>{renderContent()}</main>
       <StatusBar />
     </div>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
+const styles = {
   container: {
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'column' as const,
     height: '100vh',
     width: '100vw',
     overflow: 'hidden',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    fontFamily:
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
     color: '#1f2937',
     backgroundColor: '#ffffff',
   },
   main: {
     flex: 1,
-    overflow: 'auto',
-    position: 'relative',
+    overflow: 'auto' as const,
+    position: 'relative' as const,
   },
   queryLayout: {
     display: 'flex',
@@ -158,8 +185,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   placeholder: {
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     height: '100%',
     color: '#9ca3af',
   },
@@ -167,4 +194,4 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 16,
     fontWeight: 500,
   },
-};
+} satisfies Record<string, React.CSSProperties>;

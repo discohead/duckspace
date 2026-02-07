@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // --------------------------------------------------------------------------
 // Mock parentPort and workerData (must be before import)
@@ -26,16 +26,16 @@ vi.mock('worker_threads', () => ({
 // --------------------------------------------------------------------------
 // Mock duckdb-connection
 // --------------------------------------------------------------------------
-const mockInitDuckDB = vi.fn().mockResolvedValue(undefined);
+const mockInitDuckDb = vi.fn().mockResolvedValue(undefined);
 const mockGetConnection = vi.fn();
 const mockRunIntegrityCheck = vi.fn().mockResolvedValue(true);
-const mockCloseDuckDB = vi.fn().mockResolvedValue(undefined);
+const mockCloseDuckDb = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@workers/duckdb-connection', () => ({
-  initDuckDB: mockInitDuckDB,
+  initDuckDB: mockInitDuckDb,
   getConnection: mockGetConnection,
   runIntegrityCheck: mockRunIntegrityCheck,
-  closeDuckDB: mockCloseDuckDB,
+  closeDuckDB: mockCloseDuckDb,
 }));
 
 // --------------------------------------------------------------------------
@@ -44,9 +44,7 @@ vi.mock('@workers/duckdb-connection', () => ({
 
 /** Captures the message handler registered on parentPort.on('message', ...) */
 function getMessageHandler(): (msg: any) => Promise<void> {
-  const onCall = mockParentPort.on.mock.calls.find(
-    (c: any[]) => c[0] === 'message',
-  );
+  const onCall = mockParentPort.on.mock.calls.find((c: any[]) => c[0] === 'message');
   if (!onCall) throw new Error('No message handler registered on parentPort');
   return onCall[1];
 }
@@ -59,12 +57,15 @@ function createMockRun(rows: any[][] = []) {
 
 /** Wait for init() to complete by flushing microtasks */
 async function flushInit() {
-  await vi.waitFor(() => {
-    const readyCall = mockParentPort.postMessage.mock.calls.find(
-      (c: any[]) => c[0]?.type === 'ready' || c[0]?.type === 'error',
-    );
-    if (!readyCall) throw new Error('init not completed');
-  }, { timeout: 2000 });
+  await vi.waitFor(
+    () => {
+      const readyCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'ready' || c[0]?.type === 'error',
+      );
+      if (!readyCall) throw new Error('init not completed');
+    },
+    { timeout: 2000 },
+  );
 }
 
 /**
@@ -90,9 +91,9 @@ describe('duckdb-worker', () => {
     vi.resetModules();
 
     // Reset mock implementations
-    mockInitDuckDB.mockResolvedValue(undefined);
+    mockInitDuckDb.mockResolvedValue(undefined);
     mockRunIntegrityCheck.mockResolvedValue(true);
-    mockCloseDuckDB.mockResolvedValue(undefined);
+    mockCloseDuckDb.mockResolvedValue(undefined);
   });
 
   // ========================================================================
@@ -103,7 +104,7 @@ describe('duckdb-worker', () => {
     it('calls initDuckDB with workerData config on load', async () => {
       await loadWorker();
 
-      expect(mockInitDuckDB).toHaveBeenCalledWith({
+      expect(mockInitDuckDb).toHaveBeenCalledWith({
         dbPath: '/test/db.duckdb',
         memoryLimit: '256MB',
         threads: 2,
@@ -125,7 +126,7 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'ready',
       );
       expect(readyCall).toBeDefined();
-      expect(readyCall![0]).toEqual(
+      expect(readyCall?.[0]).toEqual(
         expect.objectContaining({
           type: 'ready',
           worker: 'duckdb',
@@ -145,28 +146,31 @@ describe('duckdb-worker', () => {
       const readyCall = mockParentPort.postMessage.mock.calls.find(
         (c: any[]) => c[0]?.type === 'ready',
       );
-      expect(readyCall![0].metadata.integrityOk).toBe(false);
+      expect(readyCall?.[0].metadata.integrityOk).toBe(false);
     });
 
     it('posts error message if initDuckDB fails', async () => {
-      mockInitDuckDB.mockRejectedValueOnce(new Error('init failure'));
+      mockInitDuckDb.mockRejectedValueOnce(new Error('init failure'));
 
       // Default connection is still needed for the mock module
       const run = createMockRun([]);
       mockGetConnection.mockReturnValue({ run });
 
       await import('@workers/duckdb-worker');
-      await vi.waitFor(() => {
-        const errorCall = mockParentPort.postMessage.mock.calls.find(
-          (c: any[]) => c[0]?.type === 'error',
-        );
-        if (!errorCall) throw new Error('error not posted');
-      }, { timeout: 2000 });
+      await vi.waitFor(
+        () => {
+          const errorCall = mockParentPort.postMessage.mock.calls.find(
+            (c: any[]) => c[0]?.type === 'error',
+          );
+          if (!errorCall) throw new Error('error not posted');
+        },
+        { timeout: 2000 },
+      );
 
       const errorCall = mockParentPort.postMessage.mock.calls.find(
         (c: any[]) => c[0]?.type === 'error',
       );
-      expect(errorCall![0]).toEqual({
+      expect(errorCall?.[0]).toEqual({
         type: 'error',
         message: 'init failure',
       });
@@ -215,7 +219,8 @@ describe('duckdb-worker', () => {
 
       // Set up connection that returns IPC buffer
       const ipcBuffer = new Uint8Array([1, 2, 3, 4]);
-      const run = vi.fn()
+      const run = vi
+        .fn()
         // to_arrow_ipc query
         .mockResolvedValueOnce({
           getRows: vi.fn().mockResolvedValue([[ipcBuffer]]),
@@ -236,16 +241,16 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'arrow-batch',
       );
       expect(batchCall).toBeDefined();
-      expect(batchCall![0].queryId).toBe('q1');
-      expect(batchCall![0].byteSize).toBe(4);
+      expect(batchCall?.[0].queryId).toBe('q1');
+      expect(batchCall?.[0].byteSize).toBe(4);
 
       // Check arrow-end was sent on data port
       const endCall = mockPort.postMessage.mock.calls.find(
         (c: any[]) => c[0]?.type === 'arrow-end',
       );
       expect(endCall).toBeDefined();
-      expect(endCall![0].queryId).toBe('q1');
-      expect(endCall![0].totalBatches).toBe(1);
+      expect(endCall?.[0].queryId).toBe('q1');
+      expect(endCall?.[0].totalBatches).toBe(1);
     });
 
     it('sends arrow-end with zero totals for empty results', async () => {
@@ -264,9 +269,9 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'arrow-end',
       );
       expect(endCall).toBeDefined();
-      expect(endCall![0].totalBatches).toBe(0);
-      expect(endCall![0].totalRows).toBe(0);
-      expect(endCall![0].totalBytes).toBe(0);
+      expect(endCall?.[0].totalBatches).toBe(0);
+      expect(endCall?.[0].totalRows).toBe(0);
+      expect(endCall?.[0].totalBytes).toBe(0);
     });
 
     it('sends arrow-end when rows exist but first row is null', async () => {
@@ -285,7 +290,7 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'arrow-end',
       );
       expect(endCall).toBeDefined();
-      expect(endCall![0].totalBatches).toBe(0);
+      expect(endCall?.[0].totalBatches).toBe(0);
     });
 
     it('posts query_history_record on success', async () => {
@@ -307,7 +312,7 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'query_history_record',
       );
       expect(historyCall).toBeDefined();
-      expect(historyCall![0]).toEqual(
+      expect(historyCall?.[0]).toEqual(
         expect.objectContaining({
           type: 'query_history_record',
           queryId: 'q1',
@@ -325,7 +330,8 @@ describe('duckdb-worker', () => {
       const mockPort = { postMessage: vi.fn(), onmessage: null };
       await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
 
-      const failRun = vi.fn()
+      const failRun = vi
+        .fn()
         .mockRejectedValueOnce(new Error('syntax error in SQL'))
         // For query history insert (getConnection is called again)
         .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
@@ -340,17 +346,17 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'arrow-error',
       );
       expect(errorCall).toBeDefined();
-      expect(errorCall![0].queryId).toBe('q-err');
-      expect(errorCall![0].code).toBe('E1001');
-      expect(errorCall![0].message).toContain('syntax error');
+      expect(errorCall?.[0].queryId).toBe('q-err');
+      expect(errorCall?.[0].code).toBe('E1001');
+      expect(errorCall?.[0].message).toContain('syntax error');
 
       // Error query history record
       const historyCall = mockParentPort.postMessage.mock.calls.find(
         (c: any[]) => c[0]?.type === 'query_history_record',
       );
       expect(historyCall).toBeDefined();
-      expect(historyCall![0].status).toBe('error');
-      expect(historyCall![0].errorMessage).toContain('syntax error');
+      expect(historyCall?.[0].status).toBe('error');
+      expect(historyCall?.[0].errorMessage).toContain('syntax error');
     });
   });
 
@@ -381,7 +387,7 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'arrow-end',
       );
       expect(endCall).toBeDefined();
-      expect(endCall![0].totalBatches).toBe(0);
+      expect(endCall?.[0].totalBatches).toBe(0);
     });
   });
 
@@ -395,7 +401,8 @@ describe('duckdb-worker', () => {
       const handler = getMessageHandler();
 
       // Mock for list_tables query
-      const run = vi.fn()
+      const run = vi
+        .fn()
         // information_schema.tables query
         .mockResolvedValueOnce({
           getRows: vi.fn().mockResolvedValue([
@@ -430,7 +437,7 @@ describe('duckdb-worker', () => {
       );
       expect(tableListCall).toBeDefined();
 
-      const { tables } = tableListCall![0];
+      const { tables } = tableListCall?.[0];
       expect(tables).toHaveLength(2);
 
       expect(tables[0].name).toBe('users');
@@ -460,7 +467,7 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'table_list',
       );
       expect(tableListCall).toBeDefined();
-      expect(tableListCall![0].tables).toHaveLength(0);
+      expect(tableListCall?.[0].tables).toHaveLength(0);
     });
   });
 
@@ -473,7 +480,8 @@ describe('duckdb-worker', () => {
       await loadWorker();
       const handler = getMessageHandler();
 
-      const run = vi.fn()
+      const run = vi
+        .fn()
         // Column query
         .mockResolvedValueOnce({
           getRows: vi.fn().mockResolvedValue([
@@ -496,26 +504,26 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'table_info',
       );
       expect(infoCall).toBeDefined();
-      expect(infoCall![0].tableName).toBe('users');
-      expect(infoCall![0].rowCount).toBe(42);
-      expect(infoCall![0].columns).toHaveLength(3);
+      expect(infoCall?.[0].tableName).toBe('users');
+      expect(infoCall?.[0].rowCount).toBe(42);
+      expect(infoCall?.[0].columns).toHaveLength(3);
 
       // Verify column mapping
-      expect(infoCall![0].columns[0]).toEqual({
+      expect(infoCall?.[0].columns[0]).toEqual({
         name: 'id',
         duckdbType: 'INTEGER',
         arrowType: 'Int32',
         nullable: false,
         ordinalPosition: 0,
       });
-      expect(infoCall![0].columns[1]).toEqual({
+      expect(infoCall?.[0].columns[1]).toEqual({
         name: 'name',
         duckdbType: 'VARCHAR',
         arrowType: 'Utf8',
         nullable: true,
         ordinalPosition: 1,
       });
-      expect(infoCall![0].columns[2]).toEqual({
+      expect(infoCall?.[0].columns[2]).toEqual({
         name: 'created_at',
         duckdbType: 'TIMESTAMP',
         arrowType: 'Timestamp(us, UTC)',
@@ -528,7 +536,8 @@ describe('duckdb-worker', () => {
       await loadWorker();
       const handler = getMessageHandler();
 
-      const run = vi.fn()
+      const run = vi
+        .fn()
         .mockResolvedValueOnce({ getRows: vi.fn().mockResolvedValue([]) })
         .mockResolvedValueOnce({ getRows: vi.fn().mockResolvedValue([[0]]) });
 
@@ -536,8 +545,8 @@ describe('duckdb-worker', () => {
 
       await handler({ type: 'get_table_info', tableName: "table'name" });
 
-      const firstSQL = run.mock.calls[0][0] as string;
-      expect(firstSQL).toContain("table''name");
+      const firstSql = run.mock.calls[0][0] as string;
+      expect(firstSql).toContain("table''name");
     });
   });
 
@@ -560,10 +569,10 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'health_check_result',
       );
       expect(healthCall).toBeDefined();
-      expect(healthCall![0].status).toBe('healthy');
-      expect(healthCall![0].tables).toBe(3);
-      expect(healthCall![0].memoryUsedMB).toBeTypeOf('number');
-      expect(healthCall![0].activeQueries).toBe(0);
+      expect(healthCall?.[0].status).toBe('healthy');
+      expect(healthCall?.[0].tables).toBe(3);
+      expect(healthCall?.[0].memoryUsedMB).toBeTypeOf('number');
+      expect(healthCall?.[0].activeQueries).toBe(0);
     });
 
     it('returns degraded status when table count query fails', async () => {
@@ -580,7 +589,7 @@ describe('duckdb-worker', () => {
       const healthCall = mockParentPort.postMessage.mock.calls.find(
         (c: any[]) => c[0]?.type === 'health_check_result',
       );
-      expect(healthCall![0].status).toBe('degraded');
+      expect(healthCall?.[0].status).toBe('degraded');
     });
   });
 
@@ -601,12 +610,12 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'heartbeat_ack',
       );
       expect(ackCall).toBeDefined();
-      expect(ackCall![0].sentAt).toBe(sentAt);
-      expect(ackCall![0].status).toBe('healthy');
-      expect(ackCall![0].details).toBeDefined();
-      expect(ackCall![0].details.activeQueries).toBe(0);
-      expect(ackCall![0].details.memoryUsageMB).toBeTypeOf('number');
-      expect(ackCall![0].details.uptime).toBeTypeOf('number');
+      expect(ackCall?.[0].sentAt).toBe(sentAt);
+      expect(ackCall?.[0].status).toBe('healthy');
+      expect(ackCall?.[0].details).toBeDefined();
+      expect(ackCall?.[0].details.activeQueries).toBe(0);
+      expect(ackCall?.[0].details.memoryUsageMB).toBeTypeOf('number');
+      expect(ackCall?.[0].details.uptime).toBeTypeOf('number');
     });
   });
 
@@ -665,13 +674,13 @@ describe('duckdb-worker', () => {
 
       await handler({ type: 'shutdown' });
 
-      expect(mockCloseDuckDB).toHaveBeenCalledOnce();
+      expect(mockCloseDuckDb).toHaveBeenCalledOnce();
 
       const shutdownCall = mockParentPort.postMessage.mock.calls.find(
         (c: any[]) => c[0]?.type === 'shutdown-complete',
       );
       expect(shutdownCall).toBeDefined();
-      expect(shutdownCall![0]).toEqual({
+      expect(shutdownCall?.[0]).toEqual({
         type: 'shutdown-complete',
         worker: 'duckdb',
       });
@@ -692,7 +701,8 @@ describe('duckdb-worker', () => {
       const mockPort = { postMessage: vi.fn(), onmessage: null };
       await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
 
-      const run = vi.fn()
+      const run = vi
+        .fn()
         .mockRejectedValueOnce(new Error(errorMessage))
         .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
       mockGetConnection.mockReturnValue({ run });
@@ -703,7 +713,7 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'arrow-error',
       );
       expect(errorCall).toBeDefined();
-      return errorCall![0].code;
+      return errorCall?.[0].code;
     }
 
     it('classifies syntax errors as E1001', async () => {
@@ -757,7 +767,8 @@ describe('duckdb-worker', () => {
       await loadWorker();
       const handler = getMessageHandler();
 
-      const run = vi.fn()
+      const run = vi
+        .fn()
         .mockResolvedValueOnce({
           getRows: vi.fn().mockResolvedValue([['col', duckdbType, true, 1]]),
         })
@@ -774,7 +785,7 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'table_info',
       );
       expect(infoCall).toBeDefined();
-      return infoCall![0].columns[0].arrowType;
+      return infoCall?.[0].columns[0].arrowType;
     }
 
     it('maps BOOLEAN to Bool', async () => {
@@ -860,7 +871,7 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'error',
       );
       expect(errorCall).toBeDefined();
-      expect(errorCall![0].message).toBe('connection lost');
+      expect(errorCall?.[0].message).toBe('connection lost');
     });
 
     it('converts non-Error throws to string', async () => {
@@ -868,7 +879,7 @@ describe('duckdb-worker', () => {
       const handler = getMessageHandler();
 
       mockGetConnection.mockImplementation(() => {
-        throw 'string error';  // eslint-disable-line no-throw-literal
+        throw 'string error';
       });
       mockParentPort.postMessage.mockClear();
 
@@ -878,7 +889,7 @@ describe('duckdb-worker', () => {
         (c: any[]) => c[0]?.type === 'error',
       );
       expect(errorCall).toBeDefined();
-      expect(errorCall![0].message).toBe('string error');
+      expect(errorCall?.[0].message).toBe('string error');
     });
   });
 });

@@ -1,11 +1,16 @@
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import App from './App';
-import db from './stores/db';
-import { checkAndRecover } from './lib/recovery';
 import { DEFAULT_PREFERENCES } from '@shared/constants';
+import type { QueryHistoryPushRecord, WorkerHealth } from '@shared/types';
+import { createRoot } from 'react-dom/client';
+import { App } from './App';
+import { checkAndRecover } from './lib/recovery';
+import { db } from './stores/db';
 
-async function bootstrap() {
+/**
+ * Bootstraps the renderer process: opens IndexedDB, seeds default preferences,
+ * runs crash recovery, restores tab state, renders the React app, signals readiness
+ * to the main process, and wires up shutdown, bounds, query history, and worker health handlers.
+ */
+async function bootstrap(): Promise<void> {
   // Initialize Dexie.js (opens IndexedDB)
   await db.open();
 
@@ -13,9 +18,7 @@ async function bootstrap() {
   const prefCount = await db.preferences.count();
   if (prefCount === 0) {
     const now = new Date().toISOString();
-    await db.preferences.bulkAdd(
-      DEFAULT_PREFERENCES.map((p) => ({ ...p, updatedAt: now }))
-    );
+    await db.preferences.bulkAdd(DEFAULT_PREFERENCES.map((p) => ({ ...p, updatedAt: now })));
   }
 
   // T051: Check for crash recovery before marking dirty
@@ -55,13 +58,16 @@ async function bootstrap() {
   }
 
   // Render React app
-  const root = createRoot(document.getElementById('root')!);
+  const rootEl = document.getElementById('root');
+  if (!rootEl) throw new Error('Root element not found');
+  const root = createRoot(rootEl);
   root.render(<App />);
 
   // Signal to Main Process that renderer is ready
   await window.datspace.lifecycle.ready();
 
   // T034: Wire shutdown handler
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   window.datspace.lifecycle.onShutdownPrepare(async () => {
     try {
       // Save window state
@@ -91,36 +97,40 @@ async function bootstrap() {
   });
 
   // T064: Wire window bounds persistence to Dexie.js
-  window.datspace.lifecycle.onBoundsChanged(async (bounds) => {
-    await db.app_state.put({
-      id: 'window_bounds',
-      value: bounds,
-      updatedAt: new Date().toISOString(),
-    });
-  });
+  window.datspace.lifecycle.onBoundsChanged(
+    (bounds: { x: number; y: number; width: number; height: number }) => {
+      void db.app_state.put({
+        id: 'window_bounds',
+        value: bounds,
+        updatedAt: new Date().toISOString(),
+      });
+    },
+  );
 
   // T067: Wire query history sync from DuckDB Worker to Dexie.js
-  window.datspace.query.onQueryHistory(async (record) => {
-    try {
-      await db.query_history.put({
-        id: record.queryId,
-        sql: record.sql,
-        executionTimeMs: record.executionTimeMs,
-        rowCount: record.rowCount,
-        timestamp: new Date().toISOString(),
-        source: 'user',
-        tags: [],
-        status: record.status,
-        errorMessage: record.errorMessage,
-      });
-    } catch (err) {
-      console.error('Failed to sync query history to Dexie.js:', err);
-    }
+  window.datspace.query.onQueryHistory((record: QueryHistoryPushRecord) => {
+    void (async () => {
+      try {
+        await db.query_history.put({
+          id: record.queryId,
+          sql: record.sql,
+          executionTimeMs: record.executionTimeMs,
+          rowCount: record.rowCount,
+          timestamp: new Date().toISOString(),
+          source: 'user',
+          tags: [],
+          status: record.status,
+          errorMessage: record.errorMessage,
+        });
+      } catch (err) {
+        console.error('Failed to sync query history to Dexie.js:', err);
+      }
+    })();
   });
 
   // Wire worker health updates to Dexie.js
-  window.datspace.lifecycle.onWorkerHealth(async (health) => {
-    await db.worker_health.put({
+  window.datspace.lifecycle.onWorkerHealth((health: WorkerHealth) => {
+    void db.worker_health.put({
       id: health.worker,
       status: health.status,
       restartCount: health.restartCount ?? 0,
@@ -132,6 +142,6 @@ async function bootstrap() {
   });
 }
 
-bootstrap().catch((err) => {
+bootstrap().catch((err: unknown) => {
   console.error('Failed to bootstrap renderer:', err);
 });

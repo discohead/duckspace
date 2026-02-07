@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock electron
 const mockHandlers = new Map<string, (...args: any[]) => any>();
@@ -31,7 +31,12 @@ vi.mock('@main/config', () => ({
   getConfig: vi.fn(() => ({
     duckdb: { memoryLimitPercent: 50, memoryLimitOverrideMB: null, threads: null, extensions: [] },
     paths: { database: 'test.duckdb', tempDir: 'tmp', config: 'config.json' },
-    workers: { healthCheckIntervalMs: 60000, heartbeatTimeoutMs: 5000, maxRestartAttempts: 3, v8HeapLimitMB: 512 },
+    workers: {
+      healthCheckIntervalMs: 60000,
+      heartbeatTimeoutMs: 5000,
+      maxRestartAttempts: 3,
+      v8HeapLimitMB: 512,
+    },
     ui: { theme: 'system', fontSize: 14, defaultQueryLimit: 1000 },
     lifecycle: { shutdownTimeoutMs: 6000, walCheckpointOnShutdown: true },
   })),
@@ -42,12 +47,12 @@ vi.mock('@main/config', () => ({
 
 import {
   registerIPCHandlers,
+  sendShutdownPrepare,
+  setMainWindowRef,
   setQueryRouter,
   setWorkerManager,
-  setMainWindowRef,
   waitForRendererReady,
   waitForShutdownAck,
-  sendShutdownPrepare,
 } from '@main/ipc-handlers';
 import { IPC_CHANNELS } from '@shared/constants';
 

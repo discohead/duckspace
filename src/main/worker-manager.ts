@@ -1,15 +1,16 @@
-import { Worker } from 'worker_threads';
-import path from 'path';
-import type { BrowserWindow } from 'electron';
+import path from 'node:path';
+import { Worker } from 'node:worker_threads';
+import { PUSH_EVENTS } from '@shared/constants';
 import type {
-  WorkerHealthResponse,
   HeartbeatAck,
-  WorkerReadyMessage,
-  WorkerHealthRecord,
   QueryHistoryPushRecord,
+  WorkerHealthRecord,
+  WorkerHealthResponse,
+  WorkerReadyMessage,
 } from '@shared/types';
-import { HEALTH_CHECK, PUSH_EVENTS } from '@shared/constants';
+import type { BrowserWindow } from 'electron';
 
+/** Lifecycle status of the DuckDB worker thread. */
 export type WorkerStatus = 'starting' | 'ready' | 'busy' | 'degraded' | 'restarting' | 'failed';
 
 interface WorkerManagerConfig {
@@ -26,21 +27,36 @@ interface WorkerManagerConfig {
   maxRestartAttempts: number;
 }
 
+/**
+ * Manages the lifecycle of the DuckDB worker thread.
+ *
+ * Handles spawning, health monitoring, automatic restarts, and graceful shutdown
+ * of the worker. Pushes health status updates to the renderer.
+ */
 export class WorkerManager {
   private worker: Worker | null = null;
   private status: WorkerStatus = 'starting';
   private restartCount = 0;
-  private consecutiveMisses = 0;
   private healthInterval: ReturnType<typeof setInterval> | null = null;
   private config: WorkerManagerConfig;
   private mainWindow: BrowserWindow | null = null;
   private readyPromise: { resolve: () => void; reject: (err: Error) => void } | null = null;
   private upSince: string = new Date().toISOString();
 
+  /**
+   * Creates a new WorkerManager with the given configuration.
+   *
+   * @param config - Worker configuration including database path, memory limits, and health check settings.
+   */
   constructor(config: WorkerManagerConfig) {
     this.config = config;
   }
 
+  /**
+   * Spawns the DuckDB worker thread and waits for it to signal ready.
+   *
+   * @throws {@link Error} If the worker fails to start within the 30-second timeout.
+   */
   async spawn(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       this.readyPromise = { resolve, reject };
@@ -85,22 +101,47 @@ export class WorkerManager {
     });
   }
 
+  /**
+   * Sets the main window reference for pushing health status updates.
+   *
+   * @param win - The main BrowserWindow instance.
+   */
   setMainWindow(win: BrowserWindow): void {
     this.mainWindow = win;
   }
 
+  /**
+   * Returns the underlying worker thread instance.
+   *
+   * @returns The worker thread, or null if not yet spawned or terminated.
+   */
   getWorker(): Worker | null {
     return this.worker;
   }
 
+  /**
+   * Returns the current lifecycle status of the worker.
+   *
+   * @returns The worker's current status.
+   */
   getStatus(): WorkerStatus {
     return this.status;
   }
 
+  /**
+   * Returns the number of times the worker has been restarted.
+   *
+   * @returns The cumulative restart count.
+   */
   getRestartCount(): number {
     return this.restartCount;
   }
 
+  /**
+   * Starts periodic heartbeat health checks to the worker.
+   *
+   * No-op if health monitoring is already active.
+   */
   startHealthMonitoring(): void {
     if (this.healthInterval) return;
 
@@ -109,6 +150,9 @@ export class WorkerManager {
     }, this.config.healthCheckIntervalMs);
   }
 
+  /**
+   * Stops the periodic heartbeat health checks.
+   */
   stopHealthMonitoring(): void {
     if (this.healthInterval) {
       clearInterval(this.healthInterval);
@@ -130,7 +174,7 @@ export class WorkerManager {
   }
 
   private handleWorkerMessage(msg: Record<string, unknown>): void {
-    switch (msg.type) {
+    switch (msg['type']) {
       case 'ready':
         this.handleReady(msg as unknown as WorkerReadyMessage);
         break;
@@ -144,7 +188,9 @@ export class WorkerManager {
         // Data port established
         break;
       case 'query_history_record':
-        this.forwardQueryHistoryToRenderer(msg as unknown as QueryHistoryPushRecord & { type: string });
+        this.forwardQueryHistoryToRenderer(
+          msg as unknown as QueryHistoryPushRecord & { type: string },
+        );
         break;
       case 'table_info':
       case 'catalog_update':
@@ -154,14 +200,14 @@ export class WorkerManager {
         this.status = 'failed'; // Worker is done
         break;
       case 'error':
-        console.error('Worker error:', msg.message);
+        console.error('Worker error:', msg['message']);
         break;
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private handleReady(_msg: WorkerReadyMessage): void {
     this.status = 'ready';
-    this.consecutiveMisses = 0;
 
     if (this.readyPromise) {
       this.readyPromise.resolve();
@@ -172,21 +218,18 @@ export class WorkerManager {
   }
 
   private handleHeartbeatAck(ack: HeartbeatAck): void {
-    this.consecutiveMisses = 0;
-
     if (ack.status === 'busy') {
       this.setStatus('busy');
     } else if (ack.status === 'healthy') {
       this.setStatus('ready');
-    } else if (ack.status === 'degraded') {
+    } else {
       this.setStatus('degraded');
     }
   }
 
-  private handleHealthCheckResult(result: WorkerHealthResponse): void {
-    if (result.status === 'healthy') {
-      this.consecutiveMisses = 0;
-    }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private handleHealthCheckResult(_result: WorkerHealthResponse): void {
+    // Health check results handled via heartbeat status
   }
 
   private handleWorkerError(err: Error): void {
@@ -196,7 +239,7 @@ export class WorkerManager {
 
   private handleWorkerExit(code: number): void {
     if (code !== 0 && this.status !== 'failed') {
-      this.attemptRestart();
+      void this.attemptRestart();
     }
   }
 
@@ -233,7 +276,7 @@ export class WorkerManager {
       executionTimeMs: msg.executionTimeMs,
       rowCount: msg.rowCount,
       status: msg.status,
-      errorMessage: msg.errorMessage,
+      ...(msg.errorMessage !== undefined ? { errorMessage: msg.errorMessage } : {}),
     };
     this.mainWindow.webContents.send(PUSH_EVENTS.QUERY_HISTORY, record);
   }
@@ -249,6 +292,11 @@ export class WorkerManager {
     });
   }
 
+  /**
+   * Returns a snapshot of the worker's health state for persistence.
+   *
+   * @returns A health record with status, restart count, and uptime info.
+   */
   getHealthRecord(): WorkerHealthRecord {
     return {
       id: 'duckdb',
@@ -262,15 +310,27 @@ export class WorkerManager {
 
   private getStatusMessage(): string {
     switch (this.status) {
-      case 'ready': return 'DuckDB engine is ready';
-      case 'busy': return 'DuckDB engine is processing queries';
-      case 'degraded': return 'DuckDB engine is experiencing issues';
-      case 'restarting': return `DuckDB engine is restarting (attempt ${this.restartCount})`;
-      case 'failed': return 'DuckDB engine has failed and cannot restart';
-      default: return 'DuckDB engine is starting';
+      case 'ready':
+        return 'DuckDB engine is ready';
+      case 'busy':
+        return 'DuckDB engine is processing queries';
+      case 'degraded':
+        return 'DuckDB engine is experiencing issues';
+      case 'restarting':
+        return `DuckDB engine is restarting (attempt ${this.restartCount})`;
+      case 'failed':
+        return 'DuckDB engine has failed and cannot restart';
+      case 'starting':
+        return 'DuckDB engine is starting';
     }
   }
 
+  /**
+   * Gracefully shuts down the worker by sending a shutdown message.
+   *
+   * Waits up to 5 seconds for a shutdown-complete response before
+   * forcefully terminating the worker thread.
+   */
   async shutdown(): Promise<void> {
     this.stopHealthMonitoring();
 
@@ -278,18 +338,18 @@ export class WorkerManager {
 
     return new Promise<void>((resolve) => {
       const timeout = setTimeout(() => {
-        this.worker?.terminate();
+        void this.worker?.terminate();
         resolve();
       }, 5000);
 
-      this.worker!.once('message', (msg: Record<string, unknown>) => {
-        if (msg.type === 'shutdown-complete') {
+      this.worker?.once('message', (msg: Record<string, unknown>) => {
+        if (msg['type'] === 'shutdown-complete') {
           clearTimeout(timeout);
           resolve();
         }
       });
 
-      this.worker!.postMessage({ type: 'shutdown' });
+      this.worker?.postMessage({ type: 'shutdown' });
     });
   }
 }

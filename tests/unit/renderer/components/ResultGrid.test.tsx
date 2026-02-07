@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
+
 import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Polyfill ResizeObserver for jsdom
 globalThis.ResizeObserver = class ResizeObserver {
@@ -30,7 +30,7 @@ vi.mock('@renderer/lib/arrow-decode', () => ({
   mergeBatches: vi.fn(() => mockMergeBatchesReturn.current),
 }));
 
-import ResultGrid from '@renderer/components/ResultGrid';
+import { ResultGrid } from '@renderer/components/ResultGrid';
 
 describe('ResultGrid', () => {
   beforeEach(() => {
@@ -119,7 +119,7 @@ describe('ResultGrid', () => {
       rowCount: 1,
       byteSize: 64,
       getColumn: vi.fn(),
-      getCell: vi.fn((row: number, col: number) => {
+      getCell: vi.fn((_row: number, col: number) => {
         if (col === 1) return null;
         return 1;
       }),

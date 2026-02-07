@@ -1,15 +1,25 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { decodeArrowBatch, mergeBatches, type DecodedBatch } from '../lib/arrow-decode';
 import type { ArrowBatch } from '@shared/types';
+import type { ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type DecodedBatch, decodeArrowBatch, mergeBatches } from '../lib/arrow-decode';
 
+/** Props for the {@link ResultGrid} component. */
 interface ResultGridProps {
+  /** The ID of the currently executing query, or null when idle. */
   queryId: string | null;
 }
 
 const ROW_HEIGHT = 28;
 const HEADER_HEIGHT = 32;
 
-function ResultGrid({ queryId }: ResultGridProps) {
+/**
+ * Virtualized data grid that displays Arrow IPC query results.
+ * Listens for `datspace:arrow-batch` custom events, decodes and merges batches,
+ * and renders rows with virtual scrolling for large result sets.
+ *
+ * @param props - Component props containing the active query ID.
+ */
+export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
   const [batches, setBatches] = useState<DecodedBatch[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -19,13 +29,13 @@ function ResultGrid({ queryId }: ResultGridProps) {
   useEffect(() => {
     setBatches([]);
     setScrollTop(0);
-  }, [queryId]);
+  }, []);
 
   // Listen for Arrow batch events
   useEffect(() => {
     if (!queryId) return;
 
-    const handler = (event: Event) => {
+    const handler = (event: Event): void => {
       const detail = (event as CustomEvent<{ queryId: string; batch: ArrowBatch }>).detail;
       if (detail.queryId !== queryId) return;
 
@@ -44,7 +54,7 @@ function ResultGrid({ queryId }: ResultGridProps) {
     const container = containerRef.current;
     if (!container) return;
 
-    const observer = new ResizeObserver((entries) => {
+    const observer = new ResizeObserver((entries: ResizeObserverEntry[]) => {
       for (const entry of entries) {
         setContainerHeight(entry.contentRect.height);
       }
@@ -70,12 +80,9 @@ function ResultGrid({ queryId }: ResultGridProps) {
   // Virtual scroll calculations
   const startRow = Math.floor(scrollTop / ROW_HEIGHT);
   const visibleRows = Math.ceil(containerHeight / ROW_HEIGHT) + 1;
-  const totalHeight = merged ? merged.rowCount * ROW_HEIGHT : 0;
   const endRow = merged ? Math.min(startRow + visibleRows, merged.rowCount) : 0;
   const topSpacerHeight = startRow * ROW_HEIGHT;
-  const bottomSpacerHeight = merged
-    ? Math.max(0, (merged.rowCount - endRow) * ROW_HEIGHT)
-    : 0;
+  const bottomSpacerHeight = merged ? Math.max(0, (merged.rowCount - endRow) * ROW_HEIGHT) : 0;
 
   // Empty state
   if (!queryId && batches.length === 0) {
@@ -176,6 +183,7 @@ function ResultGrid({ queryId }: ResultGridProps) {
 
                       return (
                         <td
+                          // biome-ignore lint/suspicious/noArrayIndexKey: stable column order in result grid
                           key={colIndex}
                           style={{
                             padding: '2px 12px',
@@ -184,11 +192,10 @@ function ResultGrid({ queryId }: ResultGridProps) {
                             textOverflow: 'ellipsis',
                             maxWidth: 300,
                             textAlign: isNumber ? 'right' : 'left',
-                            ...(isNull
-                              ? { color: '#9ca3af', fontStyle: 'italic' }
-                              : {}),
+                            ...(isNull ? { color: '#9ca3af', fontStyle: 'italic' as const } : {}),
                           }}
                         >
+                          {/* eslint-disable-next-line @typescript-eslint/no-base-to-string */}
                           {isNull ? 'NULL' : String(value)}
                         </td>
                       );
@@ -226,5 +233,3 @@ function ResultGrid({ queryId }: ResultGridProps) {
     </div>
   );
 }
-
-export default ResultGrid;

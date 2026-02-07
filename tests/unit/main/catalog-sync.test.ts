@@ -1,16 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CatalogSyncBridge } from '@main/catalog-sync';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 function createMockWorker() {
   const listeners = new Map<string, Set<(...args: any[]) => void>>();
   return {
     on: vi.fn((event: string, handler: (...args: any[]) => void) => {
       if (!listeners.has(event)) listeners.set(event, new Set());
-      listeners.get(event)!.add(handler);
+      listeners.get(event)?.add(handler);
     }),
     postMessage: vi.fn(),
     _emit(event: string, ...args: any[]) {
-      listeners.get(event)?.forEach((h) => h(...args));
+      listeners.get(event)?.forEach((h) => {
+        h(...args);
+      });
     },
   };
 }
@@ -51,7 +53,13 @@ describe('CatalogSyncBridge', () => {
         type: 'catalog_update',
         table: 'users',
         columns: [
-          { name: 'id', duckdbType: 'INTEGER', arrowType: 'Int32', nullable: false, ordinalPosition: 0 },
+          {
+            name: 'id',
+            duckdbType: 'INTEGER',
+            arrowType: 'Int32',
+            nullable: false,
+            ordinalPosition: 0,
+          },
         ],
         rowCount: 100,
         sizeBytes: 4096,
@@ -69,9 +77,7 @@ describe('CatalogSyncBridge', () => {
             sizeBytes: 4096,
             columnCount: 1,
           }),
-          columns: expect.arrayContaining([
-            expect.objectContaining({ name: 'id' }),
-          ]),
+          columns: expect.arrayContaining([expect.objectContaining({ name: 'id' })]),
         }),
       );
     });
@@ -163,17 +169,17 @@ describe('CatalogSyncBridge', () => {
   });
 
   describe('refreshCatalog', () => {
-    it('sends list_tables message to worker', async () => {
+    it('sends list_tables message to worker', () => {
       bridge.setWorker(worker as any);
 
-      await bridge.refreshCatalog();
+      bridge.refreshCatalog();
 
       expect(worker.postMessage).toHaveBeenCalledWith({ type: 'list_tables' });
     });
 
-    it('does nothing when no worker set', async () => {
+    it('does nothing when no worker set', () => {
       // Should not throw
-      await bridge.refreshCatalog();
+      bridge.refreshCatalog();
     });
   });
 });

@@ -1,5 +1,10 @@
+import type { Field } from '@uwdata/flechette';
 import { tableFromIPC } from '@uwdata/flechette';
 
+/**
+ * A decoded Arrow IPC batch with column metadata and cell-level accessors.
+ * Wraps the flechette table for convenient row/column access.
+ */
 export interface DecodedBatch {
   /** Column names in order */
   columns: string[];
@@ -15,11 +20,18 @@ export interface DecodedBatch {
   columnTypes: string[];
 }
 
+/**
+ * Decodes an Arrow IPC buffer into a {@link DecodedBatch} with column names, types, and cell accessors.
+ *
+ * @param buffer - The raw Arrow IPC ArrayBuffer received from the data plane.
+ * @returns A decoded batch object with metadata and data access methods.
+ */
 export function decodeArrowBatch(buffer: ArrayBuffer): DecodedBatch {
   const table = tableFromIPC(buffer);
 
-  const columns = table.schema.fields.map((f: any) => f.name);
-  const columnTypes = table.schema.fields.map((f: any) => String(f.type));
+  const columns = table.schema.fields.map((f: Field) => f.name);
+  // eslint-disable-next-line @typescript-eslint/no-base-to-string
+  const columnTypes = table.schema.fields.map((f: Field) => String(f.type));
   const rowCount = table.numRows;
 
   return {
@@ -29,24 +41,35 @@ export function decodeArrowBatch(buffer: ArrayBuffer): DecodedBatch {
     columnTypes,
     getColumn(name: string): unknown[] | null {
       const col = table.getChild(name);
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- getChild returns null for missing columns
       if (!col) return null;
-      return Array.from(col.toArray());
+      return Array.from(col.toArray()) as unknown[];
     },
     getCell(rowIndex: number, colIndex: number): unknown {
       const col = table.getChildAt(colIndex);
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- getChildAt returns null for out-of-bounds
       if (!col) return null;
-      return col.at(rowIndex);
+      return col.at(rowIndex) as unknown;
     },
   };
 }
 
-/** Merge multiple decoded batches into a combined view */
+/**
+ * Merges multiple decoded batches into a single combined view.
+ * Cell access delegates to the appropriate underlying batch using cumulative row offsets.
+ *
+ * @param batches - An array of decoded batches to merge.
+ * @returns A merged batch, or `null` if the input array is empty.
+ */
 export function mergeBatches(batches: DecodedBatch[]): DecodedBatch | null {
   if (batches.length === 0) return null;
-  if (batches.length === 1) return batches[0];
 
-  const columns = batches[0].columns;
-  const columnTypes = batches[0].columnTypes;
+  const first = batches[0];
+  if (!first) return null;
+  if (batches.length === 1) return first;
+
+  const columns = first.columns;
+  const columnTypes = first.columnTypes;
   const totalRows = batches.reduce((sum, b) => sum + b.rowCount, 0);
   const totalBytes = batches.reduce((sum, b) => sum + b.byteSize, 0);
 
@@ -56,7 +79,7 @@ export function mergeBatches(batches: DecodedBatch[]): DecodedBatch | null {
     rowCount: totalRows,
     byteSize: totalBytes,
     getColumn(name: string): unknown[] | null {
-      const arrays = batches.map(b => b.getColumn(name)).filter(Boolean) as unknown[][];
+      const arrays = batches.map((b) => b.getColumn(name)).filter(Boolean) as unknown[][];
       if (arrays.length === 0) return null;
       return arrays.flat();
     },
