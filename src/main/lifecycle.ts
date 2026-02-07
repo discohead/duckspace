@@ -88,7 +88,7 @@ function createWindow(): BrowserWindow {
       preload: path.join(__dirname, 'preload-entry.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
     show: false,
   });

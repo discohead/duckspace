@@ -40,6 +40,7 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
       const detail = (event as CustomEvent<{ queryId: string; batch: ArrowBatch }>).detail;
       if (detail.queryId !== queryId) return;
 
+      if (detail.batch.isLast || detail.batch.buffer.byteLength === 0) return;
       const decoded = decodeArrowBatch(detail.batch.buffer);
       setBatches((prev) => [...prev, decoded]);
     };

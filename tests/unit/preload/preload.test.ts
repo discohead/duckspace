@@ -619,7 +619,7 @@ describe('preload/index', () => {
         });
       });
 
-      it('does not dispatch or ACK when no callbacks registered for queryId', async () => {
+      it('sends ACK but does not dispatch when no callbacks registered for queryId', async () => {
         await loadPreload();
 
         const port = createMockMessagePort();
@@ -633,11 +633,16 @@ describe('preload/index', () => {
             index: 0,
             rowCount: 10,
             byteSize: 100,
-            __transferredBuffers: [new ArrayBuffer(100)],
+            buffer: new ArrayBuffer(100),
           },
         } as MessageEvent);
 
-        expect(port.postMessage).not.toHaveBeenCalled();
+        // ACK is sent unconditionally to prevent backpressure deadlock
+        expect(port.postMessage).toHaveBeenCalledWith({
+          type: 'ack',
+          queryId: 'q-unknown',
+          index: 0,
+        });
       });
 
       it('dispatches to all registered callbacks for a queryId', async () => {

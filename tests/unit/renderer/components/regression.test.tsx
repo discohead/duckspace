@@ -237,6 +237,51 @@ describe('ResultGrid — Regression', () => {
     // because queryId is set but no batches yet
     expect(screen.queryByText('42')).toBeNull();
   });
+
+  // C2: ResultGrid must not crash on terminal/empty batches
+  it('does not decode batch when isLast is true (C2)', () => {
+    mockDecodeArrowBatch.mockClear();
+
+    render(<ResultGrid queryId="q-terminal" />);
+
+    // Dispatch a terminal batch (isLast=true, empty buffer)
+    window.dispatchEvent(
+      new CustomEvent('datspace:arrow-batch', {
+        detail: {
+          queryId: 'q-terminal',
+          batch: { buffer: new ArrayBuffer(0), index: 1, rowCount: 10, byteSize: 0, isLast: true },
+        },
+      }),
+    );
+
+    // decodeArrowBatch should NOT have been called for a terminal batch
+    expect(mockDecodeArrowBatch).not.toHaveBeenCalled();
+  });
+
+  it('does not decode batch with zero-length buffer (C2)', () => {
+    mockDecodeArrowBatch.mockClear();
+
+    render(<ResultGrid queryId="q-empty" />);
+
+    // Dispatch a batch with zero-length buffer but isLast=false
+    window.dispatchEvent(
+      new CustomEvent('datspace:arrow-batch', {
+        detail: {
+          queryId: 'q-empty',
+          batch: {
+            buffer: new ArrayBuffer(0),
+            index: 0,
+            rowCount: 0,
+            byteSize: 0,
+            isLast: false,
+          },
+        },
+      }),
+    );
+
+    // decodeArrowBatch should NOT have been called for empty buffer
+    expect(mockDecodeArrowBatch).not.toHaveBeenCalled();
+  });
 });
 
 // --------------------------------------------------------------------------

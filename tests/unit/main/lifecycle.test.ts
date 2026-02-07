@@ -300,7 +300,7 @@ describe('lifecycle module', () => {
           webPreferences: expect.objectContaining({
             contextIsolation: true,
             nodeIntegration: false,
-            sandbox: false,
+            sandbox: true,
             preload: expect.stringContaining('preload-entry.js'),
           }),
         }),

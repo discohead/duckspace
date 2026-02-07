@@ -1,3 +1,4 @@
+import type { DuckDBValue } from '@duckdb/node-api';
 import { PortSetupMessageSchema, WorkerInboundMessageSchema } from '@shared/schemas/worker-schemas';
 import type {
   HeartbeatAck,
@@ -89,7 +90,7 @@ port.on('message', async (msg: { type: string; [key: string]: unknown }) => {
 });
 
 async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
-  const { queryId, sql } = req;
+  const { queryId, sql, params } = req;
   activeQueries.set(queryId, { cancelled: false });
   const startMs = Date.now();
 
@@ -98,7 +99,10 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
     const queryState = activeQueries.get(queryId);
 
     const wrappedSql = `SELECT * FROM to_arrow_ipc((${sql}))`;
-    const result = await conn.run(wrappedSql);
+    const result =
+      params && params.length > 0
+        ? await conn.run(wrappedSql, params as DuckDBValue[])
+        : await conn.run(wrappedSql);
     const rows = await result.getRows();
 
     if (queryState?.cancelled) {
@@ -366,8 +370,7 @@ function sendDataPlaneMessage(message: Record<string, unknown>): void {
 }
 
 function sendDataPlaneTransfer(envelope: Record<string, unknown>, buffer: ArrayBuffer): void {
-  // biome-ignore lint/style/useNamingConvention: protocol field name used by Electron MessagePort transfer
-  if (dataPort) dataPort.postMessage({ ...envelope, __transferredBuffers: [buffer] }, [buffer]);
+  if (dataPort) dataPort.postMessage({ ...envelope, buffer }, [buffer]);
 }
 
 function classifyErrorCode(message: string): string {

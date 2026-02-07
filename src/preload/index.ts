@@ -60,10 +60,9 @@ ipcRenderer.on(PUSH_EVENTS.PORT, (event: IpcRendererEvent, payload: { channel: s
             isLast: false,
           };
           for (const cb of callbacks) cb(batch);
-
-          // Send ACK for backpressure
-          port.postMessage({ type: 'ack', queryId: msg.queryId, index: msg.index });
         }
+        // ACK unconditionally to prevent backpressure deadlock
+        port.postMessage({ type: 'ack', queryId: msg.queryId, index: msg.index });
       } else if (msg.type === 'arrow-end') {
         const callbacks = dataCallbacks.get(msg.queryId);
         if (callbacks) {
