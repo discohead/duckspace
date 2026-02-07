@@ -75,6 +75,7 @@ export const TIMEOUTS = {
   SHUTDOWN_ACK: 5_000,
   SHUTDOWN_TOTAL: 6_000,
   QUERY_DEFAULT: 30_000,
+  RENDERER_READY: 15_000,
 } as const;
 
 // ---------------------------------------------------------------------------

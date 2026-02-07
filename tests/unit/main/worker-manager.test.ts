@@ -6,6 +6,7 @@ const mockWorkerInstance = {
   once: vi.fn(),
   postMessage: vi.fn(),
   terminate: vi.fn(),
+  removeListener: vi.fn(),
   _handlers: {} as Record<string, ((...args: any[]) => void)[]>,
 };
 
@@ -23,6 +24,15 @@ vi.mock('node:worker_threads', () => ({
     });
     mockWorkerInstance.postMessage = vi.fn();
     mockWorkerInstance.terminate = vi.fn();
+    mockWorkerInstance.removeListener = vi.fn(
+      (event: string, handler: (...args: any[]) => void) => {
+        const handlers = mockWorkerInstance._handlers[event];
+        if (handlers) {
+          const idx = handlers.indexOf(handler);
+          if (idx !== -1) handlers.splice(idx, 1);
+        }
+      },
+    );
     return mockWorkerInstance;
   }),
 }));
@@ -220,6 +230,113 @@ describe('WorkerManager', () => {
       });
 
       expect(manager.getStatus()).toBe('degraded');
+    });
+  });
+
+  // C3: Heartbeat miss detection
+  describe('heartbeat miss detection', () => {
+    it('still ready after one heartbeat timeout (threshold is 2)', async () => {
+      const spawnPromise = manager.spawn();
+      triggerWorkerMessage({ type: 'ready', worker: 'duckdb' });
+      await spawnPromise;
+      manager.startHealthMonitoring();
+
+      // Advance to first heartbeat interval
+      vi.advanceTimersByTime(60_000);
+      // Let heartbeat timeout elapse (5s) without ack
+      vi.advanceTimersByTime(5_000);
+
+      expect(manager.getStatus()).toBe('ready');
+    });
+
+    it('sets status to degraded after MAX_CONSECUTIVE_MISSES timeouts', async () => {
+      const spawnPromise = manager.spawn();
+      triggerWorkerMessage({ type: 'ready', worker: 'duckdb' });
+      await spawnPromise;
+      manager.startHealthMonitoring();
+
+      // First heartbeat + timeout (miss 1)
+      vi.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(5_000);
+      // Second heartbeat + timeout (miss 2 = MAX)
+      vi.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(5_000);
+
+      expect(manager.getStatus()).toBe('degraded');
+    });
+
+    it('resets miss counter on heartbeat ack', async () => {
+      const spawnPromise = manager.spawn();
+      triggerWorkerMessage({ type: 'ready', worker: 'duckdb' });
+      await spawnPromise;
+      manager.startHealthMonitoring();
+
+      // First heartbeat + timeout (miss 1)
+      vi.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(5_000);
+      // Second heartbeat, but ack arrives this time
+      vi.advanceTimersByTime(60_000);
+      triggerWorkerMessage({
+        type: 'heartbeat_ack',
+        sentAt: Date.now(),
+        status: 'healthy',
+      });
+
+      // Third heartbeat + timeout (miss 1 since reset, not 3)
+      vi.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(5_000);
+
+      expect(manager.getStatus()).not.toBe('degraded');
+    });
+
+    it('pushes degraded health to renderer on threshold breach', async () => {
+      const win = createMockBrowserWindow();
+      manager.setMainWindow(win as any);
+      const spawnPromise = manager.spawn();
+      triggerWorkerMessage({ type: 'ready', worker: 'duckdb' });
+      await spawnPromise;
+      manager.startHealthMonitoring();
+
+      // Two misses
+      vi.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(5_000);
+      vi.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(5_000);
+
+      const degradedPush = win.webContents.send.mock.calls.find(
+        (c: any[]) => c[1]?.status === 'degraded',
+      );
+      expect(degradedPush).toBeDefined();
+    });
+
+    it('does not double-degrade on subsequent misses', async () => {
+      const win = createMockBrowserWindow();
+      manager.setMainWindow(win as any);
+      const spawnPromise = manager.spawn();
+      triggerWorkerMessage({ type: 'ready', worker: 'duckdb' });
+      await spawnPromise;
+      manager.startHealthMonitoring();
+
+      // Two misses trigger degraded
+      vi.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(5_000);
+      vi.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(5_000);
+
+      const countBefore = win.webContents.send.mock.calls.filter(
+        (c: any[]) => c[1]?.status === 'degraded',
+      ).length;
+
+      // Third miss — already degraded
+      vi.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(5_000);
+
+      const countAfter = win.webContents.send.mock.calls.filter(
+        (c: any[]) => c[1]?.status === 'degraded',
+      ).length;
+
+      // setStatus guards against same-status transitions
+      expect(countAfter).toBe(countBefore);
     });
   });
 
@@ -796,6 +913,46 @@ describe('WorkerManager', () => {
       await vi.advanceTimersByTimeAsync(0);
 
       expect(manager.getStatus()).toBe('failed');
+    });
+
+    // C4: Log error when spawn fails during restart
+    it('logs error when spawn fails during restart', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const spawnPromise = manager.spawn();
+      triggerWorkerMessage({ type: 'ready', worker: 'duckdb' });
+      await spawnPromise;
+
+      const { Worker: MockWorker } = await import('node:worker_threads');
+      (MockWorker as any).mockImplementationOnce(() => {
+        throw new Error('Failed to create worker');
+      });
+
+      triggerWorkerExit(1);
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(consoleSpy).toHaveBeenCalledWith('DuckDB Worker restart failed:', expect.any(Error));
+      consoleSpy.mockRestore();
+    });
+
+    it('pushes failed health to renderer when spawn fails during restart', async () => {
+      const win = createMockBrowserWindow();
+      manager.setMainWindow(win as any);
+      const spawnPromise = manager.spawn();
+      triggerWorkerMessage({ type: 'ready', worker: 'duckdb' });
+      await spawnPromise;
+
+      const { Worker: MockWorker } = await import('node:worker_threads');
+      (MockWorker as any).mockImplementationOnce(() => {
+        throw new Error('Failed to create worker');
+      });
+
+      triggerWorkerExit(1);
+      await vi.advanceTimersByTimeAsync(0);
+
+      const failedPush = win.webContents.send.mock.calls.find(
+        (c: any[]) => c[1]?.status === 'failed',
+      );
+      expect(failedPush).toBeDefined();
     });
   });
 

@@ -11,6 +11,7 @@ const {
   mockStartupSequence,
   mockShutdownSequence,
   mockGetMainWindow,
+  mockReactivateWindow,
   state,
 } = vi.hoisted(() => {
   const appEventHandlers: Record<string, (...args: any[]) => any> = {};
@@ -37,6 +38,7 @@ const {
   const mockStartupSequence = vi.fn().mockResolvedValue(undefined);
   const mockShutdownSequence = vi.fn().mockResolvedValue(undefined);
   const mockGetMainWindow = vi.fn(() => null);
+  const mockReactivateWindow = vi.fn().mockResolvedValue(undefined);
 
   return {
     mockApp,
@@ -44,6 +46,7 @@ const {
     mockStartupSequence,
     mockShutdownSequence,
     mockGetMainWindow,
+    mockReactivateWindow,
     state,
   };
 });
@@ -60,6 +63,7 @@ vi.mock('@main/lifecycle', () => ({
   startupSequence: mockStartupSequence,
   shutdownSequence: mockShutdownSequence,
   getMainWindow: mockGetMainWindow,
+  reactivateWindow: mockReactivateWindow,
 }));
 
 // ---------------------------------------------------------------------------
@@ -76,6 +80,7 @@ const lifecycleMock = {
   startupSequence: mockStartupSequence,
   shutdownSequence: mockShutdownSequence,
   getMainWindow: mockGetMainWindow,
+  reactivateWindow: mockReactivateWindow,
 };
 
 const originalResolveFilename = (Module as any)._resolveFilename;
@@ -275,23 +280,23 @@ describe('main/index.ts (entry point side effects)', () => {
       expect(appEventHandlers['activate']).toBeDefined();
     });
 
-    it('calls startupSequence when no main window exists', () => {
+    it('calls reactivateWindow when no main window exists', () => {
       mockGetMainWindow.mockReturnValue(null);
-      mockStartupSequence.mockClear();
+      mockReactivateWindow.mockClear();
 
       appEventHandlers['activate']!();
 
-      expect(mockStartupSequence).toHaveBeenCalled();
+      expect(mockReactivateWindow).toHaveBeenCalled();
     });
 
-    it('does not call startupSequence when main window exists', () => {
+    it('does not call reactivateWindow when main window exists', () => {
       const mockWin = { isMinimized: vi.fn(), focus: vi.fn() };
       mockGetMainWindow.mockReturnValue(mockWin as any);
-      mockStartupSequence.mockClear();
+      mockReactivateWindow.mockClear();
 
       appEventHandlers['activate']!();
 
-      expect(mockStartupSequence).not.toHaveBeenCalled();
+      expect(mockReactivateWindow).not.toHaveBeenCalled();
     });
   });
 

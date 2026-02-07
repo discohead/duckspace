@@ -660,6 +660,113 @@ describe('duckdb-worker', () => {
       expect(run).toHaveBeenCalledOnce();
       expect(run).toHaveBeenCalledWith("SET memory_limit = '1GB'");
     });
+
+    // C1: Input validation against SQL injection
+    describe('input validation', () => {
+      it('rejects memory_limit with SQL injection attempt', async () => {
+        await loadWorker();
+        const handler = getMessageHandler();
+
+        const run = vi.fn().mockResolvedValue(undefined);
+        mockGetConnection.mockReturnValue({ run });
+        mockParentPort.postMessage.mockClear();
+
+        await handler({
+          type: 'configure',
+          settings: { memory_limit: "1GB'; DROP TABLE users; --" },
+        });
+
+        expect(run).not.toHaveBeenCalled();
+        const errorCall = mockParentPort.postMessage.mock.calls.find(
+          (c: any[]) => c[0]?.type === 'error',
+        );
+        expect(errorCall).toBeDefined();
+      });
+
+      it('rejects threads with non-positive integer', async () => {
+        await loadWorker();
+        const handler = getMessageHandler();
+
+        const run = vi.fn().mockResolvedValue(undefined);
+        mockGetConnection.mockReturnValue({ run });
+        mockParentPort.postMessage.mockClear();
+
+        await handler({ type: 'configure', settings: { threads: -1 } });
+
+        expect(run).not.toHaveBeenCalled();
+      });
+
+      it('rejects temp_directory with quotes or semicolons', async () => {
+        await loadWorker();
+        const handler = getMessageHandler();
+
+        const run = vi.fn().mockResolvedValue(undefined);
+        mockGetConnection.mockReturnValue({ run });
+        mockParentPort.postMessage.mockClear();
+
+        await handler({
+          type: 'configure',
+          settings: { temp_directory: "/tmp'; --" },
+        });
+
+        expect(run).not.toHaveBeenCalled();
+      });
+
+      it('accepts valid memory_limit like "4GB"', async () => {
+        await loadWorker();
+        const handler = getMessageHandler();
+
+        const run = vi.fn().mockResolvedValue(undefined);
+        mockGetConnection.mockReturnValue({ run });
+
+        await handler({ type: 'configure', settings: { memory_limit: '4GB' } });
+
+        expect(run).toHaveBeenCalledWith(expect.stringContaining('4GB'));
+      });
+
+      it('accepts valid threads like 4', async () => {
+        await loadWorker();
+        const handler = getMessageHandler();
+
+        const run = vi.fn().mockResolvedValue(undefined);
+        mockGetConnection.mockReturnValue({ run });
+
+        await handler({ type: 'configure', settings: { threads: 4 } });
+
+        expect(run).toHaveBeenCalledWith(expect.stringContaining('4'));
+      });
+
+      it('accepts valid temp_directory', async () => {
+        await loadWorker();
+        const handler = getMessageHandler();
+
+        const run = vi.fn().mockResolvedValue(undefined);
+        mockGetConnection.mockReturnValue({ run });
+
+        await handler({ type: 'configure', settings: { temp_directory: '/tmp/datspace' } });
+
+        expect(run).toHaveBeenCalledWith(expect.stringContaining('/tmp/datspace'));
+      });
+
+      it('applies valid settings and skips invalid ones', async () => {
+        await loadWorker();
+        const handler = getMessageHandler();
+
+        const run = vi.fn().mockResolvedValue(undefined);
+        mockGetConnection.mockReturnValue({ run });
+        mockParentPort.postMessage.mockClear();
+
+        // memory_limit is valid, temp_directory has SQL injection (passes Zod string check but fails regex)
+        await handler({
+          type: 'configure',
+          settings: { memory_limit: '4GB', temp_directory: "/tmp'; DROP TABLE x; --" },
+        });
+
+        // memory_limit is valid and processed first, then temp_directory fails and returns
+        expect(run).toHaveBeenCalledTimes(1);
+        expect(run).toHaveBeenCalledWith("SET memory_limit = '4GB'");
+      });
+    });
   });
 
   // ========================================================================
@@ -684,6 +791,73 @@ describe('duckdb-worker', () => {
         type: 'shutdown-complete',
         worker: 'duckdb',
       });
+    });
+  });
+
+  // ========================================================================
+  // C8: sendDataPlaneMessage when dataPort is null
+  // ========================================================================
+
+  describe('sendDataPlaneMessage when dataPort is null', () => {
+    it('posts error to control plane when dataPort is null during query', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+      // Do NOT set up data port — leave dataPort null
+      const run = vi
+        .fn()
+        .mockResolvedValueOnce({
+          getRows: vi.fn().mockResolvedValue([[new Uint8Array([1, 2, 3])]]),
+        })
+        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      mockGetConnection.mockReturnValue({ run });
+      mockParentPort.postMessage.mockClear();
+
+      await handler({ type: 'execute_query', queryId: 'q-no-port', sql: 'SELECT 1' });
+
+      const errorCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'error' && c[0]?.message?.includes('Data port'),
+      );
+      expect(errorCall).toBeDefined();
+    });
+
+    it('posts error when dataPort is null during arrow-end send', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+      // Do NOT set up data port
+      const run = vi
+        .fn()
+        .mockResolvedValueOnce({
+          getRows: vi.fn().mockResolvedValue([]),
+        })
+        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      mockGetConnection.mockReturnValue({ run });
+      mockParentPort.postMessage.mockClear();
+
+      await handler({ type: 'execute_query', queryId: 'q-no-port-end', sql: 'SELECT 1' });
+
+      const errorCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'error' && c[0]?.message?.includes('Data port'),
+      );
+      expect(errorCall).toBeDefined();
+    });
+
+    it('posts error when dataPort is null during arrow-error send', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+      // Do NOT set up data port
+      const run = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('test error'))
+        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      mockGetConnection.mockReturnValue({ run });
+      mockParentPort.postMessage.mockClear();
+
+      await handler({ type: 'execute_query', queryId: 'q-no-port-err', sql: 'BAD SQL' });
+
+      const errorCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'error' && c[0]?.message?.includes('Data port'),
+      );
+      expect(errorCall).toBeDefined();
     });
   });
 

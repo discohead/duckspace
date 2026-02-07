@@ -194,6 +194,7 @@ export const WorkerReadyMessageSchema = z
         duckdbVersion: z.string().optional(),
         extensionsLoaded: z.array(z.string()).optional(),
         tableCount: z.number().int().nonnegative().optional(),
+        integrityOk: z.boolean().optional(),
       })
       .strict()
       .optional(),

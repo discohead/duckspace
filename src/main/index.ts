@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import { getMainWindow, shutdownSequence, startupSequence } from './lifecycle';
+import { getMainWindow, reactivateWindow, shutdownSequence, startupSequence } from './lifecycle';
 
 // T024b: Single-instance lock - prevent concurrent DuckDB file access corruption
 const gotLock = app.requestSingleInstanceLock();
@@ -48,7 +48,7 @@ if (!gotLock) {
   // macOS: Re-create window when dock icon is clicked and no windows exist
   app.on('activate', () => {
     if (!getMainWindow()) {
-      startupSequence().catch(console.error);
+      reactivateWindow().catch(console.error);
     }
   });
 }

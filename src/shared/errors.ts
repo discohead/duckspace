@@ -171,10 +171,12 @@ export class DatspaceError extends Error {
     options?: { retryAfterMs?: number | undefined; details?: Record<string, unknown> | undefined },
   ) {
     const meta = ERROR_METADATA[code];
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety for invalid codes
     super(message ?? meta?.defaultMessage ?? 'Unknown error');
 
     this.name = 'DatspaceError';
     this.code = code;
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety for invalid codes
     this.retryable = meta?.retryable ?? false;
     this.retryAfterMs = options?.retryAfterMs;
     this.details = options?.details;

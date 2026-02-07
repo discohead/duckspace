@@ -55,27 +55,27 @@ describe('ERROR_METADATA', () => {
   it('has metadata for every error code', () => {
     for (const code of Object.values(ERROR_CODES)) {
       expect(ERROR_METADATA[code]).toBeDefined();
-      expect(ERROR_METADATA[code]!.name).toBeTruthy();
-      expect(typeof ERROR_METADATA[code]!.retryable).toBe('boolean');
-      expect(ERROR_METADATA[code]!.defaultMessage).toBeTruthy();
+      expect(ERROR_METADATA[code].name).toBeTruthy();
+      expect(typeof ERROR_METADATA[code].retryable).toBe('boolean');
+      expect(ERROR_METADATA[code].defaultMessage).toBeTruthy();
     }
   });
 
   it('marks syntax errors as non-retryable', () => {
-    expect(ERROR_METADATA[ERROR_CODES.QUERY_SYNTAX_ERROR]!.retryable).toBe(false);
+    expect(ERROR_METADATA[ERROR_CODES.QUERY_SYNTAX_ERROR].retryable).toBe(false);
   });
 
   it('marks timeout errors as retryable', () => {
-    expect(ERROR_METADATA[ERROR_CODES.QUERY_TIMEOUT]!.retryable).toBe(true);
+    expect(ERROR_METADATA[ERROR_CODES.QUERY_TIMEOUT].retryable).toBe(true);
   });
 
   it('marks worker errors as retryable', () => {
-    expect(ERROR_METADATA[ERROR_CODES.WORKER_CRASHED]!.retryable).toBe(true);
-    expect(ERROR_METADATA[ERROR_CODES.WORKER_UNRESPONSIVE]!.retryable).toBe(true);
+    expect(ERROR_METADATA[ERROR_CODES.WORKER_CRASHED].retryable).toBe(true);
+    expect(ERROR_METADATA[ERROR_CODES.WORKER_UNRESPONSIVE].retryable).toBe(true);
   });
 
   it('marks shutting down as non-retryable', () => {
-    expect(ERROR_METADATA[ERROR_CODES.SHUTTING_DOWN]!.retryable).toBe(false);
+    expect(ERROR_METADATA[ERROR_CODES.SHUTTING_DOWN].retryable).toBe(false);
   });
 });
 

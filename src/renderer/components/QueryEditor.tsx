@@ -1,4 +1,4 @@
-import type { ArrowBatch, QueryStatusEvent, QueryTabState, Tab } from '@shared/types';
+import type { ArrowBatch, QueryStatusEvent, Tab } from '@shared/types';
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { db } from '../stores/db';
@@ -23,7 +23,7 @@ export function QueryEditor(): ReactElement {
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-sync on tab id/state change, not type
   useEffect(() => {
     if (activeTab?.type === 'query') {
-      const tabState = activeTab.state as QueryTabState;
+      const tabState = activeTab.state;
       setSql(tabState.sql);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
