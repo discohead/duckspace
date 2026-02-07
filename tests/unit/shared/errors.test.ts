@@ -101,6 +101,7 @@ describe('DatspaceError', () => {
   });
 
   it('falls back to "Unknown error" for unknown codes', () => {
+    // @ts-expect-error — I13: testing runtime behavior with invalid code; DatspaceError now requires ErrorCode at compile-time
     const err = new DatspaceError('E9999');
     expect(err.message).toBe('Unknown error');
     expect(err.retryable).toBe(false);

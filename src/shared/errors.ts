@@ -56,7 +56,7 @@ export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
  * retryability flags, and default messages for each error code.
  */
 export const ERROR_METADATA: Record<
-  string,
+  ErrorCode,
   { name: string; retryable: boolean; defaultMessage: string }
 > = {
   E1001: {
@@ -153,7 +153,7 @@ export const ERROR_METADATA: Record<
  * across process boundaries (Main, Worker, Renderer).
  */
 export class DatspaceError extends Error {
-  readonly code: string;
+  readonly code: ErrorCode;
   readonly retryable: boolean;
   readonly retryAfterMs?: number | undefined;
   readonly details?: Record<string, unknown> | undefined;
@@ -166,7 +166,7 @@ export class DatspaceError extends Error {
    * @param options - Optional retry delay and arbitrary detail payload.
    */
   constructor(
-    code: string,
+    code: ErrorCode,
     message?: string,
     options?: { retryAfterMs?: number | undefined; details?: Record<string, unknown> | undefined },
   ) {

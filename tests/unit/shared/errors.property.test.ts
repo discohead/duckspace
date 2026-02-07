@@ -1,3 +1,4 @@
+import type { ErrorCode } from '@shared/errors';
 import {
   classifyDuckDBError,
   columnNotFoundError,
@@ -75,7 +76,7 @@ describe('errors property-based tests', () => {
     it('each factory produces errors where retryable matches ERROR_METADATA', () => {
       fc.assert(
         fc.property(fc.string({ minLength: 1 }), fc.nat({ max: 60_000 }), (str, num) => {
-          const factories: { error: DatspaceError; expectedCode: string }[] = [
+          const factories: { error: DatspaceError; expectedCode: ErrorCode }[] = [
             { error: querySyntaxError(str), expectedCode: ERROR_CODES.QUERY_SYNTAX_ERROR },
             { error: tableNotFoundError(str), expectedCode: ERROR_CODES.TABLE_NOT_FOUND },
             { error: columnNotFoundError(str, str), expectedCode: ERROR_CODES.COLUMN_NOT_FOUND },
@@ -299,7 +300,7 @@ describe('errors property-based tests', () => {
     });
 
     it('ERROR_METADATA name matches the ERROR_CODES key for each code', () => {
-      const codeEntries = Object.entries(ERROR_CODES) as [string, string][];
+      const codeEntries = Object.entries(ERROR_CODES) as [string, ErrorCode][];
       for (const [key, code] of codeEntries) {
         expect(ERROR_METADATA[code]?.name).toBe(key);
       }

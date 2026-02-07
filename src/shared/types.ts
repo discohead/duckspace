@@ -342,23 +342,40 @@ export interface SettingsTabState {
   section?: string | undefined;
 }
 
-/** Dexie.js `tabs` collection record */
-export interface Tab {
+/** Common fields shared by all tab variants */
+interface BaseTab {
   /** UUID */
   id: string;
-  /** Tab content type */
-  type: 'query' | 'catalog' | 'settings';
   /** Display order (0-based index in tab bar) */
   order: number;
   /** Tab display title */
   title: string;
   /** Whether this is the currently active tab */
   active: boolean;
-  /** Tab-type-specific state */
-  state: QueryTabState | CatalogTabState | SettingsTabState;
   /** ISO timestamp of last interaction */
   lastAccessedAt: string;
 }
+
+/** Query editor tab */
+export interface QueryTab extends BaseTab {
+  type: 'query';
+  state: QueryTabState;
+}
+
+/** Catalog browser tab */
+export interface CatalogTab extends BaseTab {
+  type: 'catalog';
+  state: CatalogTabState;
+}
+
+/** Settings tab */
+export interface SettingsTab extends BaseTab {
+  type: 'settings';
+  state: SettingsTabState;
+}
+
+/** Dexie.js `tabs` collection record — discriminated union on `type` */
+export type Tab = QueryTab | CatalogTab | SettingsTab;
 
 // --- Query Execution ---
 
