@@ -392,6 +392,7 @@ export function classifyDuckDBError(error: Error): DatspaceError {
     return new DatspaceError(ERROR_CODES.TYPE_MISMATCH, error.message);
   }
 
-  // Default: return as syntax error with original message
+  // Default fallback: classify as syntax error (lossy — the original error may not
+  // be a true syntax error, but E1001 is the safest generic database error code).
   return new DatspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR, error.message);
 }

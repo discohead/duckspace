@@ -428,6 +428,13 @@ function sendDataPlaneTransfer(envelope: Record<string, unknown>, buffer: ArrayB
   }
 }
 
+/**
+ * Local error classification for the worker bundle.
+ *
+ * Duplicates the logic in {@link classifyDuckDBError} from `src/shared/errors.ts`.
+ * A local copy exists because the worker is built as an isolated Vite bundle and
+ * does not share modules with the main process at runtime.
+ */
 function classifyErrorCode(message: string): string {
   const msg = message.toLowerCase();
   if (msg.includes('syntax error') || msg.includes('parser error')) return 'E1001';

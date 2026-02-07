@@ -57,6 +57,39 @@ export function getQueryRouter(): QueryRouter | null {
   return queryRouter;
 }
 
+/**
+ * Re-creates the main window on macOS activate without respawning the worker.
+ *
+ * Only creates a new window + data channel if the worker and query router
+ * are still alive. Falls back to full `startupSequence` if they are not.
+ */
+export async function reactivateWindow(): Promise<void> {
+  if (mainWindow) return;
+
+  if (!workerManager || !queryRouter) {
+    await startupSequence();
+    return;
+  }
+
+  const worker = workerManager.getWorker();
+  if (!worker) {
+    await startupSequence();
+    return;
+  }
+
+  mainWindow = await createWindow();
+  setMainWindowRef(mainWindow);
+  workerManager.setMainWindow(mainWindow);
+  queryRouter.setMainWindow(mainWindow);
+  setupDataChannel(mainWindow, worker);
+  await waitForRendererReady();
+  workerManager.pushCurrentHealth();
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+}
+
 // T064: Window bounds persistence
 let boundsDebounce: ReturnType<typeof setTimeout> | null = null;
 
@@ -76,7 +109,7 @@ function setupWindowBoundsTracking(win: BrowserWindow): void {
   win.on('resize', saveBounds);
 }
 
-function createWindow(): BrowserWindow {
+async function createWindow(): Promise<BrowserWindow> {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -101,20 +134,20 @@ function createWindow(): BrowserWindow {
   setupWindowBoundsTracking(win);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    void win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    await win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    void win.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+    await win.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
   }
 
   return win;
 }
 
 /**
- * Executes the 8-step application startup sequence.
+ * Executes the 9-step application startup sequence.
  *
- * Steps: load config, register IPC handlers, spawn DuckDB worker, create QueryRouter,
- * create BrowserWindow, setup MessagePort data channel, wait for renderer ready,
- * and start health monitoring.
+ * Steps: (1) load config, (2) register IPC handlers, (3) spawn DuckDB worker,
+ * (4) create QueryRouter, (5) create BrowserWindow, (6) setup MessagePort data channel,
+ * (7) wait for renderer ready, (8) push initial health, (9) start health monitoring.
  *
  * @throws {@link Error} If the worker fails to spawn or the renderer does not signal ready.
  */
@@ -159,7 +192,7 @@ export async function startupSequence(): Promise<void> {
   setQueryRouter(queryRouter);
 
   // Step 5: Create BrowserWindow
-  mainWindow = createWindow();
+  mainWindow = await createWindow();
   setMainWindowRef(mainWindow);
   workerManager.setMainWindow(mainWindow);
   queryRouter.setMainWindow(mainWindow);
@@ -206,9 +239,7 @@ export async function shutdownSequence(): Promise<void> {
     await workerManager.shutdown();
   }
 
-  // Step 5: Config is already saved by the config module
-
-  // Step 5.5: Clean tmp/ directory contents (best-effort)
+  // Step 5: Clean tmp/ directory contents (best-effort)
   try {
     const tmpDir = getTempDirectory();
     const entries = fs.readdirSync(tmpDir, { withFileTypes: true });

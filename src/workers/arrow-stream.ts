@@ -6,7 +6,6 @@
  * a sliding-window ACK protocol for backpressure control.
  */
 
-import type { MessagePort } from 'node:worker_threads';
 import type { DuckDBConnection, DuckDBValue } from '@duckdb/node-api';
 import { BACKPRESSURE } from '@shared/constants';
 import type {
@@ -15,6 +14,7 @@ import type {
   DataPlaneError,
   StreamEndMessage,
 } from '@shared/types';
+import type { MessagePort } from 'worker_threads';
 
 /** Polling interval (ms) when waiting for the ACK window to drain. */
 const ACK_POLL_INTERVAL_MS = 10;
@@ -259,6 +259,10 @@ export class ArrowStream {
 
   /**
    * Map DuckDB error messages to taxonomy error codes.
+   *
+   * Duplicates the logic in {@link classifyDuckDBError} from `src/shared/errors.ts`.
+   * A local copy exists because the worker is built as an isolated Vite bundle and
+   * does not share modules with the main process at runtime.
    */
   private classifyErrorCode(message: string): string {
     const msg = message.toLowerCase();

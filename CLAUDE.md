@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Agent-readiness principle**: This codebase is designed so that every type, every boundary, and every message is an unambiguous contract. Code should be modifiable with confidence by reading signatures and schemas alone — never by reading implementations. When in doubt, follow existing patterns in neighboring files. Full rationale: `context/strict-typescript-guide.md`.
+
 ## Commands
 
 ```bash
@@ -76,19 +78,30 @@ Datspace is a desktop analytics workspace (Electron + DuckDB + Arrow IPC). Three
 - **Preload bridge**: `window.datspace` exposed via `contextBridge` with namespaces: `query`, `catalog`, `lifecycle`. Types in `src/preload/api.ts` and `src/shared/types.ts`.
 - **Dexie.js in Renderer**: 9 tables (`tabs`, `queries`, `catalog_entries`, `column_schemas`, `query_history`, `preferences`, `worker_health`, `recovery_log`, `app_state`). Reactive hooks via `dexie-react-hooks` in `src/renderer/stores/hooks.ts`.
 - **Error taxonomy**: `src/shared/errors.ts` — E1xxx (database), E6xxx (system). `DatspaceError.toIPCError()` for safe serialization across process boundaries.
-- **Startup sequence** (8 steps in `lifecycle.ts`): config → IPC handlers → spawn Worker → create QueryRouter → create BrowserWindow → setup MessagePort → wait renderer ready → start health monitoring.
+- **Startup sequence** (9 steps in `lifecycle.ts`): config → IPC handlers → spawn Worker → create QueryRouter → create BrowserWindow → setup MessagePort → wait renderer ready → push initial health → start health monitoring.
 
 ## Code Style
 
+### Non-negotiables
+
+- **Zero `any`** — use `unknown` and narrow. **Zero `!` non-null assertions.** **Zero `@ts-ignore`** — use `@ts-expect-error` with explanation if unavoidable.
+- **Discriminated unions** — all message/event types use a `type` literal field. New variants must be added to the union AND all `switch` handlers (exhaustiveness via `assertNever`).
+- **Zod `.strict().describe()`** — all schemas reject extra fields and document every field. Types derived via `z.infer<>`. No hand-written interfaces for validated data.
+- **Named exports only** — no `export default`, no `export *`. Barrel files use explicit re-exports.
+- **`import type` for type-only imports** — enforced by `verbatimModuleSyntax` and Biome.
+- **Error factory functions** (`querySyntaxError()`, `workerCrashedError()`, etc.) — not raw `new DatspaceError()` constructors.
+- **`as const satisfies Record<K, V>`** for dispatch maps — compile-time exhaustiveness, not runtime checks.
+- **TSDoc on all exports** — `/** */` with `@param`, `@returns`, `@throws`. This is the interface contract agents read first.
+
+### Conventions
+
 - **Arrow IPC for all data-plane transfers** — no JSON serialization in data hot paths (Constitution Principle I).
 - **Process isolation**: Main owns lifecycle/routing, Workers own databases, Renderer owns UI. Main must NOT relay data-plane buffers after MessagePort setup.
+- All shared types in `src/shared/types.ts`, all shared constants in `src/shared/constants.ts`. Schemas in `src/shared/schemas/`.
+- **Strict TypeScript**: All strict flags enabled including `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noPropertyAccessFromIndexSignature`.
+- **Dual linting**: Biome (formatting + non-type-aware rules) + ESLint v9 flat config (type-aware rules). No formatting rules in ESLint.
 - DuckDB `@duckdb/node-api` (Neo client) — does NOT have `estimated_size` in `information_schema.tables`.
 - Worker error responses (`type: 'error'`) must be handled by all QueryRouter promise-based handlers, not just the expected response type.
-- All shared types in `src/shared/types.ts`, all shared constants in `src/shared/constants.ts`.
-- **Zod runtime validation**: Schemas in `src/shared/schemas/` validate config, IPC messages, worker messages, and data plane messages. Types are derived via `z.infer<>`.
-- **Strict TypeScript**: All strict flags enabled in `tsconfig.json` including `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noPropertyAccessFromIndexSignature`.
-- **Dual linting**: Biome (formatting + non-type-aware rules) + ESLint v9 flat config (type-aware rules). No formatting rules in ESLint.
-- **TSDoc**: All exported functions, types, and classes have `/** */` comments with `@param`, `@returns`, `@throws` tags.
 - **Vite externals**: Worker imports must use `'worker_threads'` (not `'node:worker_threads'`) to match Vite's external config.
 
 ## Testing

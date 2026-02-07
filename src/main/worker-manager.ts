@@ -1,6 +1,13 @@
 import path from 'node:path';
 import { Worker } from 'node:worker_threads';
-import { PUSH_EVENTS } from '@shared/constants';
+import { HEALTH_CHECK, PUSH_EVENTS } from '@shared/constants';
+import {
+  HeartbeatAckSchema,
+  QueryHistoryRecordMessageSchema,
+  WorkerErrorMessageSchema,
+  WorkerHealthResponseSchema,
+  WorkerReadyMessageSchema,
+} from '@shared/schemas/worker-schemas';
 import type {
   HeartbeatAck,
   QueryHistoryPushRecord,
@@ -42,6 +49,7 @@ export class WorkerManager {
   private mainWindow: BrowserWindow | null = null;
   private readyPromise: { resolve: () => void; reject: (err: Error) => void } | null = null;
   private upSince: string = new Date().toISOString();
+  private consecutiveMisses = 0;
 
   /**
    * Creates a new WorkerManager with the given configuration.
@@ -166,32 +174,55 @@ export class WorkerManager {
     const sentAt = Date.now();
     this.worker.postMessage({ type: 'heartbeat', sentAt });
 
-    // Set timeout for heartbeat response
     setTimeout(() => {
-      // If we haven't received an ack, count as a miss
-      // The ack handler resets consecutiveMisses
+      this.consecutiveMisses++;
+      if (this.consecutiveMisses >= HEALTH_CHECK.MAX_CONSECUTIVE_MISSES) {
+        this.setStatus('degraded');
+      }
     }, this.config.heartbeatTimeoutMs);
   }
 
   private handleWorkerMessage(msg: Record<string, unknown>): void {
     switch (msg['type']) {
-      case 'ready':
-        this.handleReady(msg as unknown as WorkerReadyMessage);
+      case 'ready': {
+        const parsed = WorkerReadyMessageSchema.safeParse(msg);
+        if (parsed.success) {
+          this.handleReady(parsed.data);
+        } else {
+          console.error('Invalid ready message:', parsed.error.issues);
+        }
         break;
-      case 'heartbeat_ack':
-        this.handleHeartbeatAck(msg as unknown as HeartbeatAck);
+      }
+      case 'heartbeat_ack': {
+        const parsed = HeartbeatAckSchema.safeParse(msg);
+        if (parsed.success) {
+          this.handleHeartbeatAck(parsed.data);
+        } else {
+          console.error('Invalid heartbeat_ack message:', parsed.error.issues);
+        }
         break;
-      case 'health_check_result':
-        this.handleHealthCheckResult(msg as unknown as WorkerHealthResponse);
+      }
+      case 'health_check_result': {
+        const parsed = WorkerHealthResponseSchema.safeParse(msg);
+        if (parsed.success) {
+          this.handleHealthCheckResult(parsed.data);
+        } else {
+          console.error('Invalid health_check_result message:', parsed.error.issues);
+        }
         break;
+      }
       case 'port-ready':
         // Data port established
         break;
-      case 'query_history_record':
-        this.forwardQueryHistoryToRenderer(
-          msg as unknown as QueryHistoryPushRecord & { type: string },
-        );
+      case 'query_history_record': {
+        const parsed = QueryHistoryRecordMessageSchema.safeParse(msg);
+        if (parsed.success) {
+          this.forwardQueryHistoryToRenderer(parsed.data);
+        } else {
+          console.error('Invalid query_history_record message:', parsed.error.issues);
+        }
         break;
+      }
       case 'table_info':
       case 'catalog_update':
         // Forward to IPC handlers
@@ -199,15 +230,25 @@ export class WorkerManager {
       case 'shutdown-complete':
         this.status = 'failed'; // Worker is done
         break;
-      case 'error':
-        console.error('Worker error:', msg['message']);
+      case 'error': {
+        const parsed = WorkerErrorMessageSchema.safeParse(msg);
+        if (parsed.success) {
+          console.error('Worker error:', parsed.data.message);
+        } else {
+          console.error('Worker error (unparsed):', msg['message']);
+        }
         break;
+      }
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private handleReady(_msg: WorkerReadyMessage): void {
-    this.status = 'ready';
+  private handleReady(msg: WorkerReadyMessage): void {
+    if (msg.metadata?.integrityOk === false) {
+      console.warn('DuckDB integrity check failed — starting in degraded mode');
+      this.status = 'degraded';
+    } else {
+      this.status = 'ready';
+    }
 
     if (this.readyPromise) {
       this.readyPromise.resolve();
@@ -218,6 +259,7 @@ export class WorkerManager {
   }
 
   private handleHeartbeatAck(ack: HeartbeatAck): void {
+    this.consecutiveMisses = 0;
     if (ack.status === 'busy') {
       this.setStatus('busy');
     } else if (ack.status === 'healthy') {
@@ -229,7 +271,8 @@ export class WorkerManager {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private handleHealthCheckResult(_result: WorkerHealthResponse): void {
-    // Health check results handled via heartbeat status
+    // No-op: health checks are superseded by heartbeat monitoring.
+    // Messages intentionally discarded — status is derived from heartbeat ACKs.
   }
 
   private handleWorkerError(err: Error): void {
@@ -256,7 +299,8 @@ export class WorkerManager {
     try {
       await this.spawn();
       this.startHealthMonitoring();
-    } catch {
+    } catch (err) {
+      console.error('DuckDB Worker restart failed:', err);
       this.setStatus('failed');
     }
   }
@@ -267,7 +311,14 @@ export class WorkerManager {
     this.pushHealthToRenderer();
   }
 
-  private forwardQueryHistoryToRenderer(msg: QueryHistoryPushRecord & { type: string }): void {
+  private forwardQueryHistoryToRenderer(msg: {
+    queryId: string;
+    sql: string;
+    executionTimeMs: number;
+    rowCount: number;
+    status: 'success' | 'error';
+    errorMessage?: string | undefined;
+  }): void {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
 
     const record: QueryHistoryPushRecord = {
@@ -309,6 +360,9 @@ export class WorkerManager {
   getHealthRecord(): WorkerHealthRecord {
     return {
       id: 'duckdb',
+      // Map 'starting' → 'ready' because the WorkerHealthRecord schema only
+      // allows terminal statuses. During startup the worker is not yet failed/degraded,
+      // so 'ready' is the closest valid representation for external consumers.
       status: this.status === 'starting' ? 'ready' : this.status,
       restartCount: this.restartCount,
       lastHeartbeatAt: new Date().toISOString(),
@@ -347,16 +401,19 @@ export class WorkerManager {
 
     return new Promise<void>((resolve) => {
       const timeout = setTimeout(() => {
+        this.worker?.removeListener('message', onMessage);
         void this.worker?.terminate();
         resolve();
       }, 5000);
 
-      this.worker?.once('message', (msg: Record<string, unknown>) => {
+      const onMessage = (msg: Record<string, unknown>): void => {
         if (msg['type'] === 'shutdown-complete') {
+          this.worker?.removeListener('message', onMessage);
           clearTimeout(timeout);
           resolve();
         }
-      });
+      };
+      this.worker?.on('message', onMessage);
 
       this.worker?.postMessage({ type: 'shutdown' });
     });

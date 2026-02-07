@@ -648,47 +648,24 @@ export type { DatspaceConfig } from './schemas/config-schema';
 // Preload Bridge API Namespace Types
 // ============================================================
 
-/** Query namespace of the preload bridge API */
-export interface QueryNamespace {
-  execute(sql: string, params?: unknown[]): Promise<QueryHandle>;
-  cancel(queryId: string): Promise<void>;
-  onStatus(callback: (status: QueryStatusEvent) => void): () => void;
-  onData(queryId: string, callback: (batch: ArrowBatch) => void): () => void;
-  onQueryHistory(callback: (record: QueryHistoryPushRecord) => void): () => void;
-}
-
-/** Catalog namespace of the preload bridge API */
-export interface CatalogNamespace {
-  listTables(): Promise<CatalogEntry[]>;
-  describeTable(tableName: string): Promise<ColumnSchema[]>;
-  previewTable(tableName: string, limit?: number): Promise<QueryHandle>;
-}
-
-/** Lifecycle namespace of the preload bridge API */
-export interface LifecycleNamespace {
-  ready(): Promise<void>;
-  getAppState(): Promise<AppState>;
-  shutdownAck(): Promise<void>;
-  onWorkerHealth(callback: (health: WorkerHealth) => void): () => void;
-  onShutdownPrepare(callback: () => void): () => void;
-  onBoundsChanged(
-    callback: (bounds: { x: number; y: number; width: number; height: number }) => void,
-  ): () => void;
-}
-
-/** Complete preload bridge API exposed as window.datspace */
-export interface DatspaceAPI {
-  query: QueryNamespace;
-  catalog: CatalogNamespace;
-  lifecycle: LifecycleNamespace;
-}
+// Canonical definitions live in src/preload/api.ts with full TSDoc.
+// Re-exported here so consumers can import from @shared/types.
+export type {
+  CatalogNamespace,
+  DatspaceAPI,
+  LifecycleNamespace,
+  QueryNamespace,
+} from '@preload/api';
 
 // ============================================================
 // Global Window Augmentation
 // ============================================================
 
+// Local import needed for the declare global block (re-exports don't create local bindings).
+import type { DatspaceAPI as _DatspaceAPI } from '@preload/api';
+
 declare global {
   interface Window {
-    datspace: DatspaceAPI;
+    datspace: _DatspaceAPI;
   }
 }

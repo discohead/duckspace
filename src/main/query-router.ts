@@ -188,7 +188,7 @@ export class QueryRouter {
    * Executes a SELECT * preview query for a table with a row limit.
    *
    * @param tableName - The name of the table to preview.
-   * @param limit - Maximum number of rows to return (defaults to 100).
+   * @param limit - Maximum rows (defaults to 100, capped at 10,000).
    * @returns A query handle for the preview query.
    */
   async previewTable(tableName: string, limit?: number): Promise<QueryHandle> {
