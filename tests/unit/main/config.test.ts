@@ -206,6 +206,88 @@ describe('config module', () => {
     });
   });
 
+  describe('deepMerge edge cases (via loadConfig)', () => {
+    it('source primitive overwrites target object (Zod rejects the primitive)', () => {
+      // File config has a number where DEFAULT_CONFIG has an object (ui section).
+      // deepMerge should assign the number directly (source wins), then Zod rejects.
+      // Mutant: typeof source[key] === 'object' → true would recurse into the number,
+      // returning the target object unchanged, so Zod passes and loadConfig succeeds.
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ ui: 42 }));
+
+      expect(() => loadConfig()).toThrow();
+    });
+
+    it('source string overwrites target object (Zod rejects the string)', () => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ duckdb: 'not-an-object' }));
+
+      expect(() => loadConfig()).toThrow();
+    });
+
+    it('source array overwrites target object (Zod rejects the array)', () => {
+      // File config has an array where DEFAULT_CONFIG has an object (paths section).
+      // deepMerge checks !Array.isArray(source[key]) — array fails this check,
+      // so source array is assigned directly. Zod rejects an array for an object field.
+      // Mutant: removing !Array.isArray check would try to recurse into the array.
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ paths: ['a', 'b', 'c'] }));
+
+      expect(() => loadConfig()).toThrow();
+    });
+
+    it('source null overwrites target object (Zod rejects null)', () => {
+      // File config has null where DEFAULT_CONFIG has an object (workers section).
+      // deepMerge checks source[key] && ... — null is falsy, so condition is false,
+      // null is assigned directly. Zod rejects null for an object field.
+      // Mutant: && → || would evaluate null || typeof null === 'object' → true
+      // (typeof null === 'object' in JS), potentially causing a crash or different behavior.
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ lifecycle: null }));
+
+      expect(() => loadConfig()).toThrow();
+    });
+
+    it('source object replaces target primitive without recursive merge', () => {
+      // Inside duckdb, memoryLimitPercent is a number (50) in DEFAULT_CONFIG.
+      // File config provides an object for that field.
+      // deepMerge checks typeof target[key] === 'object' — number fails, so
+      // source object is assigned directly. Zod rejects an object for a number field.
+      // Mutant: typeof target[key] === 'object' → true would try to merge
+      // the primitive as a Record, producing a different structure.
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        JSON.stringify({ duckdb: { memoryLimitPercent: { nested: true } } }),
+      );
+
+      expect(() => loadConfig()).toThrow();
+    });
+
+    it('source false-y zero is assigned directly, not merged', () => {
+      // 0 is falsy, so source[key] && ... is false — the else branch fires.
+      // deepMerge assigns 0 directly. This is valid for Zod (clamped to min 10).
+      // Mutant: source[key] → true or && → || could cause recursion attempt.
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        JSON.stringify({ duckdb: { memoryLimitPercent: 0 } }),
+      );
+
+      const config = loadConfig();
+      // Zod clamps 0 to minimum 10
+      expect(config.duckdb.memoryLimitPercent).toBe(10);
+    });
+
+    it('source empty string is assigned directly, not merged', () => {
+      // '' is falsy, so source[key] && ... is false — else branch fires.
+      // deepMerge assigns '' directly. Zod accepts empty strings for string fields.
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ paths: { database: '' } }));
+
+      const config = loadConfig();
+      expect(config.paths.database).toBe('');
+    });
+  });
+
   describe('saveConfig', () => {
     it('creates directory if it does not exist', () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
@@ -222,6 +304,25 @@ describe('config module', () => {
 
       const written = vi.mocked(fs.writeFileSync).mock.calls[0][1] as string;
       expect(written).toBe(JSON.stringify(DEFAULT_CONFIG, null, 2));
+    });
+
+    it('does NOT call mkdirSync when directory already exists', () => {
+      // Kills mutant: if (!fs.existsSync(dir)) → if (true)
+      // When existsSync returns true, mkdirSync should NOT be called.
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      saveConfig(DEFAULT_CONFIG);
+
+      expect(fs.mkdirSync).not.toHaveBeenCalled();
+    });
+
+    it('calls existsSync with the config directory path', () => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      saveConfig(DEFAULT_CONFIG);
+
+      // existsSync should be called with the parent directory of the config path
+      expect(fs.existsSync).toHaveBeenCalledWith('/tmp/datspace-test');
     });
   });
 
@@ -329,8 +430,90 @@ describe('config module', () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
       loadConfig();
 
+      // Clear mocks after loadConfig (which calls saveConfig → mkdirSync)
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(fs.mkdirSync).mockClear();
+
       ensureDirectories();
 
+      expect(fs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true });
+    });
+
+    it('calls existsSync for each directory (userData and tempDir)', () => {
+      // Kills mutant: entire function body emptied → survived
+      // Kills mutant: for loop body emptied → survived
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      loadConfig();
+
+      vi.mocked(fs.existsSync).mockClear();
+      vi.mocked(fs.mkdirSync).mockClear();
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      ensureDirectories();
+
+      // ensureDirectories checks 2 dirs: userData and tempDir
+      // existsSync must be called at least twice (once per directory)
+      const existsCalls = vi.mocked(fs.existsSync).mock.calls;
+      expect(existsCalls.length).toBeGreaterThanOrEqual(2);
+
+      // Verify the paths checked include userData and temp directory
+      const checkedPaths = existsCalls.map((call) => call[0] as string);
+      expect(checkedPaths).toContain('/tmp/datspace-test');
+      expect(checkedPaths.some((p) => p.includes('tmp'))).toBe(true);
+    });
+
+    it('calls mkdirSync with { recursive: true } for each missing directory', () => {
+      // Kills mutant: { recursive: true } → { recursive: false } survived
+      // Kills mutant: mkdirSync block emptied → survived
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      loadConfig();
+
+      vi.mocked(fs.existsSync).mockClear();
+      vi.mocked(fs.mkdirSync).mockClear();
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      ensureDirectories();
+
+      // mkdirSync must be called for both directories
+      expect(fs.mkdirSync).toHaveBeenCalledTimes(2);
+
+      // Every call must use { recursive: true }
+      for (const call of vi.mocked(fs.mkdirSync).mock.calls) {
+        expect(call[1]).toEqual({ recursive: true });
+      }
+    });
+
+    it('does NOT call mkdirSync when all directories already exist', () => {
+      // Kills mutant: !fs.existsSync(dir) → negated / true / false survived
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      loadConfig();
+
+      vi.mocked(fs.existsSync).mockClear();
+      vi.mocked(fs.mkdirSync).mockClear();
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      ensureDirectories();
+
+      expect(fs.mkdirSync).not.toHaveBeenCalled();
+    });
+
+    it('only creates directories that do not exist (mixed state)', () => {
+      // Kills mutant: !fs.existsSync(dir) → true/false survived
+      // One directory exists, one does not
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      loadConfig();
+
+      vi.mocked(fs.existsSync).mockClear();
+      vi.mocked(fs.mkdirSync).mockClear();
+
+      // First call (userData path) → exists; second call (tempDir path) → doesn't exist
+      vi.mocked(fs.existsSync).mockReturnValueOnce(true).mockReturnValueOnce(false);
+
+      ensureDirectories();
+
+      // Only one directory should be created
+      expect(fs.mkdirSync).toHaveBeenCalledTimes(1);
+      // And it should be called with { recursive: true }
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true });
     });
   });

@@ -85,6 +85,11 @@ Datspace is a desktop analytics workspace (Electron + DuckDB + Arrow IPC). Three
 - DuckDB `@duckdb/node-api` (Neo client) — does NOT have `estimated_size` in `information_schema.tables`.
 - Worker error responses (`type: 'error'`) must be handled by all QueryRouter promise-based handlers, not just the expected response type.
 - All shared types in `src/shared/types.ts`, all shared constants in `src/shared/constants.ts`.
+- **Zod runtime validation**: Schemas in `src/shared/schemas/` validate config, IPC messages, worker messages, and data plane messages. Types are derived via `z.infer<>`.
+- **Strict TypeScript**: All strict flags enabled in `tsconfig.json` including `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noPropertyAccessFromIndexSignature`.
+- **Dual linting**: Biome (formatting + non-type-aware rules) + ESLint v9 flat config (type-aware rules). No formatting rules in ESLint.
+- **TSDoc**: All exported functions, types, and classes have `/** */` comments with `@param`, `@returns`, `@throws` tags.
+- **Vite externals**: Worker imports must use `'worker_threads'` (not `'node:worker_threads'`) to match Vite's external config.
 
 ## Testing
 
@@ -92,6 +97,16 @@ Datspace is a desktop analytics workspace (Electron + DuckDB + Arrow IPC). Three
 - Tests mirror source structure: `tests/unit/main/`, `tests/unit/renderer/`, `tests/unit/workers/`, `tests/unit/shared/`, `tests/unit/preload/`.
 - Renderer tests use `fake-indexeddb` for Dexie.js, `jsdom` for DOM, `@testing-library/react` for components.
 - **Playwright** for e2e tests in `tests/e2e/`.
+- **Property-based testing** with `fast-check` (e.g., `config-validation.property.test.ts`).
+- **Mutation testing** with Stryker (`npm run test:mutation`).
+- Many strict lint rules are relaxed for test files — see `eslint.config.mjs` test overrides and `biome.json` test overrides.
+
+## Quality Gates
+
+- **Pre-commit hooks** (Husky + lint-staged): Biome auto-formats staged `.ts`/`.tsx`/`.json`/`.md` files.
+- **Architecture enforcement** (`npm run arch`): dependency-cruiser prevents cross-process imports (Main cannot import Renderer, Renderer cannot import Main, Workers cannot import either, Shared cannot import process-specific code).
+- **Dead code detection** (`npm run dead-code`): knip finds unused exports, dependencies, and files.
+- **CI pipeline** (`.github/workflows/ci.yml`): 7 parallel jobs — lint, typecheck, test, architecture, dead-code, security audit, mutation testing (main branch only).
 
 ## Specs
 

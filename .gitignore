@@ -35,5 +35,8 @@ coverage/
 test-results/
 playwright-report/
 
+# Mutation testing
+reports/
+
 # Package
 *.tgz

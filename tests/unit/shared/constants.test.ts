@@ -135,6 +135,18 @@ describe('DEFAULT_CONFIG', () => {
     expect(DEFAULT_CONFIG.lifecycle.shutdownTimeoutMs).toBeGreaterThanOrEqual(2000);
     expect(typeof DEFAULT_CONFIG.lifecycle.walCheckpointOnShutdown).toBe('boolean');
   });
+
+  // -- Mutant-killing: exact value assertions --------------------------------
+
+  it('walCheckpointOnShutdown defaults to true', () => {
+    // Kills: walCheckpointOnShutdown: true → false mutant
+    expect(DEFAULT_CONFIG.lifecycle.walCheckpointOnShutdown).toBe(true);
+  });
+
+  it('extensions defaults to parquet, json, and icu', () => {
+    // Kills: extensions: ['parquet', 'json', 'icu'] → [] mutant
+    expect(DEFAULT_CONFIG.duckdb.extensions).toEqual(['parquet', 'json', 'icu']);
+  });
 });
 
 describe('DEFAULT_PREFERENCES', () => {

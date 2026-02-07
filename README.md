@@ -74,6 +74,27 @@ npm install
 npx electron-forge start
 ```
 
+### Development Commands
+
+```bash
+# Quality checks
+npm run check              # Typecheck + lint (Biome + ESLint)
+npm run check:all          # Full suite: typecheck + lint + coverage + architecture + dead code
+npm run lint:fix           # Auto-fix lint issues
+npm run format             # Format with Biome
+
+# Testing
+npm test                   # Run all tests (Vitest)
+npm run test:watch         # Watch mode
+npm run test:coverage      # Tests with coverage report
+npm run test:mutation      # Mutation testing (Stryker)
+npm run test:e2e           # End-to-end tests (Playwright)
+
+# Architecture
+npm run arch               # Validate process boundary rules
+npm run dead-code          # Detect unused exports and dependencies
+```
+
 ## How It Works
 
 Datspace embeds three specialized database engines inside a native macOS app:
@@ -96,6 +117,23 @@ Your data is stored locally at `~/Library/Application Support/Datspace/`. Nothin
 | `Cmd+W` | Close active tab |
 | `Cmd+Shift+[` | Previous tab |
 | `Cmd+Shift+]` | Next tab |
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Desktop shell** | Electron 33 + Electron Forge + Vite |
+| **Analytics engine** | DuckDB (embedded, via `@duckdb/node-api`) |
+| **Data transfer** | Apache Arrow IPC (zero-copy via MessagePort) |
+| **UI framework** | React 18 |
+| **UI state** | Dexie.js (IndexedDB) with reactive hooks |
+| **Arrow decoding** | flechette (`@uwdata/flechette`) |
+| **Runtime validation** | Zod |
+| **Type checking** | TypeScript (strict mode, all flags enabled) |
+| **Linting** | Biome (formatting) + ESLint v9 (type-aware rules) |
+| **Testing** | Vitest + Testing Library + Playwright + Stryker |
+| **Architecture** | dependency-cruiser (boundary rules) + knip (dead code) |
+| **CI** | GitHub Actions (7 parallel quality gates) |
 
 ## Roadmap
 

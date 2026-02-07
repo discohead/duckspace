@@ -187,6 +187,36 @@ describe('QueryRouter', () => {
 
       await expect(promise).rejects.toThrow('Timeout');
     });
+
+    it('ignores non-matching message types and still resolves on table_list', async () => {
+      // Kills: else if (msg.type === 'error') → else if (true) on line 139
+      // If mutated to 'true', a non-error/non-table_list message would be
+      // caught by the error branch and reject the promise prematurely.
+      const tables = [
+        {
+          id: '1',
+          name: 'test',
+          schema: 'main',
+          type: 'table' as const,
+          status: 'active' as const,
+          rowCount: 10,
+          sizeBytes: 100,
+          columnCount: 1,
+          registeredAt: '',
+        },
+      ];
+
+      const promise = router.listTables();
+
+      // Send a non-matching message type first (e.g., 'health_check')
+      worker._emit('message', { type: 'health_check', status: 'ok' });
+
+      // Then send the correct table_list response
+      worker._emit('message', { type: 'table_list', tables });
+
+      const result = await promise;
+      expect(result).toEqual(tables);
+    });
   });
 
   describe('describeTable', () => {
@@ -248,6 +278,21 @@ describe('QueryRouter', () => {
       worker._emit('message', { type: 'error', message: 'Table not found' });
 
       await expect(promise).rejects.toThrow('Table not found');
+    });
+
+    it('rejects with error when error message has matching tableName', async () => {
+      // Kills: msg.type === 'table_info' → true on line 171
+      // If mutated to 'true', an error message with matching tableName would
+      // resolve instead of reject (since the first branch catches everything).
+      const promise = router.describeTable('users');
+
+      worker._emit('message', {
+        type: 'error',
+        tableName: 'users',
+        message: 'Permission denied',
+      });
+
+      await expect(promise).rejects.toThrow('Permission denied');
     });
   });
 

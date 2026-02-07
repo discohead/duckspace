@@ -323,6 +323,49 @@ describe('BackpressureManager', () => {
     });
   });
 
+  describe('onEnd unsubscribe', () => {
+    it('prevents end callback from firing after unsubscribe', () => {
+      // Kills: return () => this.endCallbacks.delete(queryId) → return () => undefined
+      manager.setPort(port);
+      const callback = vi.fn();
+      const unsub = manager.onEnd('q1', callback);
+
+      unsub();
+
+      simulateMessage(port, {
+        type: 'arrow-end',
+        queryId: 'q1',
+        totalBatches: 1,
+        totalRows: 10,
+        totalBytes: 100,
+        durationMs: 5,
+      });
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onError unsubscribe', () => {
+    it('prevents error callback from firing after unsubscribe', () => {
+      // Kills: return () => this.errorCallbacks.delete(queryId) → return () => undefined
+      manager.setPort(port);
+      const callback = vi.fn();
+      const unsub = manager.onError('q1', callback);
+
+      unsub();
+
+      simulateMessage(port, {
+        type: 'arrow-error',
+        queryId: 'q1',
+        code: 'E1001',
+        message: 'syntax error',
+        batchesSent: 0,
+      });
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+  });
+
   describe('unhandled messages', () => {
     it('ignores unknown message types', () => {
       manager.setPort(port);
