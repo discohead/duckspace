@@ -170,7 +170,11 @@ export async function startupSequence(): Promise<void> {
   // Step 7: Wait for renderer ready
   await waitForRendererReady();
 
-  // Step 8: Begin health monitoring
+  // Step 8: Push initial worker health to renderer (the 'ready' push in step 3
+  // fired before the window existed, so the renderer never received it)
+  workerManager.pushCurrentHealth();
+
+  // Step 9: Begin health monitoring
   workerManager.startHealthMonitoring();
 
   mainWindow.on('closed', () => {

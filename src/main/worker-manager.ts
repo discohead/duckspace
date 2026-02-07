@@ -281,6 +281,15 @@ export class WorkerManager {
     this.mainWindow.webContents.send(PUSH_EVENTS.QUERY_HISTORY, record);
   }
 
+  /**
+   * Pushes the current health status to the renderer.
+   *
+   * Call after the renderer is ready to ensure it receives the initial state.
+   */
+  pushCurrentHealth(): void {
+    this.pushHealthToRenderer();
+  }
+
   private pushHealthToRenderer(): void {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
 

@@ -108,6 +108,19 @@ Datspace is a desktop analytics workspace (Electron + DuckDB + Arrow IPC). Three
 - **Dead code detection** (`npm run dead-code`): knip finds unused exports, dependencies, and files.
 - **CI pipeline** (`.github/workflows/ci.yml`): 7 parallel jobs — lint, typecheck, test, architecture, dead-code, security audit, mutation testing (main branch only).
 
+## Playwright MCP (Visual Testing)
+
+The `playwright-electron` MCP server enables visual interaction with the running Electron app. Config: `.claude/playwright-electron.config.json`.
+
+**Prerequisites before using MCP tools:**
+1. **Vite dev server** must be running on port 5173 — the dev build hardcodes `http://localhost:5173` as the renderer URL. Start with: `npx vite --config vite.renderer.config.ts --port 5173`
+2. **Build artifacts** must exist in `.vite/build/`: `main-entry.js`, `preload-entry.js`, `duckdb-worker.js`. Run `npx electron-forge start` once to produce them (or rebuild the worker standalone — see Build System above).
+3. **No stale Electron processes** — `requestSingleInstanceLock()` causes new instances to silently quit if an old one holds the lock. Check with `ps aux | grep electron.*main-entry` and kill any strays.
+
+**Key tools:** `electron_first_window` (launches app + returns window), `browser_snapshot` (accessibility tree for interaction), `browser_take_screenshot` (visual capture), `browser_click`/`browser_type` (UI interaction).
+
+**Critical: `ELECTRON_RUN_AS_NODE`** — Claude Code sets `ELECTRON_RUN_AS_NODE=1` in its environment. This must be unset for the MCP server process (configured via `claude mcp add -e ELECTRON_RUN_AS_NODE=`). Do NOT use `launchOptions.env` in the Playwright config to fix this — Playwright's `_electron.launch()` REPLACES the entire `process.env` when `env` is specified, stripping PATH/HOME/etc.
+
 ## Specs
 
 Feature specifications live in `specs/{feature-id}/` with `spec.md`, `plan.md`, `tasks.md`, and contracts. Constitution at `.specify/memory/constitution.md`.

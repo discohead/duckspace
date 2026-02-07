@@ -40,3 +40,6 @@ reports/
 
 # Package
 *.tgz
+
+# Electron verify screenshots (generated)
+.claude/verify-output/

@@ -63,8 +63,8 @@ async function bootstrap(): Promise<void> {
   const root = createRoot(rootEl);
   root.render(<App />);
 
-  // Signal to Main Process that renderer is ready
-  await window.datspace.lifecycle.ready();
+  // Wire all push-event handlers BEFORE signaling ready, so that the main
+  // process can immediately push state (e.g. worker health) after ready resolves.
 
   // T034: Wire shutdown handler
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
@@ -140,6 +140,9 @@ async function bootstrap(): Promise<void> {
       activeQueryCount: 0,
     });
   });
+
+  // Signal to Main Process that renderer is ready (all handlers are wired above)
+  await window.datspace.lifecycle.ready();
 }
 
 bootstrap().catch((err: unknown) => {

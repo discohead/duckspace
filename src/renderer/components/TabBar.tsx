@@ -77,6 +77,7 @@ export function TabBar(): React.JSX.Element {
 
   return (
     <div
+      className="drag-region"
       style={{
         display: 'flex',
         flexDirection: 'row',
@@ -92,6 +93,7 @@ export function TabBar(): React.JSX.Element {
         <button
           key={tab.id}
           type="button"
+          className="no-drag"
           onClick={() => {
             void activateTab(tab.id);
           }}
@@ -143,6 +145,7 @@ export function TabBar(): React.JSX.Element {
       ))}
       <button
         type="button"
+        className="no-drag"
         onClick={() => {
           void createTab();
         }}

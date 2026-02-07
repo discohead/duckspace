@@ -41,6 +41,7 @@ const mockWorkerManagerInstance = {
   spawn: vi.fn().mockResolvedValue(undefined),
   getWorker: vi.fn(() => mockWorkerInstance),
   setMainWindow: vi.fn(),
+  pushCurrentHealth: vi.fn(),
   startHealthMonitoring: vi.fn(),
   stopHealthMonitoring: vi.fn(),
   shutdown: vi.fn().mockResolvedValue(undefined),
