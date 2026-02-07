@@ -156,7 +156,7 @@ describe('mergeBatches', () => {
   it('getCell returns null for row beyond all batches', () => {
     const b1 = makeBatch({ rowCount: 2 });
 
-    const _merged = mergeBatches([b1])!;
+    mergeBatches([b1]);
     // Single batch, so mergeBatches returns it directly
     // Test with multiple batches
     const b2 = makeBatch({ rowCount: 1 });

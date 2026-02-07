@@ -140,7 +140,7 @@ describe('QueryEditor', () => {
     render(<QueryEditor />);
     const textarea = screen.getByPlaceholderText('Enter SQL query...');
     fireEvent.change(textarea, { target: { value: 'SELECT * FROM products' } });
-    expect(textarea.value).toBe('SELECT * FROM products');
+    expect((textarea as HTMLTextAreaElement).value).toBe('SELECT * FROM products');
   });
 
   it('clicking Cancel calls window.datspace.query.cancel', async () => {
@@ -175,7 +175,7 @@ describe('QueryEditor', () => {
     });
 
     // Trigger a status update matching the current queryId
-    statusCallback?.({
+    statusCallback!({
       queryId: 'q-123',
       phase: 'scanning',
       elapsedMs: 150,

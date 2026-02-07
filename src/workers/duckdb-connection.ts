@@ -100,17 +100,6 @@ export function getConnection(): DuckDBConnection {
 }
 
 /**
- * Returns the active DuckDB instance.
- *
- * @returns The current DuckDB instance.
- * @throws {@link Error} If DuckDB has not been initialized.
- */
-export function getInstance(): DuckDBInstance {
-  if (!instance) throw new Error('DuckDB not initialized');
-  return instance;
-}
-
-/**
  * Runs a DuckDB PRAGMA integrity_check on the database.
  *
  * @returns True if the integrity check passes, false otherwise.
@@ -133,7 +122,7 @@ export async function runIntegrityCheck(): Promise<boolean> {
  * Best-effort operation; failures are silently ignored since WAL replay
  * handles recovery on the next startup.
  */
-export async function checkpoint(): Promise<void> {
+async function checkpoint(): Promise<void> {
   if (!connection) return;
   try {
     await connection.run('CHECKPOINT');

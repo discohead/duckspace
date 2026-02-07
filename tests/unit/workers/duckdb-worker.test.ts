@@ -545,7 +545,7 @@ describe('duckdb-worker', () => {
 
       await handler({ type: 'get_table_info', tableName: "table'name" });
 
-      const firstSql = run.mock.calls[0][0] as string;
+      const firstSql = run.mock.calls[0]![0] as string;
       expect(firstSql).toContain("table''name");
     });
   });

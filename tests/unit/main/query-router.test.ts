@@ -344,7 +344,6 @@ describe('QueryRouter', () => {
     it('cancels all active queries', async () => {
       // Override randomUUID to return different IDs
       const crypto = await import('node:crypto');
-      const _callCount = 0;
       vi.mocked(crypto.randomUUID)
         .mockImplementationOnce(() => 'q1' as any)
         .mockImplementationOnce(() => 'q2' as any);

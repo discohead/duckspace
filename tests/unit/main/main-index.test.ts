@@ -1,5 +1,5 @@
 import Module from 'node:module';
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Hoisted mock variables -- available when vi.mock factories are hoisted
@@ -134,7 +134,7 @@ describe('main/index.ts (entry point side effects)', () => {
   describe('single-instance lock', () => {
     it('registers event handlers when lock is obtained', () => {
       expect(mockApp.requestSingleInstanceLock).toHaveBeenCalled();
-      const registeredEvents = mockApp.on.mock.calls.map((call: [string, unknown]) => call[0]);
+      const registeredEvents = mockApp.on.mock.calls.map((call) => call[0]);
       expect(registeredEvents).toContain('second-instance');
       expect(registeredEvents).toContain('before-quit');
       expect(registeredEvents).toContain('window-all-closed');
@@ -206,7 +206,7 @@ describe('main/index.ts (entry point side effects)', () => {
       expect(appEventHandlers['before-quit']).toBeDefined();
 
       const mockEvent = { preventDefault: vi.fn() };
-      appEventHandlers['before-quit'](mockEvent);
+      appEventHandlers['before-quit']!(mockEvent);
 
       expect(mockEvent.preventDefault).toHaveBeenCalled();
 
@@ -223,7 +223,7 @@ describe('main/index.ts (entry point side effects)', () => {
       const event2 = { preventDefault: vi.fn() };
 
       // First call triggers shutdown
-      appEventHandlers['before-quit'](event1);
+      appEventHandlers['before-quit']!(event1);
       expect(event1.preventDefault).toHaveBeenCalled();
 
       await vi.waitFor(() => {
@@ -231,7 +231,7 @@ describe('main/index.ts (entry point side effects)', () => {
       });
 
       // Second call -- isShuttingDown is now true, so handler is a no-op
-      appEventHandlers['before-quit'](event2);
+      appEventHandlers['before-quit']!(event2);
 
       expect(mockShutdownSequence).toHaveBeenCalledTimes(1);
       expect(event2.preventDefault).not.toHaveBeenCalled();
@@ -243,7 +243,7 @@ describe('main/index.ts (entry point side effects)', () => {
       mockShutdownSequence.mockRejectedValueOnce(new Error('shutdown error'));
 
       const mockEvent = { preventDefault: vi.fn() };
-      appEventHandlers['before-quit'](mockEvent);
+      appEventHandlers['before-quit']!(mockEvent);
 
       await vi.waitFor(() => {
         expect(mockApp.exit).toHaveBeenCalledWith(1);
@@ -260,7 +260,7 @@ describe('main/index.ts (entry point side effects)', () => {
       mockApp.quit.mockClear();
 
       expect(appEventHandlers['window-all-closed']).toBeDefined();
-      appEventHandlers['window-all-closed']();
+      appEventHandlers['window-all-closed']!();
 
       expect(mockApp.quit).toHaveBeenCalled();
     });
@@ -279,7 +279,7 @@ describe('main/index.ts (entry point side effects)', () => {
       mockGetMainWindow.mockReturnValue(null);
       mockStartupSequence.mockClear();
 
-      appEventHandlers['activate']();
+      appEventHandlers['activate']!();
 
       expect(mockStartupSequence).toHaveBeenCalled();
     });
@@ -289,7 +289,7 @@ describe('main/index.ts (entry point side effects)', () => {
       mockGetMainWindow.mockReturnValue(mockWin as any);
       mockStartupSequence.mockClear();
 
-      appEventHandlers['activate']();
+      appEventHandlers['activate']!();
 
       expect(mockStartupSequence).not.toHaveBeenCalled();
     });
@@ -312,7 +312,7 @@ describe('main/index.ts (entry point side effects)', () => {
       };
       mockGetMainWindow.mockReturnValue(mockWin as any);
 
-      appEventHandlers['second-instance']();
+      appEventHandlers['second-instance']!();
 
       expect(mockWin.focus).toHaveBeenCalled();
     });
@@ -325,7 +325,7 @@ describe('main/index.ts (entry point side effects)', () => {
       };
       mockGetMainWindow.mockReturnValue(mockWin as any);
 
-      appEventHandlers['second-instance']();
+      appEventHandlers['second-instance']!();
 
       expect(mockWin.restore).toHaveBeenCalled();
       expect(mockWin.focus).toHaveBeenCalled();
@@ -335,7 +335,7 @@ describe('main/index.ts (entry point side effects)', () => {
       mockGetMainWindow.mockReturnValue(null);
 
       // Should not throw
-      expect(() => appEventHandlers['second-instance']()).not.toThrow();
+      expect(() => appEventHandlers['second-instance']!()).not.toThrow();
     });
   });
 
@@ -345,7 +345,7 @@ describe('main/index.ts (entry point side effects)', () => {
 
   describe('event registration', () => {
     it('registers all expected app event handlers', () => {
-      const registeredEvents = mockApp.on.mock.calls.map((call: [string, unknown]) => call[0]);
+      const registeredEvents = mockApp.on.mock.calls.map((call) => call[0]);
       expect(registeredEvents).toContain('second-instance');
       expect(registeredEvents).toContain('before-quit');
       expect(registeredEvents).toContain('window-all-closed');

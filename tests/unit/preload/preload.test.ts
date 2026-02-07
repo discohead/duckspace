@@ -39,7 +39,8 @@ async function loadPreload() {
 }
 
 function getExposedApi(electron: any) {
-  const call = (electron.contextBridge.exposeInMainWorld as ReturnType<typeof vi.fn>).mock.calls[0];
+  const call = (electron.contextBridge.exposeInMainWorld as ReturnType<typeof vi.fn>).mock
+    .calls[0]!;
   return { name: call[0] as string, api: call[1] };
 }
 
@@ -555,7 +556,7 @@ describe('preload/index', () => {
         } as MessageEvent);
 
         expect(callback).toHaveBeenCalledOnce();
-        const batch = callback.mock.calls[0][0];
+        const batch = callback.mock.calls[0]![0];
         expect(batch.buffer).toBe(testBuffer);
         expect(batch.index).toBe(0);
         expect(batch.rowCount).toBe(10);
@@ -585,7 +586,7 @@ describe('preload/index', () => {
         } as MessageEvent);
 
         expect(callback).toHaveBeenCalledOnce();
-        const batch = callback.mock.calls[0][0];
+        const batch = callback.mock.calls[0]![0];
         expect(batch.buffer).toBeInstanceOf(ArrayBuffer);
         expect(batch.buffer.byteLength).toBe(0);
       });
@@ -692,7 +693,7 @@ describe('preload/index', () => {
         } as MessageEvent);
 
         expect(callback).toHaveBeenCalledOnce();
-        const batch = callback.mock.calls[0][0];
+        const batch = callback.mock.calls[0]![0];
         expect(batch.buffer).toBeInstanceOf(ArrayBuffer);
         expect(batch.buffer.byteLength).toBe(0);
         expect(batch.index).toBe(5);
@@ -745,7 +746,7 @@ describe('preload/index', () => {
         } as MessageEvent);
 
         expect(callback).toHaveBeenCalledOnce();
-        const batch = callback.mock.calls[0][0];
+        const batch = callback.mock.calls[0]![0];
         expect(batch.buffer.byteLength).toBe(0);
         expect(batch.index).toBe(0);
         expect(batch.rowCount).toBe(0);

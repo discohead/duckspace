@@ -302,7 +302,7 @@ describe('config module', () => {
 
       saveConfig(DEFAULT_CONFIG);
 
-      const written = vi.mocked(fs.writeFileSync).mock.calls[0][1] as string;
+      const written = vi.mocked(fs.writeFileSync).mock.calls[0]![1] as string;
       expect(written).toBe(JSON.stringify(DEFAULT_CONFIG, null, 2));
     });
 

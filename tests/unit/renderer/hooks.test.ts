@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Use vi.hoisted so mock references are available when vi.mock factories run (hoisted above imports)
 const {
@@ -105,7 +105,7 @@ describe('useActiveTab', () => {
 
   it('filter function selects tabs where active is true', () => {
     useActiveTab();
-    const filterFn = mockFilter.mock.calls[0][0];
+    const filterFn = mockFilter.mock.calls[0]![0];
     expect(filterFn({ active: true })).toBe(true);
     expect(filterFn({ active: false })).toBe(false);
   });

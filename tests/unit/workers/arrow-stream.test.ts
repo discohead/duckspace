@@ -29,7 +29,7 @@ function createMockConnection(rows: any[][] = []) {
     run: vi.fn().mockResolvedValue({
       getRows: vi.fn().mockResolvedValue(rows),
     }),
-  };
+  } as any; // Partial mock of DuckDBConnection
 }
 
 describe('ArrowStream', () => {
@@ -170,7 +170,7 @@ describe('ArrowStream', () => {
           stream.cancelQuery('q1');
           return { getRows: vi.fn().mockResolvedValue([[new Uint8Array([1])]]) };
         }),
-      };
+      } as any;
 
       const result = await stream.streamQuery(conn, 'q1', 'SELECT 1');
       expect(result.totalBatches).toBe(0);
@@ -180,7 +180,7 @@ describe('ArrowStream', () => {
       stream.setDataPort(port);
       const conn = {
         run: vi.fn().mockRejectedValue(new Error('syntax error in SQL')),
-      };
+      } as any;
 
       await expect(stream.streamQuery(conn, 'q1', 'SELEC 1')).rejects.toThrow('syntax error');
 
@@ -197,7 +197,7 @@ describe('ArrowStream', () => {
       stream.setDataPort(port);
       const conn = {
         run: vi.fn().mockRejectedValue(new Error('Out of Memory: allocation failed')),
-      };
+      } as any;
 
       await expect(stream.streamQuery(conn, 'q1', 'SELECT *')).rejects.toThrow();
 
@@ -213,7 +213,7 @@ describe('ArrowStream', () => {
       stream.setDataPort(port);
       const conn = {
         run: vi.fn().mockRejectedValue(new Error('Table "foo" does not exist')),
-      };
+      } as any;
 
       await expect(stream.streamQuery(conn, 'q1', 'SELECT * FROM foo')).rejects.toThrow();
 
@@ -242,7 +242,7 @@ describe('ArrowStream', () => {
       const conn = createMockConnection([[ipcBuffer]]);
 
       // Stream a query — this creates a pending ACK for index 0
-      await stream.streamQuery(conn as any, 'q1', 'SELECT 1');
+      await stream.streamQuery(conn, 'q1', 'SELECT 1');
 
       // Verify the batch was sent
       const batchCall = port.postMessage.mock.calls.find((c: any) => c[0].type === 'arrow-batch');
@@ -255,7 +255,7 @@ describe('ArrowStream', () => {
       // To verify the ACK was processed: a subsequent streamQuery for the same
       // queryId should work without being blocked by old pending ACKs
       const conn2 = createMockConnection([[new Uint8Array([40, 50])]]);
-      const result2 = await stream.streamQuery(conn2 as any, 'q1', 'SELECT 2');
+      const result2 = await stream.streamQuery(conn2, 'q1', 'SELECT 2');
       expect(result2.totalBatches).toBe(1);
     });
 
@@ -267,7 +267,7 @@ describe('ArrowStream', () => {
 
       // Verify the cancellation by attempting to stream — it should return early
       const conn = createMockConnection([[new Uint8Array([1, 2, 3])]]);
-      const result = await stream.streamQuery(conn as any, 'q-cancel-test', 'SELECT 1');
+      const result = await stream.streamQuery(conn, 'q-cancel-test', 'SELECT 1');
 
       expect(result.totalBatches).toBe(0);
       expect(result.totalBytes).toBe(0);
@@ -284,7 +284,7 @@ describe('ArrowStream', () => {
 
       // Streaming an arbitrary query should still work (not cancelled)
       const conn = createMockConnection([[new Uint8Array([1])]]);
-      const result = await stream.streamQuery(conn as any, 'q-ok', 'SELECT 1');
+      const result = await stream.streamQuery(conn, 'q-ok', 'SELECT 1');
       expect(result.totalBatches).toBe(1);
     });
 
@@ -293,14 +293,14 @@ describe('ArrowStream', () => {
       const ipcBuffer = new Uint8Array([1, 2, 3, 4]);
       const conn = createMockConnection([[ipcBuffer]]);
 
-      await stream.streamQuery(conn as any, 'q-ack-cleanup', 'SELECT 1');
+      await stream.streamQuery(conn, 'q-ack-cleanup', 'SELECT 1');
 
       // ACK the single batch
       simulateMessage(port, { type: 'ack', queryId: 'q-ack-cleanup', index: 0 });
 
       // Verify cleanup by running another query on same queryId — no stale state
       const conn2 = createMockConnection([[new Uint8Array([5, 6])]]);
-      const result = await stream.streamQuery(conn2 as any, 'q-ack-cleanup', 'SELECT 2');
+      const result = await stream.streamQuery(conn2, 'q-ack-cleanup', 'SELECT 2');
       expect(result.totalBatches).toBe(1);
     });
 
@@ -324,9 +324,9 @@ describe('ArrowStream', () => {
       stream.setDataPort(port);
       const conn = {
         run: vi.fn().mockRejectedValue(new Error('Referenced column "xyz" does not exist')),
-      };
+      } as any;
 
-      await expect(stream.streamQuery(conn as any, 'q1', 'SELECT xyz FROM t')).rejects.toThrow();
+      await expect(stream.streamQuery(conn, 'q1', 'SELECT xyz FROM t')).rejects.toThrow();
 
       expect(port.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -342,9 +342,9 @@ describe('ArrowStream', () => {
         run: vi
           .fn()
           .mockRejectedValue(new Error('Type mismatch: expected INTEGER but got VARCHAR')),
-      };
+      } as any;
 
-      await expect(stream.streamQuery(conn as any, 'q1', 'SELECT 1')).rejects.toThrow();
+      await expect(stream.streamQuery(conn, 'q1', 'SELECT 1')).rejects.toThrow();
 
       expect(port.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -358,9 +358,9 @@ describe('ArrowStream', () => {
       stream.setDataPort(port);
       const conn = {
         run: vi.fn().mockRejectedValue(new Error('Parser Error: unexpected token')),
-      };
+      } as any;
 
-      await expect(stream.streamQuery(conn as any, 'q1', 'INVALID SQL')).rejects.toThrow();
+      await expect(stream.streamQuery(conn, 'q1', 'INVALID SQL')).rejects.toThrow();
 
       expect(port.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -374,9 +374,9 @@ describe('ArrowStream', () => {
       stream.setDataPort(port);
       const conn = {
         run: vi.fn().mockRejectedValue(new Error('Memory limit exceeded: cannot allocate')),
-      };
+      } as any;
 
-      await expect(stream.streamQuery(conn as any, 'q1', 'SELECT *')).rejects.toThrow();
+      await expect(stream.streamQuery(conn, 'q1', 'SELECT *')).rejects.toThrow();
 
       expect(port.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -390,9 +390,9 @@ describe('ArrowStream', () => {
       stream.setDataPort(port);
       const conn = {
         run: vi.fn().mockRejectedValue(new Error('Something completely unexpected')),
-      };
+      } as any;
 
-      await expect(stream.streamQuery(conn as any, 'q1', 'SELECT 1')).rejects.toThrow();
+      await expect(stream.streamQuery(conn, 'q1', 'SELECT 1')).rejects.toThrow();
 
       expect(port.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -406,9 +406,9 @@ describe('ArrowStream', () => {
       stream.setDataPort(port);
       const conn = {
         run: vi.fn().mockRejectedValue(new Error('syntax error at or near "SELEC"')),
-      };
+      } as any;
 
-      await expect(stream.streamQuery(conn as any, 'q1', 'SELEC 1')).rejects.toThrow();
+      await expect(stream.streamQuery(conn, 'q1', 'SELEC 1')).rejects.toThrow();
 
       expect(port.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -422,9 +422,9 @@ describe('ArrowStream', () => {
       stream.setDataPort(port);
       const conn = {
         run: vi.fn().mockRejectedValue(new Error('Function "foo" does not exist')),
-      };
+      } as any;
 
-      await expect(stream.streamQuery(conn as any, 'q1', 'SELECT foo()')).rejects.toThrow();
+      await expect(stream.streamQuery(conn, 'q1', 'SELECT foo()')).rejects.toThrow();
 
       expect(port.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -440,7 +440,7 @@ describe('ArrowStream', () => {
       stream.setDataPort(port);
       const conn = createMockConnection([]);
 
-      await stream.streamQuery(conn as any, 'q1', 'SELECT 1', []);
+      await stream.streamQuery(conn, 'q1', 'SELECT 1', []);
 
       // With empty params [], the condition `params.length > 0` is false,
       // so run should be called WITHOUT params (single argument)
@@ -452,7 +452,7 @@ describe('ArrowStream', () => {
       stream.setDataPort(port);
       const conn = createMockConnection([]);
 
-      await stream.streamQuery(conn as any, 'q1', 'SELECT 1', undefined);
+      await stream.streamQuery(conn, 'q1', 'SELECT 1', undefined);
 
       expect(conn.run).toHaveBeenCalledTimes(1);
       expect(conn.run).toHaveBeenCalledWith('SELECT * FROM to_arrow_ipc((SELECT 1))');
@@ -464,7 +464,7 @@ describe('ArrowStream', () => {
       stream.setDataPort(port);
       const conn = createMockConnection([]);
 
-      const result = await stream.streamQuery(conn as any, 'q1', 'SELECT 1');
+      const result = await stream.streamQuery(conn, 'q1', 'SELECT 1');
 
       // durationMs must be >= 0; a `+ startMs` mutation would produce enormous values
       expect(result.durationMs).toBeGreaterThanOrEqual(0);
@@ -475,7 +475,7 @@ describe('ArrowStream', () => {
       stream.setDataPort(port);
       const conn = createMockConnection([[new Uint8Array([1, 2, 3])]]);
 
-      const result = await stream.streamQuery(conn as any, 'q1', 'SELECT 1');
+      const result = await stream.streamQuery(conn, 'q1', 'SELECT 1');
 
       expect(result.durationMs).toBeGreaterThanOrEqual(0);
       expect(result.durationMs).toBeLessThan(5000);
@@ -486,7 +486,7 @@ describe('ArrowStream', () => {
       const conn = createMockConnection([[new Uint8Array([1])]]);
 
       stream.cancelQuery('q-dur');
-      const result = await stream.streamQuery(conn as any, 'q-dur', 'SELECT 1');
+      const result = await stream.streamQuery(conn, 'q-dur', 'SELECT 1');
 
       expect(result.durationMs).toBeGreaterThanOrEqual(0);
       expect(result.durationMs).toBeLessThan(5000);
@@ -499,9 +499,9 @@ describe('ArrowStream', () => {
           stream.cancelQuery('q-dur2');
           return { getRows: vi.fn().mockResolvedValue([[new Uint8Array([1])]]) };
         }),
-      };
+      } as any;
 
-      const result = await stream.streamQuery(conn as any, 'q-dur2', 'SELECT 1');
+      const result = await stream.streamQuery(conn, 'q-dur2', 'SELECT 1');
 
       expect(result.durationMs).toBeGreaterThanOrEqual(0);
       expect(result.durationMs).toBeLessThan(5000);
@@ -511,7 +511,7 @@ describe('ArrowStream', () => {
       stream.setDataPort(port);
       const conn = createMockConnection([[new Uint8Array([1, 2])]]);
 
-      await stream.streamQuery(conn as any, 'q1', 'SELECT 1');
+      await stream.streamQuery(conn, 'q1', 'SELECT 1');
 
       const endCall = port.postMessage.mock.calls.find((c: any) => c[0].type === 'arrow-end');
       expect(endCall).toBeDefined();
@@ -538,8 +538,6 @@ describe('ArrowStream', () => {
       // that blocks on waitForWindow.
 
       // First, stream a query that produces data. This adds 1 pending ACK.
-      const _ipcBuffer = new Uint8Array([1, 2, 3, 4]);
-
       // We need to fill WINDOW_SIZE pending ACKs. Since each streamQuery call
       // adds 1 pending ACK (index 0), and sendEnd cleans up, we need a different
       // approach. Let's manipulate the internal state by accessing pendingAcks
@@ -564,7 +562,7 @@ describe('ArrowStream', () => {
       // Start streaming — it will block in waitForWindow
       const conn = createMockConnection([[new Uint8Array([10, 20])]]);
       let resolved = false;
-      const streamPromise = stream.streamQuery(conn as any, 'q-bp', 'SELECT 1').then((r) => {
+      const streamPromise = stream.streamQuery(conn, 'q-bp', 'SELECT 1').then((r) => {
         resolved = true;
         return r;
       });
@@ -597,12 +595,10 @@ describe('ArrowStream', () => {
 
       const conn = createMockConnection([[new Uint8Array([1, 2, 3])]]);
       let resolved = false;
-      const streamPromise = stream
-        .streamQuery(conn as any, 'q-cancel-wait', 'SELECT 1')
-        .then((r) => {
-          resolved = true;
-          return r;
-        });
+      const streamPromise = stream.streamQuery(conn, 'q-cancel-wait', 'SELECT 1').then((r) => {
+        resolved = true;
+        return r;
+      });
 
       // Advance timers but don't ACK — instead cancel
       await vi.advanceTimersByTimeAsync(20);
@@ -625,7 +621,7 @@ describe('ArrowStream', () => {
 
       // No pending ACKs — window is fully open
       const conn = createMockConnection([[new Uint8Array([5, 6, 7])]]);
-      const result = await stream.streamQuery(conn as any, 'q-fast', 'SELECT 1');
+      const result = await stream.streamQuery(conn, 'q-fast', 'SELECT 1');
 
       expect(result.totalBatches).toBe(1);
       expect(result.totalBytes).toBe(3);
@@ -638,7 +634,7 @@ describe('ArrowStream', () => {
       const ipcBuffer = new Uint8Array([10, 20, 30, 40, 50]);
       const conn = createMockConnection([[ipcBuffer]]);
 
-      await stream.streamQuery(conn as any, 'q1', 'SELECT 1');
+      await stream.streamQuery(conn, 'q1', 'SELECT 1');
 
       const batchCall = port.postMessage.mock.calls.find((c: any) => c[0].type === 'arrow-batch');
       expect(batchCall).toBeDefined();
@@ -658,7 +654,7 @@ describe('ArrowStream', () => {
       const ipcBuffer = new Uint8Array([1, 2]);
       const conn = createMockConnection([[ipcBuffer]]);
 
-      await stream.streamQuery(conn as any, 'q1', 'SELECT 1');
+      await stream.streamQuery(conn, 'q1', 'SELECT 1');
 
       const batchCall = port.postMessage.mock.calls.find((c: any) => c[0].type === 'arrow-batch');
       expect(batchCall).toBeDefined();
@@ -691,7 +687,7 @@ describe('ArrowStream', () => {
         }
       });
 
-      await stream.streamQuery(conn as any, 'q-track', 'SELECT 1');
+      await stream.streamQuery(conn, 'q-track', 'SELECT 1');
 
       // At the time of sending the batch, there should be 1 pending ACK
       expect(pendingAtBatchTime).toBe(1);
@@ -712,7 +708,7 @@ describe('ArrowStream', () => {
         }
       });
 
-      await stream.streamQuery(conn as any, 'q-new-set', 'SELECT 1');
+      await stream.streamQuery(conn, 'q-new-set', 'SELECT 1');
 
       expect(pendingSetExisted).toBe(true);
     });
@@ -758,7 +754,7 @@ describe('ArrowStream', () => {
       streamAny.pendingAcks.set('q-end-clean', new Set([0, 1]));
 
       const conn = createMockConnection([]);
-      await stream.streamQuery(conn as any, 'q-end-clean', 'SELECT 1');
+      await stream.streamQuery(conn, 'q-end-clean', 'SELECT 1');
 
       // After streamQuery (which calls sendEnd), pending should be cleaned up
       expect(streamAny.pendingAcks.has('q-end-clean')).toBe(false);
@@ -773,7 +769,7 @@ describe('ArrowStream', () => {
       expect(streamAny.cancelled.has('q-end-cancel')).toBe(true);
 
       const conn = createMockConnection([]);
-      await stream.streamQuery(conn as any, 'q-end-cancel', 'SELECT 1');
+      await stream.streamQuery(conn, 'q-end-cancel', 'SELECT 1');
 
       // After sendEnd, the cancelled set should be cleaned up
       expect(streamAny.cancelled.has('q-end-cancel')).toBe(false);
@@ -788,9 +784,9 @@ describe('ArrowStream', () => {
 
       const conn = {
         run: vi.fn().mockRejectedValue(new Error('some error')),
-      };
+      } as any;
 
-      await expect(stream.streamQuery(conn as any, 'q-err-clean', 'SELECT 1')).rejects.toThrow();
+      await expect(stream.streamQuery(conn, 'q-err-clean', 'SELECT 1')).rejects.toThrow();
 
       // After sendError, pending should be cleaned up
       expect(streamAny.pendingAcks.has('q-err-clean')).toBe(false);
@@ -809,9 +805,9 @@ describe('ArrowStream', () => {
           streamAny.cancelled.add('q-err-cancel');
           throw new Error('query failed');
         }),
-      };
+      } as any;
 
-      await expect(stream.streamQuery(conn as any, 'q-err-cancel', 'SELECT 1')).rejects.toThrow();
+      await expect(stream.streamQuery(conn, 'q-err-cancel', 'SELECT 1')).rejects.toThrow();
 
       // After sendError, cancelled should be cleaned up
       expect(streamAny.cancelled.has('q-err-cancel')).toBe(false);
@@ -828,9 +824,9 @@ describe('ArrowStream', () => {
             getRows: vi.fn().mockResolvedValue([[new Uint8Array([1, 2])]]),
           };
         }),
-      };
+      } as any;
 
-      const result = await stream.streamQuery(conn as any, 'q-post-cancel', 'SELECT 1');
+      const result = await stream.streamQuery(conn, 'q-post-cancel', 'SELECT 1');
 
       expect(result.totalBatches).toBe(0);
       expect(result.totalBytes).toBe(0);

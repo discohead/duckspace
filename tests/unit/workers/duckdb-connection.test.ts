@@ -184,20 +184,6 @@ describe('duckdb-connection', () => {
     });
   });
 
-  describe('getInstance', () => {
-    it('throws when not initialized', () => {
-      expect(() => mod.getInstance()).toThrow('DuckDB not initialized');
-    });
-
-    it('returns instance after init', async () => {
-      await mod.initDuckDB(baseConfig());
-      const instance = mod.getInstance();
-
-      expect(instance).toBeDefined();
-      expect(instance.connect).toBeTypeOf('function');
-    });
-  });
-
   // ========================================================================
   // runIntegrityCheck
   // ========================================================================
@@ -256,33 +242,6 @@ describe('duckdb-connection', () => {
   });
 
   // ========================================================================
-  // checkpoint
-  // ========================================================================
-
-  describe('checkpoint', () => {
-    it('runs CHECKPOINT when connection exists', async () => {
-      await mod.initDuckDB(baseConfig());
-      mockRun.mockClear();
-
-      await mod.checkpoint();
-
-      expect(mockRun).toHaveBeenCalledWith('CHECKPOINT');
-    });
-
-    it('does not throw when connection is null', async () => {
-      // No init, connection is null
-      await expect(mod.checkpoint()).resolves.toBeUndefined();
-    });
-
-    it('does not throw when CHECKPOINT fails (best effort)', async () => {
-      await mod.initDuckDB(baseConfig());
-      mockRun.mockRejectedValueOnce(new Error('IO error'));
-
-      await expect(mod.checkpoint()).resolves.toBeUndefined();
-    });
-  });
-
-  // ========================================================================
   // closeDuckDB
   // ========================================================================
 
@@ -296,9 +255,8 @@ describe('duckdb-connection', () => {
       // Should have called CHECKPOINT
       expect(mockRun).toHaveBeenCalledWith('CHECKPOINT');
 
-      // After close, getConnection/getInstance should throw
+      // After close, getConnection should throw
       expect(() => mod.getConnection()).toThrow('DuckDB not initialized');
-      expect(() => mod.getInstance()).toThrow('DuckDB not initialized');
     });
 
     it('does not throw when already closed', async () => {
@@ -314,7 +272,6 @@ describe('duckdb-connection', () => {
 
       // References should still be nulled
       expect(() => mod.getConnection()).toThrow('DuckDB not initialized');
-      expect(() => mod.getInstance()).toThrow('DuckDB not initialized');
     });
 
     it('can re-initialize after close', async () => {

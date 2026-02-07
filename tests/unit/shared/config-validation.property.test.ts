@@ -194,7 +194,7 @@ describe('config validation properties', () => {
       const config = loadConfig();
 
       // Verify writeFileSync was called with the validated config
-      const writeCall = vi.mocked(fs.writeFileSync).mock.calls[0];
+      const writeCall = vi.mocked(fs.writeFileSync).mock.calls[0]!;
       const written = JSON.parse(writeCall[1] as string) as DatspaceConfig;
 
       expect(written.duckdb.memoryLimitPercent).toBe(config.duckdb.memoryLimitPercent);

@@ -91,7 +91,7 @@ vi.mock('@main/ipc-handlers', () => ({
   setMainWindowRef: vi.fn(),
   setupDataChannel: vi.fn(),
   waitForRendererReady: vi.fn().mockResolvedValue(undefined),
-  waitForShutdownAck: vi.fn().mockResolvedValue(undefined),
+  waitForShutdownAck: vi.fn().mockResolvedValue(true),
   sendShutdownPrepare: vi.fn(),
 }));
 
@@ -169,7 +169,7 @@ describe('lifecycle module', () => {
     mockWorkerManagerInstance.spawn.mockResolvedValue(undefined);
     mockWorkerManagerInstance.shutdown.mockResolvedValue(undefined);
     vi.mocked(waitForRendererReady).mockResolvedValue(undefined);
-    vi.mocked(waitForShutdownAck).mockResolvedValue(undefined);
+    vi.mocked(waitForShutdownAck).mockResolvedValue(true);
   });
 
   // -----------------------------------------------------------------------
@@ -385,8 +385,9 @@ describe('lifecycle module', () => {
       vi.mocked(sendShutdownPrepare).mockImplementation(() => {
         callOrder.push('sendShutdownPrepare');
       });
-      vi.mocked(waitForShutdownAck).mockImplementation(async () => {
+      vi.mocked(waitForShutdownAck).mockImplementation(async (_timeoutMs: number) => {
         callOrder.push('waitForShutdownAck');
+        return true;
       });
       mockWorkerManagerInstance.stopHealthMonitoring.mockImplementation(() => {
         callOrder.push('stopHealthMonitoring');
@@ -490,7 +491,7 @@ describe('lifecycle module', () => {
     it('registers move and resize listeners on the window', async () => {
       await startupSequence();
 
-      const onCalls = mockBrowserWindow.on.mock.calls.map((call: [string, unknown]) => call[0]);
+      const onCalls = mockBrowserWindow.on.mock.calls.map((call) => call[0]);
       expect(onCalls).toContain('move');
       expect(onCalls).toContain('resize');
     });
@@ -499,9 +500,7 @@ describe('lifecycle module', () => {
       await startupSequence();
 
       // Extract the move handler
-      const moveCall = mockBrowserWindow.on.mock.calls.find(
-        (call: [string, unknown]) => call[0] === 'move',
-      );
+      const moveCall = mockBrowserWindow.on.mock.calls.find((call) => call[0] === 'move');
       expect(moveCall).toBeDefined();
       const moveHandler = moveCall?.[1] as () => void;
 
@@ -527,9 +526,7 @@ describe('lifecycle module', () => {
     it('does not send bounds if window is destroyed', async () => {
       await startupSequence();
 
-      const moveCall = mockBrowserWindow.on.mock.calls.find(
-        (call: [string, unknown]) => call[0] === 'move',
-      );
+      const moveCall = mockBrowserWindow.on.mock.calls.find((call) => call[0] === 'move');
       const moveHandler = moveCall?.[1] as () => void;
 
       mockBrowserWindow.isDestroyed.mockReturnValue(true);
@@ -543,9 +540,7 @@ describe('lifecycle module', () => {
     it('resets debounce timer on subsequent events', async () => {
       await startupSequence();
 
-      const resizeCall = mockBrowserWindow.on.mock.calls.find(
-        (call: [string, unknown]) => call[0] === 'resize',
-      );
+      const resizeCall = mockBrowserWindow.on.mock.calls.find((call) => call[0] === 'resize');
       const resizeHandler = resizeCall?.[1] as () => void;
 
       // First event

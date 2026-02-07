@@ -121,7 +121,7 @@ describe('TabBar', () => {
   it('clicking close button calls db.tabs.delete', () => {
     render(<TabBar />);
     const closeButtons = screen.getAllByText('x');
-    fireEvent.click(closeButtons[0]);
+    fireEvent.click(closeButtons[0]!);
     expect(db.tabs.delete).toHaveBeenCalledWith('tab-1');
   });
 });

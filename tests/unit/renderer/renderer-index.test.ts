@@ -238,7 +238,7 @@ describe('renderer bootstrap', () => {
     await runBootstrap();
     expect(shutdownCallback).not.toBeNull();
 
-    await shutdownCallback?.();
+    await shutdownCallback!();
 
     expect(mockAppStatePut).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'shutdown_status', value: 'clean' }),
@@ -261,7 +261,7 @@ describe('renderer bootstrap', () => {
     await runBootstrap();
     // Make app_state.put throw during shutdown
     mockAppStatePut.mockRejectedValue(new Error('db error'));
-    await shutdownCallback?.();
+    await shutdownCallback!();
 
     expect(window.datspace.lifecycle.shutdownAck).toHaveBeenCalled();
   });
@@ -286,7 +286,7 @@ describe('renderer bootstrap', () => {
     (dbModule.db as any).tabs.filter = mockFilter;
 
     await runBootstrap();
-    await shutdownCallback?.();
+    await shutdownCallback!();
 
     expect(mockAppStatePut).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'last_active_tab_id', value: 'active-tab-id' }),
@@ -307,7 +307,7 @@ describe('renderer bootstrap', () => {
     await runBootstrap();
     expect(boundsCallback).not.toBeNull();
 
-    await boundsCallback?.({ x: 100, y: 200, width: 1280, height: 800 });
+    await boundsCallback!({ x: 100, y: 200, width: 1280, height: 800 });
 
     expect(mockAppStatePut).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -329,7 +329,7 @@ describe('renderer bootstrap', () => {
     await runBootstrap();
     expect(queryHistoryCallback).not.toBeNull();
 
-    await queryHistoryCallback?.({
+    await queryHistoryCallback!({
       queryId: 'q-1',
       sql: 'SELECT 1',
       executionTimeMs: 42,
@@ -359,7 +359,7 @@ describe('renderer bootstrap', () => {
     await runBootstrap();
     expect(workerHealthCallback).not.toBeNull();
 
-    await workerHealthCallback?.({
+    await workerHealthCallback!({
       worker: 'duckdb',
       status: 'ready',
       restartCount: 0,

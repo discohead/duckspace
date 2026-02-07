@@ -18,7 +18,7 @@ vi.mock('@renderer/stores/db', async (importOriginal) => {
       {},
       {
         get(_target, prop) {
-          return (testDb as Record<string, unknown>)[prop as string];
+          return (testDb as unknown as Record<string, unknown>)[prop as string];
         },
       },
     ),
@@ -183,12 +183,12 @@ describe('writeRecoveryLog', () => {
 
     const logs = await testDb.recovery_log.toArray();
     expect(logs).toHaveLength(1);
-    expect(logs[0].id).toMatch(/^test-uuid-/);
-    expect(logs[0].timestamp).toBeDefined();
-    expect(new Date(logs[0].timestamp).getTime()).not.toBeNaN();
-    expect(logs[0].type).toBe('worker_restart');
-    expect(logs[0].outcome).toBe('recovered');
-    expect(logs[0].affectedWorker).toBe('duckdb');
+    expect(logs[0]!.id).toMatch(/^test-uuid-/);
+    expect(logs[0]!.timestamp).toBeDefined();
+    expect(new Date(logs[0]!.timestamp).getTime()).not.toBeNaN();
+    expect(logs[0]!.type).toBe('worker_restart');
+    expect(logs[0]!.outcome).toBe('recovered');
+    expect(logs[0]!.affectedWorker).toBe('duckdb');
   });
 
   it('writes multiple log entries with unique IDs', async () => {
@@ -205,7 +205,7 @@ describe('writeRecoveryLog', () => {
 
     const logs = await testDb.recovery_log.toArray();
     expect(logs).toHaveLength(2);
-    expect(logs[0].id).not.toBe(logs[1].id);
+    expect(logs[0]!.id).not.toBe(logs[1]!.id);
   });
 });
 

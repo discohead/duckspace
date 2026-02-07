@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import 'fake-indexeddb/auto';
 import { DatspaceDB } from '@renderer/stores/db';
 import type {
@@ -109,7 +110,7 @@ describe('DatspaceDB', () => {
 
       const running = await testDb.queries.where('status').equals('running').toArray();
       expect(running).toHaveLength(1);
-      expect(running[0].id).toBe('q-1');
+      expect(running[0]!.id).toBe('q-1');
     });
 
     it('can query by tabId index', async () => {
@@ -118,7 +119,7 @@ describe('DatspaceDB', () => {
 
       const tab1Queries = await testDb.queries.where('tabId').equals('tab-1').toArray();
       expect(tab1Queries).toHaveLength(1);
-      expect(tab1Queries[0].id).toBe('q-1');
+      expect(tab1Queries[0]!.id).toBe('q-1');
     });
   });
 
@@ -152,7 +153,7 @@ describe('DatspaceDB', () => {
 
       const active = await testDb.catalog_entries.where('status').equals('active').toArray();
       expect(active).toHaveLength(1);
-      expect(active[0].name).toBe('users');
+      expect(active[0]!.name).toBe('users');
     });
 
     it('can query by name index', async () => {
@@ -257,7 +258,7 @@ describe('DatspaceDB', () => {
 
       const favoriteQueries = await testDb.query_history.where('tags').equals('favorite').toArray();
       expect(favoriteQueries).toHaveLength(1);
-      expect(favoriteQueries[0].id).toBe('qh-1');
+      expect(favoriteQueries[0]!.id).toBe('qh-1');
     });
 
     it('multi-entry index returns empty for unused tag', async () => {

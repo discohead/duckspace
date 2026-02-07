@@ -173,6 +173,3 @@ export class BackpressureManager {
     this.errorCallbacks.delete(queryId);
   }
 }
-
-/** Singleton {@link BackpressureManager} instance used throughout the renderer process. */
-export const backpressureManager = new BackpressureManager();
