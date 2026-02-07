@@ -84,16 +84,16 @@ describe('TabBar', () => {
 
   it('active tab has fontWeight 600', () => {
     render(<TabBar />);
-    const activeButton = screen.getByText('Query 1').closest('button');
-    expect(activeButton).toBeDefined();
-    expect(activeButton?.style.fontWeight).toBe('600');
+    const activeTab = screen.getByText('Query 1').closest('[role="tab"]');
+    expect(activeTab).toBeDefined();
+    expect((activeTab as HTMLElement)?.style.fontWeight).toBe('600');
   });
 
   it('inactive tab has normal fontWeight', () => {
     render(<TabBar />);
-    const inactiveButton = screen.getByText('Catalog').closest('button');
-    expect(inactiveButton).toBeDefined();
-    expect(inactiveButton?.style.fontWeight).toBe('normal');
+    const inactiveTab = screen.getByText('Catalog').closest('[role="tab"]');
+    expect(inactiveTab).toBeDefined();
+    expect((inactiveTab as HTMLElement)?.style.fontWeight).toBe('normal');
   });
 
   it('renders "+" button for creating new tabs', () => {
@@ -103,9 +103,9 @@ describe('TabBar', () => {
 
   it('clicking a tab calls db.transaction to activate it', async () => {
     render(<TabBar />);
-    // The "Catalog" text is in a <span> inside the outer tab <button>
-    const catalogButton = screen.getByText('Catalog').closest('button');
-    fireEvent.click(catalogButton!);
+    // The "Catalog" text is in a <span> inside the outer tab <div role="tab">
+    const catalogTab = screen.getByText('Catalog').closest('[role="tab"]');
+    fireEvent.click(catalogTab!);
     // activateTab is async and calls db.transaction
     await waitFor(() => {
       expect(db.transaction).toHaveBeenCalled();

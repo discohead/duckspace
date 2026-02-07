@@ -2,7 +2,13 @@ import os from 'node:os';
 import { MessageChannel as NodeMessageChannel, type Worker } from 'node:worker_threads';
 import { IPC_CHANNELS, PUSH_EVENTS } from '@shared/constants';
 import type { AppState } from '@shared/types';
-import { app, type BrowserWindow, ipcMain, MessageChannelMain } from 'electron';
+import {
+  app,
+  type BrowserWindow,
+  ipcMain,
+  MessageChannelMain,
+  type MessagePortMain,
+} from 'electron';
 import { computeMemoryLimit, getConfig, setConfigValue } from './config';
 import type { QueryRouter } from './query-router';
 import type { WorkerManager } from './worker-manager';
@@ -12,6 +18,7 @@ let workerManager: WorkerManager | null = null;
 let mainWindow: BrowserWindow | null = null;
 let shutdownAckResolve: (() => void) | null = null;
 let rendererReadyResolve: (() => void) | null = null;
+let handlersRegistered = false;
 
 /**
  * Sets the QueryRouter reference used by IPC handlers.
@@ -60,11 +67,12 @@ export function setupDataChannel(win: BrowserWindow, duckdbWorker: Worker): void
   const { port1: electronPort1, port2: electronPort2 } = new MessageChannelMain();
   win.webContents.postMessage(PUSH_EVENTS.PORT, { channel: 'duckdb-data' }, [electronPort2]);
 
-  // Bridge: relay data from Worker → Renderer
+  // Bridge: relay data from Worker → Renderer with zero-copy transfer.
+  // Electron's MessagePortMain.postMessage supports ArrayBuffer in its transfer list
+  // at runtime, but the TypeScript types only declare MessagePortMain[].
   workerChannel.port2.on('message', (data: Record<string, unknown>) => {
-    if (data['__transferredBuffers'] && Array.isArray(data['__transferredBuffers'])) {
-      // Forward with buffer transfer for zero-copy
-      electronPort1.postMessage(data);
+    if (data['buffer'] instanceof ArrayBuffer) {
+      electronPort1.postMessage(data, [data['buffer']] as unknown as MessagePortMain[]);
     } else {
       electronPort1.postMessage(data);
     }
@@ -85,6 +93,8 @@ export function setupDataChannel(win: BrowserWindow, duckdbWorker: Worker): void
  * when the renderer starts sending IPC messages.
  */
 export function registerIPCHandlers(): void {
+  if (handlersRegistered) return;
+
   // === Query Channels ===
   ipcMain.handle(
     IPC_CHANNELS.QUERY_EXECUTE,
@@ -166,6 +176,9 @@ export function registerIPCHandlers(): void {
     const keys = args.key.split('.');
     let value: unknown = config;
     for (const k of keys) {
+      if (value === null || value === undefined || typeof value !== 'object') {
+        return undefined;
+      }
       value = (value as Record<string, unknown>)[k];
     }
     return value;
@@ -189,6 +202,8 @@ export function registerIPCHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CONFIG_GET_ALL, async () => {
     return getConfig();
   });
+
+  handlersRegistered = true;
 }
 
 /**

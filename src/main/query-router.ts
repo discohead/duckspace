@@ -192,8 +192,10 @@ export class QueryRouter {
    * @returns A query handle for the preview query.
    */
   async previewTable(tableName: string, limit?: number): Promise<QueryHandle> {
-    const previewLimit = limit ?? 100;
-    return this.executeQuery(`SELECT * FROM "${tableName}" LIMIT ${previewLimit}`);
+    const safeTable = tableName.replace(/"/g, '""');
+    const raw = limit ?? 0;
+    const validLimit = Number.isFinite(raw) && raw > 0 ? Math.min(raw, 10000) : 100;
+    return this.executeQuery(`SELECT * FROM "${safeTable}" LIMIT ${validLimit}`);
   }
 
   /**

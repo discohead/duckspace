@@ -139,7 +139,11 @@ async function checkpoint(): Promise<void> {
 export async function closeDuckDB(): Promise<void> {
   if (connection) {
     await checkpoint();
+    connection.closeSync();
     connection = null;
   }
-  instance = null;
+  if (instance) {
+    instance.closeSync();
+    instance = null;
+  }
 }

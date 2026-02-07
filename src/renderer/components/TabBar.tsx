@@ -90,12 +90,20 @@ export function TabBar(): React.JSX.Element {
       }}
     >
       {tabs?.map((tab) => (
-        <button
+        <div
           key={tab.id}
-          type="button"
+          role="tab"
+          tabIndex={0}
+          aria-selected={tab.active}
           className="no-drag"
           onClick={() => {
             void activateTab(tab.id);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              void activateTab(tab.id);
+            }
           }}
           style={{
             padding: '4px 12px',
@@ -141,7 +149,7 @@ export function TabBar(): React.JSX.Element {
           >
             x
           </button>
-        </button>
+        </div>
       ))}
       <button
         type="button"

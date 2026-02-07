@@ -551,7 +551,7 @@ describe('preload/index', () => {
             index: 0,
             rowCount: 10,
             byteSize: 16,
-            __transferredBuffers: [testBuffer],
+            buffer: testBuffer,
           },
         } as MessageEvent);
 

@@ -6,11 +6,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockRun = vi.fn().mockResolvedValue({
   getRows: vi.fn().mockResolvedValue([]),
 });
+const mockCloseSync = vi.fn();
 const mockConnect = vi.fn().mockResolvedValue({
   run: mockRun,
+  closeSync: mockCloseSync,
 });
+const mockInstanceCloseSync = vi.fn();
 const mockCreate = vi.fn().mockResolvedValue({
   connect: mockConnect,
+  closeSync: mockInstanceCloseSync,
 });
 
 vi.mock('@duckdb/node-api', () => ({
@@ -48,9 +52,11 @@ describe('duckdb-connection', () => {
     });
     mockConnect.mockResolvedValue({
       run: mockRun,
+      closeSync: mockCloseSync,
     });
     mockCreate.mockResolvedValue({
       connect: mockConnect,
+      closeSync: mockInstanceCloseSync,
     });
 
     mod = await import('@workers/duckdb-connection');

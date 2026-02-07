@@ -10,7 +10,7 @@ vi.mock('electron', () => ({
 }));
 
 // Mock fs module
-vi.mock('fs', () => ({
+vi.mock('node:fs', () => ({
   default: {
     existsSync: vi.fn(() => true),
     readFileSync: vi.fn(),

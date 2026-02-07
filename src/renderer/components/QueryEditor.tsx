@@ -80,7 +80,7 @@ export function QueryEditor(): ReactElement {
       // Fire custom event so ResultGrid can listen
       window.dispatchEvent(
         new CustomEvent('datspace:arrow-batch', {
-          detail: batch,
+          detail: { queryId, batch },
         }),
       );
 

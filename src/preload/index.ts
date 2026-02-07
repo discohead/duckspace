@@ -22,10 +22,9 @@ import type {
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from 'electron';
 import type { DatspaceAPI } from './api';
 
-/** Inbound data plane message with transferred buffers attached by the MessagePort */
+/** Inbound data plane message with buffer attached by the MessagePort */
 type InboundDataPlaneMessage =
-  // biome-ignore lint/style/useNamingConvention: protocol field name used by Electron MessagePort transfer
-  | (ArrowBatchMessage & { __transferredBuffers?: ArrayBuffer[] })
+  | (ArrowBatchMessage & { buffer?: ArrayBuffer })
   | StreamEndMessage
   | DataPlaneError;
 
@@ -49,8 +48,9 @@ ipcRenderer.on(PUSH_EVENTS.PORT, (event: IpcRendererEvent, payload: { channel: s
       if (msg.type === 'arrow-batch') {
         const callbacks = dataCallbacks.get(msg.queryId);
         if (callbacks) {
-          // The ArrayBuffer is transferred alongside the message
-          const arrowBuffer = msg.__transferredBuffers?.[0] ?? new ArrayBuffer(0);
+          // The ArrayBuffer is transferred alongside the message via the buffer property
+          const arrowBuffer =
+            'buffer' in msg && msg.buffer instanceof ArrayBuffer ? msg.buffer : new ArrayBuffer(0);
 
           const batch: ArrowBatch = {
             buffer: arrowBuffer,

@@ -1,6 +1,6 @@
 import type React from 'react';
 import type { ReactElement } from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { CatalogBrowser } from './components/CatalogBrowser';
 import { QueryEditor } from './components/QueryEditor';
 import { ResultGrid } from './components/ResultGrid';
@@ -17,7 +17,6 @@ import { useActiveTab, useTabs } from './stores/hooks';
 export function App(): ReactElement {
   const tabs = useTabs();
   const activeTab = useActiveTab();
-  const [activeQueryId] = useState<string | null>(null);
 
   // T065: Keyboard shortcuts
   const handleKeyDown = useCallback(
@@ -136,7 +135,7 @@ export function App(): ReactElement {
         return (
           <div style={styles.queryLayout}>
             <QueryEditor />
-            <ResultGrid queryId={activeQueryId} />
+            <ResultGrid queryId={activeTab.id} />
           </div>
         );
       case 'catalog':

@@ -26,10 +26,11 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
   const [containerHeight, setContainerHeight] = useState(0);
 
   // Reset batches when queryId changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset on queryId change
   useEffect(() => {
     setBatches([]);
     setScrollTop(0);
-  }, []);
+  }, [queryId]);
 
   // Listen for Arrow batch events
   useEffect(() => {

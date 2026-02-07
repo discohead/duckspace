@@ -19,7 +19,7 @@ vi.mock('electron', () => ({
   },
 }));
 
-vi.mock('worker_threads', () => ({
+vi.mock('node:worker_threads', () => ({
   MessageChannel: vi.fn(() => ({
     port1: { on: vi.fn(), postMessage: vi.fn() },
     port2: { on: vi.fn(), postMessage: vi.fn() },
@@ -59,7 +59,9 @@ import { IPC_CHANNELS } from '@shared/constants';
 describe('IPC Handlers', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    mockHandlers.clear();
+    // Register handlers once; idempotent guard means subsequent calls are no-ops.
+    // We do NOT clear mockHandlers — the handlers persist and close over module-level refs.
+    registerIPCHandlers();
   });
 
   afterEach(() => {
@@ -68,8 +70,6 @@ describe('IPC Handlers', () => {
 
   describe('registerIPCHandlers', () => {
     it('registers all IPC channels', () => {
-      registerIPCHandlers();
-
       for (const channel of Object.values(IPC_CHANNELS)) {
         expect(mockHandlers.has(channel)).toBe(true);
       }
@@ -82,7 +82,6 @@ describe('IPC Handlers', () => {
         executeQuery: vi.fn().mockResolvedValue({ queryId: 'q1' }),
       };
       setQueryRouter(mockRouter as any);
-      registerIPCHandlers();
 
       const handler = mockHandlers.get(IPC_CHANNELS.QUERY_EXECUTE)!;
       const result = await handler({}, { sql: 'SELECT 1', params: [] });
@@ -93,7 +92,6 @@ describe('IPC Handlers', () => {
 
     it('query:execute throws when router not set', async () => {
       setQueryRouter(null as any);
-      registerIPCHandlers();
 
       const handler = mockHandlers.get(IPC_CHANNELS.QUERY_EXECUTE)!;
       await expect(handler({}, { sql: 'SELECT 1' })).rejects.toThrow('QueryRouter not initialized');
@@ -104,7 +102,6 @@ describe('IPC Handlers', () => {
         cancelQuery: vi.fn().mockResolvedValue(undefined),
       };
       setQueryRouter(mockRouter as any);
-      registerIPCHandlers();
 
       const handler = mockHandlers.get(IPC_CHANNELS.QUERY_CANCEL)!;
       await handler({}, { queryId: 'q1' });
@@ -118,7 +115,6 @@ describe('IPC Handlers', () => {
         listTables: vi.fn().mockResolvedValue(tables),
       };
       setQueryRouter(mockRouter as any);
-      registerIPCHandlers();
 
       const handler = mockHandlers.get(IPC_CHANNELS.QUERY_LIST_TABLES)!;
       const result = await handler({});
@@ -132,7 +128,6 @@ describe('IPC Handlers', () => {
         describeTable: vi.fn().mockResolvedValue(columns),
       };
       setQueryRouter(mockRouter as any);
-      registerIPCHandlers();
 
       const handler = mockHandlers.get(IPC_CHANNELS.QUERY_DESCRIBE_TABLE)!;
       const result = await handler({}, { tableName: 'users' });
@@ -146,7 +141,6 @@ describe('IPC Handlers', () => {
         previewTable: vi.fn().mockResolvedValue({ queryId: 'q1' }),
       };
       setQueryRouter(mockRouter as any);
-      registerIPCHandlers();
 
       const handler = mockHandlers.get(IPC_CHANNELS.CATALOG_PREVIEW)!;
       const result = await handler({}, { tableName: 'users', limit: 50 });
@@ -160,7 +154,6 @@ describe('IPC Handlers', () => {
     it('lifecycle:getAppState returns app state', async () => {
       const mockManager = { getStatus: vi.fn(() => 'ready') };
       setWorkerManager(mockManager as any);
-      registerIPCHandlers();
 
       const handler = mockHandlers.get(IPC_CHANNELS.LIFECYCLE_GET_APP_STATE)!;
       const result = await handler({});
@@ -173,8 +166,6 @@ describe('IPC Handlers', () => {
     });
 
     it('lifecycle:ready resolves pending promise', async () => {
-      registerIPCHandlers();
-
       const readyPromise = waitForRendererReady();
       const handler = mockHandlers.get(IPC_CHANNELS.LIFECYCLE_READY)!;
       await handler({});
@@ -183,8 +174,6 @@ describe('IPC Handlers', () => {
     });
 
     it('lifecycle:shutdownAck resolves pending promise', async () => {
-      registerIPCHandlers();
-
       const ackPromise = waitForShutdownAck(5000);
       const handler = mockHandlers.get(IPC_CHANNELS.LIFECYCLE_SHUTDOWN_ACK)!;
       await handler({});
@@ -193,8 +182,6 @@ describe('IPC Handlers', () => {
     });
 
     it('waitForShutdownAck resolves false on timeout', async () => {
-      registerIPCHandlers();
-
       const ackPromise = waitForShutdownAck(1000);
       vi.advanceTimersByTime(1001);
 
@@ -204,8 +191,6 @@ describe('IPC Handlers', () => {
 
   describe('config handlers', () => {
     it('config:getAll returns full config', async () => {
-      registerIPCHandlers();
-
       const handler = mockHandlers.get(IPC_CHANNELS.CONFIG_GET_ALL)!;
       const result = await handler({});
 
@@ -214,8 +199,6 @@ describe('IPC Handlers', () => {
     });
 
     it('config:get returns nested value', async () => {
-      registerIPCHandlers();
-
       const handler = mockHandlers.get(IPC_CHANNELS.CONFIG_GET)!;
       const result = await handler({}, { key: 'ui.theme' });
 

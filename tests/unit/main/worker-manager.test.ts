@@ -9,7 +9,7 @@ const mockWorkerInstance = {
   _handlers: {} as Record<string, ((...args: any[]) => void)[]>,
 };
 
-vi.mock('worker_threads', () => ({
+vi.mock('node:worker_threads', () => ({
   Worker: vi.fn().mockImplementation(() => {
     // Reset handlers for each new instance
     mockWorkerInstance._handlers = {};

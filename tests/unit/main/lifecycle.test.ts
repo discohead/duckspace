@@ -25,7 +25,7 @@ vi.mock('electron', () => ({
   BrowserWindow: vi.fn(() => mockBrowserWindow),
 }));
 
-vi.mock('fs', () => ({
+vi.mock('node:fs', () => ({
   default: {
     existsSync: vi.fn(() => false),
     readdirSync: vi.fn(() => []),
