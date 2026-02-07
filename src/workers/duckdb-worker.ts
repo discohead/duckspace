@@ -163,8 +163,11 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
         `INSERT INTO _query_history (query_id, sql, execution_time_ms, row_count, status)
          VALUES ('${queryId}', '${escapedSql}', ${executionTimeMs}, 0, 'success')`,
       );
-    } catch {
-      /* non-critical */
+    } catch (histErr) {
+      console.warn(
+        'Failed to insert query history (success):',
+        histErr instanceof Error ? histErr.message : String(histErr),
+      );
     }
 
     // T067: Forward query history record to renderer via Main
@@ -195,8 +198,11 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
         `INSERT INTO _query_history (query_id, sql, execution_time_ms, row_count, status, error_message)
          VALUES ('${queryId}', '${escapedSql}', ${errorExecutionTimeMs}, 0, 'error', '${escapedErr}')`,
       );
-    } catch {
-      /* non-critical */
+    } catch (histErr) {
+      console.warn(
+        'Failed to insert query history (error):',
+        histErr instanceof Error ? histErr.message : String(histErr),
+      );
     }
 
     // T067: Forward query history record to renderer via Main
@@ -250,8 +256,11 @@ async function handleListTables(): Promise<void> {
       const rowCountResult = await conn.run(`SELECT COUNT(*) FROM "${tableName}"`);
       const rowCountRows = await rowCountResult.getRows();
       rowCount = Number(rowCountRows[0]?.[0] ?? 0);
-    } catch {
-      /* best effort */
+    } catch (metaErr) {
+      console.warn(
+        `Failed to get table metadata for "${tableName}":`,
+        metaErr instanceof Error ? metaErr.message : String(metaErr),
+      );
     }
 
     tables.push({
@@ -298,8 +307,11 @@ async function handleGetTableInfo(msg: WorkerGetTableInfoRequest): Promise<void>
     rowCount = Number(countRows[0]?.[0] ?? 0);
 
     // Size estimation not available in all DuckDB versions; leave as 0
-  } catch {
-    /* best effort */
+  } catch (countErr) {
+    console.warn(
+      `Failed to get row count for "${msg.tableName}":`,
+      countErr instanceof Error ? countErr.message : String(countErr),
+    );
   }
 
   port.postMessage({
@@ -349,12 +361,39 @@ function handleHeartbeat(msg: HeartbeatRequest): void {
   port.postMessage(ack);
 }
 
+const MEMORY_LIMIT_RE = /^\d+(\.\d+)?\s*(B|KB|MB|GB|TB)$/i;
+const TEMP_DIR_RE = /^[^'";]+$/;
+
 async function handleConfigure(msg: WorkerConfigUpdate): Promise<void> {
   const conn = getConnection();
   const { settings } = msg;
-  if (settings.memory_limit) await conn.run(`SET memory_limit = '${settings.memory_limit}'`);
-  if (settings.threads) await conn.run(`SET threads = ${settings.threads}`);
-  if (settings.temp_directory) await conn.run(`SET temp_directory = '${settings.temp_directory}'`);
+  if (settings.memory_limit) {
+    if (!MEMORY_LIMIT_RE.test(settings.memory_limit.trim())) {
+      port.postMessage({
+        type: 'error',
+        message: `Invalid memory_limit: ${settings.memory_limit}`,
+      });
+      return;
+    }
+    await conn.run(`SET memory_limit = '${settings.memory_limit.trim()}'`);
+  }
+  if (settings.threads) {
+    if (!Number.isInteger(settings.threads) || settings.threads <= 0) {
+      port.postMessage({ type: 'error', message: `Invalid threads: ${settings.threads}` });
+      return;
+    }
+    await conn.run(`SET threads = ${settings.threads}`);
+  }
+  if (settings.temp_directory) {
+    if (!TEMP_DIR_RE.test(settings.temp_directory)) {
+      port.postMessage({
+        type: 'error',
+        message: `Invalid temp_directory: ${settings.temp_directory}`,
+      });
+      return;
+    }
+    await conn.run(`SET temp_directory = '${settings.temp_directory}'`);
+  }
 }
 
 async function handleShutdown(): Promise<void> {
@@ -366,11 +405,27 @@ async function handleShutdown(): Promise<void> {
 }
 
 function sendDataPlaneMessage(message: Record<string, unknown>): void {
-  if (dataPort) dataPort.postMessage(message);
+  if (dataPort) {
+    dataPort.postMessage(message);
+  } else {
+    console.warn('Data port not established, cannot send:', message['type']);
+    port.postMessage({
+      type: 'error',
+      message: `Data port not established; cannot send ${String(message['type'])} for query ${String(message['queryId'])}`,
+    });
+  }
 }
 
 function sendDataPlaneTransfer(envelope: Record<string, unknown>, buffer: ArrayBuffer): void {
-  if (dataPort) dataPort.postMessage({ ...envelope, buffer }, [buffer]);
+  if (dataPort) {
+    dataPort.postMessage({ ...envelope, buffer }, [buffer]);
+  } else {
+    console.warn('Data port not established, cannot transfer:', envelope['type']);
+    port.postMessage({
+      type: 'error',
+      message: `Data port not established; cannot transfer ${String(envelope['type'])} for query ${String(envelope['queryId'])}`,
+    });
+  }
 }
 
 function classifyErrorCode(message: string): string {

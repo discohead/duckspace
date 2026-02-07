@@ -111,7 +111,8 @@ export async function runIntegrityCheck(): Promise<boolean> {
     const result = await connection.run('PRAGMA integrity_check');
     const rows = await result.getRows();
     return rows[0]?.[0] === 'ok';
-  } catch {
+  } catch (err) {
+    console.warn('Integrity check failed:', err instanceof Error ? err.message : String(err));
     return false;
   }
 }
@@ -126,8 +127,11 @@ async function checkpoint(): Promise<void> {
   if (!connection) return;
   try {
     await connection.run('CHECKPOINT');
-  } catch {
-    // Best effort - WAL replay handles this on next startup
+  } catch (err) {
+    console.warn(
+      'Checkpoint failed (WAL replay will recover):',
+      err instanceof Error ? err.message : String(err),
+    );
   }
 }
 

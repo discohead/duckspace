@@ -75,7 +75,8 @@ describe('config module', () => {
       expect(config.duckdb.memoryLimitPercent).toBe(DEFAULT_CONFIG.duckdb.memoryLimitPercent);
     });
 
-    it('handles invalid JSON gracefully', () => {
+    it('handles invalid JSON gracefully and logs warning', () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readFileSync).mockReturnValue('not valid json{{{');
 
@@ -83,6 +84,12 @@ describe('config module', () => {
 
       // Should fall back to defaults
       expect(config.ui.theme).toBe('system');
+      // I8: should log a warning
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('config'),
+        expect.any(String),
+      );
+      consoleSpy.mockRestore();
     });
 
     it('writes back merged config to disk', () => {

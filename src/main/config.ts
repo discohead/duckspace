@@ -62,8 +62,11 @@ export function loadConfig(): DatspaceConfig {
       const raw = fs.readFileSync(configPath, 'utf-8');
       fileConfig = JSON.parse(raw) as Partial<DatspaceConfig>;
     }
-  } catch {
-    // Invalid JSON or read error - use defaults
+  } catch (err) {
+    console.warn(
+      'Failed to read config file, using defaults:',
+      err instanceof Error ? err.message : String(err),
+    );
   }
 
   // Merge with defaults (file overrides defaults)
