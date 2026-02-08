@@ -6,13 +6,16 @@
     "src/shared/schemas/index.ts",
     "src/shared/schemas/data-plane-schemas.ts",
     "src/shared/schemas/worker-schemas.ts",
+    "src/shared/schemas/catalog-schemas.ts",
+    "src/shared/schemas/ingestion-schemas.ts",
     "src/shared/types.ts",
     "src/shared/errors.ts",
     "src/main/worker-manager.ts",
+    "src/main/ingestion/ingestion-router.ts",
+    "src/main/ingestion/progress-tracker.ts",
     "vite.main.config.ts",
     "vite.preload.config.ts",
-    "vite.renderer.config.ts",
-    "scripts/build-e2e.mjs"
+    "vite.renderer.config.ts"
   ],
   "project": ["src/**/*.ts", "src/**/*.tsx"],
   "ignore": [
@@ -21,6 +24,7 @@
   "ignoreDependencies": [
     "@electron-forge/*",
     "@testing-library/jest-dom",
-    "@testing-library/user-event"
+    "@testing-library/user-event",
+    "chokidar"
   ]
 }

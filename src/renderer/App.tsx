@@ -349,12 +349,17 @@ export function App(): ReactElement {
   return (
     <ErrorBoundary>
       <div style={styles.container}>
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
         <header>
           <TabBar />
         </header>
         <div style={styles.body}>
           <CatalogSidebar />
-          <main style={styles.main}>{renderContent()}</main>
+          <main id="main-content" style={styles.main}>
+            {renderContent()}
+          </main>
         </div>
         <footer>
           <StatusBar />

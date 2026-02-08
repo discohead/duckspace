@@ -26,15 +26,6 @@ const MAX_CACHED_TABS = 20;
 const batchCache = new Map<string, DecodedBatch[]>();
 
 /**
- * Clears the module-level batch cache. Exported for test isolation only.
- * @internal
- */
-// biome-ignore lint/style/useNamingConvention: underscore prefix signals internal/test-only API
-export function _clearBatchCache(): void {
-  batchCache.clear();
-}
-
-/**
  * Virtualized data grid that displays Arrow IPC query results.
  * Listens for `datspace:arrow-batch` custom events, decodes and merges batches,
  * and renders rows with virtual scrolling for large result sets.
@@ -86,6 +77,21 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
       }
     };
   }, []);
+
+  // BUG-002: Save batches to cache on unmount (e.g., switching to non-query tab)
+  useEffect(() => {
+    return () => {
+      if (queryId && currentBatchesRef.current.length > 0) {
+        batchCache.set(queryId, currentBatchesRef.current);
+        if (batchCache.size > MAX_CACHED_TABS) {
+          const firstKey = batchCache.keys().next().value;
+          if (firstKey !== undefined) {
+            batchCache.delete(firstKey);
+          }
+        }
+      }
+    };
+  }, [queryId]);
 
   // QA-005: Cache/restore batches on tab switch
   // Cache current batches via ref so the tab-switch effect doesn't depend on batches state

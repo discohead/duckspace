@@ -19,6 +19,25 @@
       }
       .drag-region { -webkit-app-region: drag; }
       .no-drag { -webkit-app-region: no-drag; }
+      .skip-link {
+        position: absolute;
+        top: -40px;
+        left: 0;
+        background: #3b82f6;
+        color: #ffffff;
+        padding: 8px 16px;
+        z-index: 1000;
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+        border-radius: 0 0 4px 0;
+        transition: top 0.15s ease;
+      }
+      .skip-link:focus {
+        top: 0;
+        outline: 2px solid #1d4ed8;
+        outline-offset: 2px;
+      }
     </style>
   </head>
   <body>

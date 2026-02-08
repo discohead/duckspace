@@ -27,42 +27,40 @@ const tables = new Map<string, PerspectiveTable>();
  *
  * @returns The Perspective client connected to a Web Worker.
  */
-export async function getClient(): Promise<PerspectiveClient> {
-  if (!clientPromise) {
-    clientPromise = (async () => {
-      // Dynamic import to keep initial bundle small — WASM loads lazily
-      const psp = await import('@finos/perspective');
-      const pspViewer = await import('@finos/perspective-viewer');
+async function getClient(): Promise<PerspectiveClient> {
+  clientPromise ??= (async () => {
+    // Dynamic import to keep initial bundle small — WASM loads lazily
+    const psp = await import('@finos/perspective');
+    const pspViewer = await import('@finos/perspective-viewer');
 
-      // The ESM builds don't auto-load WASM binaries. We must explicitly
-      // initialize both the viewer and server WASM before creating a worker.
-      //
-      // Critical ordering: perspective's internal get_client() checks for the
-      // "perspective-viewer" custom element FIRST — if registered, it uses
-      // __wasm_module__ from the element class (ignoring init_client). Since
-      // DataGrid.tsx imports @finos/perspective-viewer (registering the element),
-      // we MUST await the viewer's init_client so __wasm_module__ is populated.
-      const viewerWasm = fetch(
-        new URL(
-          '/node_modules/@finos/perspective-viewer/dist/wasm/perspective-viewer.wasm',
-          window.location.origin,
-        ),
-      );
-      const serverWasm = fetch(
-        new URL(
-          '/node_modules/@finos/perspective/dist/wasm/perspective-server.wasm',
-          window.location.origin,
-        ),
-      );
+    // The ESM builds don't auto-load WASM binaries. We must explicitly
+    // initialize both the viewer and server WASM before creating a worker.
+    //
+    // Critical ordering: perspective's internal get_client() checks for the
+    // "perspective-viewer" custom element FIRST — if registered, it uses
+    // __wasm_module__ from the element class (ignoring init_client). Since
+    // DataGrid.tsx imports @finos/perspective-viewer (registering the element),
+    // we MUST await the viewer's init_client so __wasm_module__ is populated.
+    const viewerWasm = fetch(
+      new URL(
+        '/node_modules/@finos/perspective-viewer/dist/wasm/perspective-viewer.wasm',
+        window.location.origin,
+      ),
+    );
+    const serverWasm = fetch(
+      new URL(
+        '/node_modules/@finos/perspective/dist/wasm/perspective-server.wasm',
+        window.location.origin,
+      ),
+    );
 
-      // Await viewer init — sets __wasm_module__ on the custom element class
-      await pspViewer.default.init_client(viewerWasm);
-      // Server WASM can load in parallel (init_server is fire-and-forget)
-      psp.default.init_server(serverWasm);
+    // Await viewer init — sets __wasm_module__ on the custom element class
+    await pspViewer.default.init_client(viewerWasm);
+    // Server WASM can load in parallel (init_server is fire-and-forget)
+    psp.default.init_server(serverWasm);
 
-      return psp.default.worker();
-    })();
-  }
+    return psp.default.worker();
+  })();
   return clientPromise;
 }
 
@@ -133,14 +131,4 @@ export async function deleteTable(tabId: string): Promise<void> {
   } catch {
     // Table may already be deleted — ignore
   }
-}
-
-/**
- * Check whether a Perspective Table exists for a tab.
- *
- * @param tabId - The tab ID to check.
- * @returns True if a table exists for this tab.
- */
-export function hasTable(tabId: string): boolean {
-  return tables.has(tabId);
 }
