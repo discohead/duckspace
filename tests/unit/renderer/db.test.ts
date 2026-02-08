@@ -32,17 +32,21 @@ describe('DatspaceDB', () => {
       expect(testDb.isOpen()).toBe(true);
     });
 
-    it('has all 9 tables', () => {
+    it('has all 13 tables', () => {
       const tableNames = testDb.tables.map((t) => t.name).sort();
       expect(tableNames).toEqual([
         'app_state',
         'catalog_entries',
         'column_schemas',
+        'column_statistics',
+        'data_sources',
+        'ingestion_jobs',
         'preferences',
         'queries',
         'query_history',
         'recovery_log',
         'tabs',
+        'watch_directories',
         'worker_health',
       ]);
     });

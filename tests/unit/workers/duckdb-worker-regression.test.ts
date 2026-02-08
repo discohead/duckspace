@@ -249,4 +249,44 @@ describe('duckdb-worker — Regression', () => {
       expect(firstCall).toHaveLength(1);
     });
   });
+
+  // QA-026: Error messages must strip to_arrow_ipc() wrapper
+  describe('stripArrowIpcWrapper strips wrapper from error messages (QA-026)', () => {
+    it('strips to_arrow_ipc wrapper from DuckDB error messages', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      const mockPort = { postMessage: vi.fn(), onmessage: null };
+      await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
+
+      // Simulate DuckDB throwing an error with the wrapper in the message
+      const run = vi
+        .fn()
+        .mockRejectedValueOnce(
+          new Error(
+            'Parser Error: syntax error at or near "typo"\n' +
+              'LINE 1: SELECT * FROM to_arrow_ipc((SELCT typo FROM nonexistent))\n' +
+              '                                    ^',
+          ),
+        );
+      mockGetConnection.mockReturnValue({ run });
+
+      await handler({
+        type: 'execute_query',
+        queryId: 'q-error',
+        sql: 'SELCT typo FROM nonexistent',
+      });
+
+      const errorCall = mockPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'arrow-error',
+      );
+      expect(errorCall).toBeDefined();
+      const errorMsg = errorCall?.[0].message as string;
+      // Must NOT contain to_arrow_ipc wrapper
+      expect(errorMsg).not.toContain('to_arrow_ipc');
+      // Must still contain the user's original SQL context
+      expect(errorMsg).toContain('SELCT typo FROM nonexistent');
+      expect(errorMsg).toContain('Parser Error');
+    });
+  });
 });

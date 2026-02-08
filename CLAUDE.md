@@ -137,3 +137,10 @@ The `playwright-electron` MCP server enables visual interaction with the running
 ## Specs
 
 Feature specifications live in `specs/{feature-id}/` with `spec.md`, `plan.md`, `tasks.md`, and contracts. Constitution at `.specify/memory/constitution.md`.
+
+## Active Technologies
+- TypeScript 5.4, Node.js 20.18.0 (Electron 33), React 18.3 + `@duckdb/node-api` v1.4.4 (OLAP + file parsing), `@finos/perspective` + `@finos/perspective-viewer` + `@finos/perspective-viewer-datagrid` + `@finos/perspective-react` (data grid), `chokidar` v4 (file watching), `@uwdata/flechette` v2.3.0 (Arrow IPC decode for metadata), `dexie` v4.3.0 (catalog state), `zod` v4.3.6 (schema validation) (002-local-data-ingestion)
+- DuckDB (Worker Thread #1 — file parsing + analytics), Dexie.js/IndexedDB (Renderer — catalog metadata, ingestion jobs, watch configs) (002-local-data-ingestion)
+
+## Recent Changes
+- 002-local-data-ingestion: Added TypeScript 5.4, Node.js 20.18.0 (Electron 33), React 18.3 + `@duckdb/node-api` v1.4.4 (OLAP + file parsing), `@finos/perspective` + `@finos/perspective-viewer` + `@finos/perspective-viewer-datagrid` + `@finos/perspective-react` (data grid), `chokidar` v4 (file watching), `@uwdata/flechette` v2.3.0 (Arrow IPC decode for metadata), `dexie` v4.3.0 (catalog state), `zod` v4.3.6 (schema validation)

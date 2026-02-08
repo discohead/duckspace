@@ -38,6 +38,15 @@ vi.mock('@renderer/stores/hooks', () => ({
   useCurrentQuery: vi.fn(() => undefined),
   useCatalogEntries: vi.fn(() => []),
   useColumnSchemas: vi.fn(() => []),
+  useCatalogSources: vi.fn(() => undefined),
+  useIngestionJobs: vi.fn(() => undefined),
+}));
+
+vi.mock('@renderer/components/CatalogSidebar', () => ({
+  CatalogSidebar: () => <div data-testid="catalog-sidebar">CatalogSidebar</div>,
+}));
+vi.mock('@renderer/components/IngestionProgress', () => ({
+  IngestionProgress: () => null,
 }));
 
 vi.mock('@renderer/stores/db', () => {
@@ -131,6 +140,11 @@ describe('QueryEditor — Regression', () => {
         listTables: vi.fn(),
         describeTable: vi.fn(),
         previewTable: vi.fn(),
+        onSourceUpdated: vi.fn().mockReturnValue(() => {}),
+      },
+      ingestion: {
+        onProgress: vi.fn().mockReturnValue(() => {}),
+        onComplete: vi.fn().mockReturnValue(() => {}),
       },
       lifecycle: {
         ready: vi.fn(),
@@ -309,6 +323,11 @@ describe('App — Regression', () => {
         listTables: vi.fn(),
         describeTable: vi.fn(),
         previewTable: vi.fn(),
+        onSourceUpdated: vi.fn().mockReturnValue(() => {}),
+      },
+      ingestion: {
+        onProgress: vi.fn().mockReturnValue(() => {}),
+        onComplete: vi.fn().mockReturnValue(() => {}),
       },
       lifecycle: {
         ready: vi.fn(),

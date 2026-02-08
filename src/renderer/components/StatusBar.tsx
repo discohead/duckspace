@@ -34,22 +34,21 @@ export const StatusBar: React.FC = () => {
 
   // T058: Show recovery banner when crash recovery was triggered
   useEffect(() => {
-    if (recoveryTriggered) {
-      setShowRecoveryBanner(true);
-      const timer = setTimeout(() => {
-        setShowRecoveryBanner(false);
-        // Clear the flag
-        void db.app_state.put({
-          id: 'recovery_triggered',
-          value: false,
-          updatedAt: new Date().toISOString(),
-        });
-      }, 8000);
-      return () => {
-        clearTimeout(timer);
-      };
-    }
-    return undefined;
+    if (!recoveryTriggered) return;
+
+    setShowRecoveryBanner(true);
+    const timer = setTimeout(() => {
+      setShowRecoveryBanner(false);
+      void db.app_state.put({
+        id: 'recovery_triggered',
+        value: false,
+        updatedAt: new Date().toISOString(),
+      });
+    }, 8000);
+
+    return () => {
+      clearTimeout(timer);
+    };
   }, [recoveryTriggered]);
 
   return (

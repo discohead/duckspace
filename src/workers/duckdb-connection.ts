@@ -1,3 +1,4 @@
+import os from 'node:os';
 import { type DuckDBConnection, DuckDBInstance } from '@duckdb/node-api';
 
 /** Configuration for initializing a DuckDB instance within the worker thread. */
@@ -42,6 +43,25 @@ export async function initDuckDB(config: DuckDBConfig): Promise<void> {
   // Load extensions
   for (const ext of config.extensions) {
     await connection.run(`LOAD ${ext}`);
+  }
+
+  // T055: Enforce constitution constraint of ≤ 50% RAM via explicit SET statement
+  const memoryLimitMB = Math.floor((os.totalmem() * 0.5) / 1024 / 1024);
+  await connection.run(`SET memory_limit = '${String(memoryLimitMB)}MB'`);
+  console.log(
+    `DuckDB memory limit set to ${String(memoryLimitMB)}MB (50% of ${String(Math.floor(os.totalmem() / 1024 / 1024))}MB system RAM)`,
+  );
+
+  // T010: Install and load the Excel extension for XLSX file support.
+  // Core extension — auto-loads after first install.
+  try {
+    await connection.run('INSTALL excel');
+    await connection.run('LOAD excel');
+  } catch (err) {
+    console.warn(
+      'Failed to load Excel extension (XLSX import will not work):',
+      err instanceof Error ? err.message : String(err),
+    );
   }
 
   // Install and load the Arrow community extension for to_arrow_ipc() support.

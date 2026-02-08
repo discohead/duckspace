@@ -2,6 +2,8 @@ import type {
   AppStateEntry,
   CatalogEntry,
   ColumnSchemaRecord,
+  DataSource,
+  IngestionJob,
   Preference,
   Query,
   Tab,
@@ -121,4 +123,46 @@ export function useColumnSchemas(catalogEntryId: string): ColumnSchemaRecord[] |
       db.column_schemas.where('catalogEntryId').equals(catalogEntryId).sortBy('ordinalPosition'),
     [catalogEntryId],
   );
+}
+
+/**
+ * Returns data sources from the catalog with optional filters.
+ * Reactively updates when data sources change in Dexie.js.
+ *
+ * @param filters - Optional filters for status, format, or tags.
+ * @returns An array of DataSource records, or undefined while loading.
+ */
+export function useCatalogSources(filters?: {
+  readonly status?: DataSource['status'];
+  readonly format?: DataSource['format'];
+}): DataSource[] | undefined {
+  return useLiveQuery(async () => {
+    let collection = db.data_sources.toCollection();
+    if (filters?.status) {
+      collection = db.data_sources.where('status').equals(filters.status);
+    }
+    const results = await collection.sortBy('createdAt');
+    if (filters?.format) {
+      return results.filter((s: DataSource) => s.format === filters.format);
+    }
+    return results;
+  }, [filters?.status, filters?.format]);
+}
+
+/**
+ * Returns ingestion jobs with optional status filter.
+ * Reactively updates when jobs change in Dexie.js.
+ *
+ * @param statusFilter - Optional filter for job status.
+ * @returns An array of IngestionJob records, or undefined while loading.
+ */
+export function useIngestionJobs(
+  statusFilter?: IngestionJob['status'],
+): IngestionJob[] | undefined {
+  return useLiveQuery(async () => {
+    if (statusFilter) {
+      return db.ingestion_jobs.where('status').equals(statusFilter).reverse().sortBy('startedAt');
+    }
+    return db.ingestion_jobs.orderBy('startedAt').reverse().toArray();
+  }, [statusFilter]);
 }

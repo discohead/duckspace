@@ -1,0 +1,5 @@
+{"id": 1, "event": "click", "timestamp": "2024-01-15T10:30:00Z", "value": 1.5}
+{"id": 2, "event": "view", "timestamp": "2024-01-15T10:31:00Z", "value": 0.0}
+{"id": 3, "event": "click", "timestamp": "2024-01-15T10:32:00Z", "value": 2.3}
+{"id": 4, "event": "purchase", "timestamp": "2024-01-15T10:33:00Z", "value": 49.99}
+{"id": 5, "event": "view", "timestamp": "2024-01-15T10:34:00Z", "value": 0.0}

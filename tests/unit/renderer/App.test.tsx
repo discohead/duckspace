@@ -12,6 +12,8 @@ vi.mock('@renderer/stores/hooks', () => ({
   usePreference: vi.fn(() => undefined),
   useCatalogEntries: vi.fn(() => undefined),
   useColumnSchemas: vi.fn(() => undefined),
+  useCatalogSources: vi.fn(() => undefined),
+  useIngestionJobs: vi.fn(() => undefined),
 }));
 
 vi.mock('@renderer/stores/db', () => ({
@@ -47,12 +49,33 @@ vi.mock('@renderer/components/ResultGrid', () => ({
 vi.mock('@renderer/components/CatalogBrowser', () => ({
   CatalogBrowser: () => <div data-testid="catalog-browser">CatalogBrowser</div>,
 }));
+vi.mock('@renderer/components/CatalogSidebar', () => ({
+  CatalogSidebar: () => <div data-testid="catalog-sidebar">CatalogSidebar</div>,
+}));
+vi.mock('@renderer/components/IngestionProgress', () => ({
+  IngestionProgress: () => null,
+}));
 
 import { App } from '@renderer/App';
+
+const noop = () => () => {};
 
 describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock ingestion/catalog/watch push event listeners
+    window.datspace = {
+      ...window.datspace,
+      ingestion: {
+        ...(window.datspace?.ingestion ?? {}),
+        onProgress: noop,
+        onComplete: noop,
+      },
+      catalog: {
+        ...(window.datspace?.catalog ?? {}),
+        onSourceUpdated: noop,
+      },
+    } as any;
   });
 
   it('renders TabBar always', () => {

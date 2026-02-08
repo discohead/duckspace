@@ -27,6 +27,7 @@ function buildWorkerPlugin() {
             external: [
               '@duckdb/node-api',
               'worker_threads',
+              /^node:/,
             ],
           },
         },

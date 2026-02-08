@@ -3,7 +3,7 @@ import { MessageChannel as NodeMessageChannel, type Worker } from 'node:worker_t
 import { IPC_CHANNELS, PUSH_EVENTS, TIMEOUTS } from '@shared/constants';
 import { DatspaceConfigSchema } from '@shared/schemas/config-schema';
 import type { AppState } from '@shared/types';
-import { app, type BrowserWindow, ipcMain, MessageChannelMain } from 'electron';
+import { app, type BrowserWindow, dialog, ipcMain, MessageChannelMain } from 'electron';
 import { computeMemoryLimit, getConfig, setConfigValue } from './config';
 import type { QueryRouter } from './query-router';
 import type { WorkerManager } from './worker-manager';
@@ -14,6 +14,7 @@ let mainWindow: BrowserWindow | null = null;
 let shutdownAckResolve: (() => void) | null = null;
 let rendererReadyResolve: (() => void) | null = null;
 let handlersRegistered = false;
+let ingestionRouterReady = false;
 
 /**
  * Sets the QueryRouter reference used by IPC handlers.
@@ -31,6 +32,13 @@ export function setQueryRouter(router: QueryRouter): void {
  */
 export function setWorkerManager(manager: WorkerManager): void {
   workerManager = manager;
+}
+
+/**
+ * Signals that the ingestion router is initialized and ready for IPC requests.
+ */
+export function setIngestionReady(): void {
+  ingestionRouterReady = true;
 }
 
 /**
@@ -258,6 +266,136 @@ export function registerIPCHandlers(): void {
   // eslint-disable-next-line @typescript-eslint/require-await
   ipcMain.handle(IPC_CHANNELS.CONFIG_GET_ALL, async () => {
     return getConfig();
+  });
+
+  // === Ingestion Channels ===
+  ipcMain.handle(
+    IPC_CHANNELS.INGESTION_IMPORT_FILES,
+    wrapIPCHandler(
+      IPC_CHANNELS.INGESTION_IMPORT_FILES,
+      async (_event: unknown, args: { filePaths: readonly string[]; trigger: string }) => {
+        if (!ingestionRouterReady) throw new Error('Ingestion router not initialized');
+        // Lazy import to avoid circular dependency
+        const { importFiles } = await import('./ingestion/ingestion-router');
+
+        let filePaths = [...args.filePaths];
+
+        // If no paths provided, show native file dialog (file_picker trigger)
+        if (filePaths.length === 0) {
+          const result = await dialog.showOpenDialog({
+            properties: ['openFile', 'multiSelections'],
+            filters: [
+              {
+                name: 'Data Files',
+                extensions: [
+                  'csv',
+                  'tsv',
+                  'parquet',
+                  'json',
+                  'jsonl',
+                  'ndjson',
+                  'xlsx',
+                  'xls',
+                  'arrow',
+                  'ipc',
+                  'feather',
+                ],
+              },
+            ],
+          });
+          if (result.canceled || result.filePaths.length === 0) {
+            return { jobs: [] };
+          }
+          filePaths = result.filePaths;
+        }
+
+        return importFiles(
+          filePaths,
+          args.trigger as 'file_picker' | 'drag_and_drop' | 'watch_directory' | 'retry',
+        );
+      },
+    ),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.INGESTION_CANCEL_JOB,
+    wrapIPCHandler(
+      IPC_CHANNELS.INGESTION_CANCEL_JOB,
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async (_event: unknown, args: { jobId: string }) => {
+        const { cancelJob } = await import('./ingestion/ingestion-router');
+        const cancelled = cancelJob(args.jobId);
+        return { jobId: args.jobId, cancelled };
+      },
+    ),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.INGESTION_GET_PROGRESS,
+    wrapIPCHandler(
+      IPC_CHANNELS.INGESTION_GET_PROGRESS,
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async (_event: unknown, args: { jobId: string }) => {
+        const { getProgressTracker } = await import('./ingestion/ingestion-router');
+        const tracker = getProgressTracker();
+        const state = tracker.getJobState(args.jobId);
+        if (!state) {
+          return { jobId: args.jobId, status: 'not_found' };
+        }
+        const estimate = tracker.estimateCompletion(args.jobId);
+        return {
+          jobId: args.jobId,
+          status: state.status,
+          rowsProcessed: state.rowsProcessed,
+          bytesProcessed: state.bytesProcessed,
+          percentage: estimate?.percentage,
+          estimatedTotalRows: estimate?.estimatedTotalRows,
+          elapsedMs: estimate?.elapsedMs,
+        };
+      },
+    ),
+  );
+
+  // === Catalog Extended Channels ===
+  // Placeholder handlers for Phase 5-7 features (getSources, removeSource, updateSource, getColumnStats)
+  // These will be fully implemented when their respective user stories are built.
+  // For now, register them to prevent "No handler registered" errors.
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  ipcMain.handle(IPC_CHANNELS.CATALOG_GET_SOURCES, async () => {
+    return { sources: [] };
+  });
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  ipcMain.handle(IPC_CHANNELS.CATALOG_REMOVE_SOURCE, async () => {
+    return { success: false, message: 'Not yet implemented' };
+  });
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  ipcMain.handle(IPC_CHANNELS.CATALOG_UPDATE_SOURCE, async () => {
+    return { success: false, message: 'Not yet implemented' };
+  });
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  ipcMain.handle(IPC_CHANNELS.CATALOG_GET_COLUMN_STATS, async () => {
+    return { columns: [] };
+  });
+
+  // === Watch Channels (placeholders for US4) ===
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  ipcMain.handle(IPC_CHANNELS.WATCH_ADD_DIRECTORY, async () => {
+    return { success: false, message: 'Not yet implemented' };
+  });
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  ipcMain.handle(IPC_CHANNELS.WATCH_REMOVE_DIRECTORY, async () => {
+    return { success: false, message: 'Not yet implemented' };
+  });
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  ipcMain.handle(IPC_CHANNELS.WATCH_LIST_DIRECTORIES, async () => {
+    return { directories: [] };
   });
 
   handlersRegistered = true;

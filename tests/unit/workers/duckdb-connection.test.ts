@@ -162,15 +162,16 @@ describe('duckdb-connection', () => {
       expect(setExtDir).toBeUndefined();
     });
 
-    it('loads only the Arrow extension with empty user extensions array', async () => {
+    it('loads excel and arrow extensions with empty user extensions array', async () => {
       const config = { ...baseConfig(), extensions: [] };
       await mod.initDuckDB(config);
 
       const runCalls = mockRun.mock.calls.map((c: any[]) => c[0] as string);
       const loadCalls = runCalls.filter((sql: string) => sql.startsWith('LOAD '));
-      // Arrow extension is always installed/loaded even with no user extensions
-      expect(loadCalls).toHaveLength(1);
-      expect(loadCalls[0]).toBe('LOAD arrow');
+      // Excel and Arrow extensions are always installed/loaded even with no user extensions
+      expect(loadCalls).toHaveLength(2);
+      expect(loadCalls).toContain('LOAD excel');
+      expect(loadCalls).toContain('LOAD arrow');
     });
   });
 

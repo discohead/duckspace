@@ -8,6 +8,7 @@ const typeIcons: Record<Tab['type'], string> = {
   query: 'Q',
   catalog: 'C',
   settings: 'S',
+  data_grid: 'D',
 };
 
 /** Display labels for the new-tab dropdown menu. */
@@ -15,6 +16,7 @@ const tabTypeLabels: Record<Tab['type'], string> = {
   query: 'New Query',
   catalog: 'Catalog Browser',
   settings: 'Settings',
+  data_grid: 'Data Grid',
 };
 
 /**
@@ -27,6 +29,8 @@ export function TabBar(): React.JSX.Element {
   const tabs = useTabs();
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  // QA-018: Refs for roving tabindex arrow key navigation
+  const tabRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -81,12 +85,53 @@ export function TabBar(): React.JSX.Element {
     });
   };
 
+  // QA-018: Arrow key navigation for WAI-ARIA Tabs pattern
+  const handleTablistKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!tabs || tabs.length === 0) return;
+
+      const tabIds = tabs.map((t) => t.id);
+      const focusedEl = document.activeElement;
+      // Find current focused tab index
+      let currentIdx = -1;
+      for (let i = 0; i < tabIds.length; i++) {
+        const id = tabIds[i];
+        if (id && tabRefs.current.get(id) === focusedEl) {
+          currentIdx = i;
+          break;
+        }
+      }
+      if (currentIdx === -1) return;
+
+      let nextIdx: number | undefined;
+      if (e.key === 'ArrowRight') {
+        nextIdx = currentIdx < tabs.length - 1 ? currentIdx + 1 : 0;
+      } else if (e.key === 'ArrowLeft') {
+        nextIdx = currentIdx > 0 ? currentIdx - 1 : tabs.length - 1;
+      } else if (e.key === 'Home') {
+        nextIdx = 0;
+      } else if (e.key === 'End') {
+        nextIdx = tabs.length - 1;
+      }
+
+      if (nextIdx !== undefined) {
+        e.preventDefault();
+        const nextId = tabIds[nextIdx];
+        if (nextId) {
+          tabRefs.current.get(nextId)?.focus();
+        }
+      }
+    },
+    [tabs],
+  );
+
   /** Generate a title for a new tab of the given type. */
   const generateTitle = useCallback((type: Tab['type'], currentTabs: Tab[]): string => {
     if (type === 'query') {
       return `Query ${currentTabs.filter((t) => t.type === 'query').length + 1}`;
     }
     if (type === 'catalog') return 'Catalog';
+    if (type === 'data_grid') return 'Data Grid';
     return 'Settings';
   }, []);
 
@@ -107,6 +152,8 @@ export function TabBar(): React.JSX.Element {
           return { ...base, type: 'catalog', state: {} };
         case 'settings':
           return { ...base, type: 'settings', state: {} };
+        case 'data_grid':
+          return { ...base, type: 'data_grid', state: { dataSourceId: '', tableName: '' } };
       }
     },
     [generateTitle],
@@ -129,6 +176,7 @@ export function TabBar(): React.JSX.Element {
       className="drag-region"
       role="tablist"
       aria-label="Open tabs"
+      onKeyDown={handleTablistKeyDown}
       style={{
         display: 'flex',
         flexDirection: 'row',
@@ -143,8 +191,15 @@ export function TabBar(): React.JSX.Element {
       {tabs?.map((tab) => (
         <div
           key={tab.id}
+          ref={(el) => {
+            if (el) {
+              tabRefs.current.set(tab.id, el);
+            } else {
+              tabRefs.current.delete(tab.id);
+            }
+          }}
           role="tab"
-          tabIndex={0}
+          tabIndex={tab.active ? 0 : -1}
           aria-selected={tab.active}
           className="no-drag"
           onClick={() => {
