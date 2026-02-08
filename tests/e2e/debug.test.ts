@@ -4,8 +4,9 @@ test('debug: query execution pipeline', async ({ page }) => {
   // Wait for DuckDB ready
   await expect(page.getByText('DuckDB: ready')).toBeVisible({ timeout: 15_000 });
 
-  // Create a query tab
-  await page.getByRole('button', { name: '+' }).click();
+  // Create a query tab via dropdown
+  await page.getByRole('button', { name: 'New tab' }).click();
+  await page.getByRole('menuitem', { name: 'New Query' }).click();
   await expect(page.getByPlaceholder('Enter SQL query...')).toBeVisible();
 
   // Capture console messages

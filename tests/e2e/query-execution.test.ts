@@ -1,5 +1,11 @@
 import { expect, test } from './fixtures/electron-app';
 
+/** Open the "New tab" dropdown and click the "New Query" menu item. */
+async function createQueryTab(page: import('@playwright/test').Page): Promise<void> {
+  await page.getByRole('button', { name: 'New tab' }).click();
+  await page.getByRole('menuitem', { name: 'New Query' }).click();
+}
+
 test.describe('Query Execution', () => {
   test.beforeEach(async ({ page }) => {
     await expect(page.getByText('DuckDB: ready')).toBeVisible({ timeout: 15_000 });
@@ -7,7 +13,7 @@ test.describe('Query Execution', () => {
     // Ensure a clean query tab exists
     const tabCount = await page.getByRole('tab').count();
     if (tabCount === 0) {
-      await page.getByRole('button', { name: '+' }).click();
+      await createQueryTab(page);
     }
 
     // Clear any existing SQL
