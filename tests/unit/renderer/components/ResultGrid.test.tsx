@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Polyfill ResizeObserver for jsdom
@@ -32,6 +32,21 @@ vi.mock('@renderer/lib/arrow-decode', () => ({
 
 import { ResultGrid } from '@renderer/components/ResultGrid';
 
+/**
+ * Dispatches a `datspace:arrow-batch` event to populate the component's batches state.
+ * Must be wrapped in `act()` to flush React state updates.
+ */
+function dispatchBatch(queryId: string, buffer = new ArrayBuffer(64)): void {
+  window.dispatchEvent(
+    new CustomEvent('datspace:arrow-batch', {
+      detail: {
+        queryId,
+        batch: { buffer, index: 0, rowCount: 0, byteSize: buffer.byteLength, isLast: false },
+      },
+    }),
+  );
+}
+
 describe('ResultGrid', () => {
   beforeEach(() => {
     mockMergeBatchesReturn.current = null;
@@ -43,7 +58,12 @@ describe('ResultGrid', () => {
     expect(screen.getByText('Execute a query to see results')).toBeDefined();
   });
 
-  it('shows table when merged data is available', () => {
+  it('renders empty state when queryId is set but no batches received', () => {
+    render(<ResultGrid queryId="q-1" />);
+    expect(screen.getByText('Execute a query to see results')).toBeDefined();
+  });
+
+  it('shows table when arrow batch events arrive', () => {
     mockMergeBatchesReturn.current = {
       columns: ['id', 'name'],
       columnTypes: ['Int32', 'Utf8'],
@@ -60,6 +80,9 @@ describe('ResultGrid', () => {
       }),
     };
     render(<ResultGrid queryId="q-1" />);
+    act(() => {
+      dispatchBatch('q-1');
+    });
     // Column headers should be rendered
     expect(screen.getByText('id')).toBeDefined();
     expect(screen.getByText('name')).toBeDefined();
@@ -75,6 +98,9 @@ describe('ResultGrid', () => {
       getCell: vi.fn(),
     };
     render(<ResultGrid queryId="q-1" />);
+    act(() => {
+      dispatchBatch('q-1');
+    });
     expect(screen.getByText('Int32')).toBeDefined();
     expect(screen.getByText('Utf8')).toBeDefined();
   });
@@ -89,6 +115,9 @@ describe('ResultGrid', () => {
       getCell: vi.fn(),
     };
     render(<ResultGrid queryId="q-1" />);
+    act(() => {
+      dispatchBatch('q-1');
+    });
     expect(screen.getByText('3 rows')).toBeDefined();
   });
 
@@ -102,14 +131,10 @@ describe('ResultGrid', () => {
       getCell: vi.fn(),
     };
     render(<ResultGrid queryId="q-1" />);
+    act(() => {
+      dispatchBatch('q-1');
+    });
     expect(screen.getByText('1 row')).toBeDefined();
-  });
-
-  it('does not show table when no merged data and queryId is set', () => {
-    mockMergeBatchesReturn.current = null;
-    render(<ResultGrid queryId="q-1" />);
-    // queryId is set but no batches yet, so neither empty state nor table
-    expect(screen.queryByText('Execute a query to see results')).toBeNull();
   });
 
   it('renders NULL for null cell values', () => {
@@ -125,6 +150,9 @@ describe('ResultGrid', () => {
       }),
     };
     render(<ResultGrid queryId="q-1" />);
+    act(() => {
+      dispatchBatch('q-1');
+    });
     expect(screen.getByText('NULL')).toBeDefined();
   });
 
@@ -144,6 +172,9 @@ describe('ResultGrid', () => {
       }),
     };
     render(<ResultGrid queryId="q-1" />);
+    act(() => {
+      dispatchBatch('q-1');
+    });
     expect(screen.getByText('42')).toBeDefined();
     expect(screen.getByText('Alice')).toBeDefined();
   });
@@ -159,6 +190,9 @@ describe('ResultGrid', () => {
       getCell: vi.fn(() => 1),
     };
     render(<ResultGrid queryId="q-1" />);
+    act(() => {
+      dispatchBatch('q-1');
+    });
     const row = screen.getByText('1').closest('tr');
     if (row) {
       fireEvent.mouseEnter(row);

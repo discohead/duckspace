@@ -187,12 +187,13 @@ describe('QueryEditor — Regression', () => {
       onDataCallback!(mockBatch);
     });
 
-    // The dispatched event detail should have { queryId, batch }, not just batch
+    // The dispatched event detail should have { queryId: tabId, batch }
+    // QueryEditor dispatches activeTab.id (tab-scoped) as queryId for ResultGrid matching
     expect(capturedEvents.length).toBeGreaterThan(0);
     const detail = capturedEvents[0]!.detail;
     expect(detail).toHaveProperty('queryId');
     expect(detail).toHaveProperty('batch');
-    expect(detail.queryId).toBe('q-123');
+    expect(detail.queryId).toBe('tab-1');
     expect(detail.batch).toBe(mockBatch);
   });
 });
@@ -328,20 +329,38 @@ describe('App — Regression', () => {
     );
   });
 
-  // #6/#7: ResultGrid must receive a non-null queryId
-  it('passes activeTab.id as queryId to ResultGrid, not null (#6/#7)', () => {
+  // #6/#7: ResultGrid filters arrow-batch events by activeTab.id
+  it('ResultGrid receives activeTab.id as queryId and filters events (#6/#7)', () => {
+    mockMergeBatchesReturn.current = {
+      columns: ['x'],
+      columnTypes: ['Int32'],
+      rowCount: 1,
+      byteSize: 8,
+      getColumn: vi.fn(),
+      getCell: vi.fn(() => 99),
+    };
+
     render(<App />);
 
-    // The ResultGrid should NOT be showing "Execute a query to see results"
-    // when we have an active query tab (because queryId should be "tab-1", not null)
-    // If it IS showing "Execute a query...", that means queryId is null (the bug)
-    //
-    // NOTE: When queryId is set but no batches, ResultGrid shows neither
-    // the empty state nor data. When queryId is null AND no batches,
-    // it shows "Execute a query to see results".
-    //
-    // If the bug exists (queryId=null), the empty message appears.
-    // If fixed (queryId="tab-1"), the empty message does NOT appear.
-    expect(screen.queryByText('Execute a query to see results')).toBeNull();
+    // Dispatch a batch matching the activeTab.id ("tab-1")
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('datspace:arrow-batch', {
+          detail: {
+            queryId: 'tab-1',
+            batch: {
+              buffer: new ArrayBuffer(8),
+              index: 0,
+              rowCount: 1,
+              byteSize: 8,
+              isLast: false,
+            },
+          },
+        }),
+      );
+    });
+
+    // If queryId is correctly "tab-1", the batch is accepted and data renders
+    expect(screen.getByText('99')).toBeDefined();
   });
 });

@@ -3,13 +3,7 @@ import { MessageChannel as NodeMessageChannel, type Worker } from 'node:worker_t
 import { IPC_CHANNELS, PUSH_EVENTS, TIMEOUTS } from '@shared/constants';
 import { DatspaceConfigSchema } from '@shared/schemas/config-schema';
 import type { AppState } from '@shared/types';
-import {
-  app,
-  type BrowserWindow,
-  ipcMain,
-  MessageChannelMain,
-  type MessagePortMain,
-} from 'electron';
+import { app, type BrowserWindow, ipcMain, MessageChannelMain } from 'electron';
 import { computeMemoryLimit, getConfig, setConfigValue } from './config';
 import type { QueryRouter } from './query-router';
 import type { WorkerManager } from './worker-manager';
@@ -68,12 +62,21 @@ export function setupDataChannel(win: BrowserWindow, duckdbWorker: Worker): void
   const { port1: electronPort1, port2: electronPort2 } = new MessageChannelMain();
   win.webContents.postMessage(PUSH_EVENTS.PORT, { channel: 'duckdb-data' }, [electronPort2]);
 
-  // Bridge: relay data from Worker → Renderer with zero-copy transfer.
-  // Electron's MessagePortMain.postMessage supports ArrayBuffer in its transfer list
-  // at runtime, but the TypeScript types only declare MessagePortMain[].
+  // Bridge: relay data from Worker → Renderer.
+  // Two constraints:
+  //   1. Electron's MessagePortMain.postMessage does NOT support ArrayBuffer
+  //      in its transfer list (only MessagePortMain[]).
+  //   2. ArrayBuffers received via Node.js worker_threads transfer are not
+  //      properly structured-cloned across the Electron process boundary
+  //      (they arrive as 0-byte buffers in the renderer).
+  // Fix: explicitly copy the ArrayBuffer in the Main process so Electron's
+  // structured clone operates on a fresh, Main-context-owned buffer.
   workerChannel.port2.on('message', (data: Record<string, unknown>) => {
-    if (data['buffer'] instanceof ArrayBuffer) {
-      electronPort1.postMessage(data, [data['buffer']] as unknown as MessagePortMain[]);
+    const buf = data['buffer'];
+    if (buf instanceof ArrayBuffer && buf.byteLength > 0) {
+      const copy = new ArrayBuffer(buf.byteLength);
+      new Uint8Array(copy).set(new Uint8Array(buf));
+      electronPort1.postMessage({ ...data, buffer: copy });
     } else {
       electronPort1.postMessage(data);
     }

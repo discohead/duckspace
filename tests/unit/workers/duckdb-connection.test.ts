@@ -162,13 +162,15 @@ describe('duckdb-connection', () => {
       expect(setExtDir).toBeUndefined();
     });
 
-    it('loads extensions with empty array', async () => {
+    it('loads only the Arrow extension with empty user extensions array', async () => {
       const config = { ...baseConfig(), extensions: [] };
       await mod.initDuckDB(config);
 
       const runCalls = mockRun.mock.calls.map((c: any[]) => c[0] as string);
       const loadCalls = runCalls.filter((sql: string) => sql.startsWith('LOAD '));
-      expect(loadCalls).toHaveLength(0);
+      // Arrow extension is always installed/loaded even with no user extensions
+      expect(loadCalls).toHaveLength(1);
+      expect(loadCalls[0]).toBe('LOAD arrow');
     });
   });
 
@@ -199,16 +201,12 @@ describe('duckdb-connection', () => {
       await expect(mod.runIntegrityCheck()).rejects.toThrow('DuckDB not initialized');
     });
 
-    it('returns true when PRAGMA returns "ok"', async () => {
-      // Mock the integrity check result
-      mockRun.mockResolvedValueOnce({
-        getRows: vi.fn().mockResolvedValue([]),
-      });
+    it('returns true when SELECT 1 returns 1', async () => {
       await mod.initDuckDB(baseConfig());
 
-      // After init, setup the integrity check mock
+      // After init, setup the integrity check mock (SELECT 1 AS ok → [[1]])
       mockRun.mockResolvedValueOnce({
-        getRows: vi.fn().mockResolvedValue([['ok']]),
+        getRows: vi.fn().mockResolvedValue([[1]]),
       });
 
       const result = await mod.runIntegrityCheck();

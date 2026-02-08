@@ -89,11 +89,12 @@ describe('duckdb-worker — Regression', () => {
       const mockPort = { postMessage: vi.fn(), onmessage: null };
       await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
 
-      const ipcBuffer = new Uint8Array([1, 2, 3, 4]);
+      // DuckDB to_arrow_ipc returns DuckDBBlobValue objects with .bytes property
+      const blobValue = { bytes: new Uint8Array([1, 2, 3, 4]) };
       const run = vi
         .fn()
         .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([[ipcBuffer]]),
+          getRows: vi.fn().mockResolvedValue([[blobValue, false]]),
         })
         .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
       mockGetConnection.mockReturnValue({ run });
@@ -107,8 +108,88 @@ describe('duckdb-worker — Regression', () => {
       // Must have buffer property
       expect(batchCall?.[0]).toHaveProperty('buffer');
       expect(batchCall?.[0].buffer).toBeInstanceOf(ArrayBuffer);
+      expect(batchCall?.[0].buffer.byteLength).toBe(4);
       // Must NOT have __transferredBuffers
       expect(batchCall?.[0]).not.toHaveProperty('__transferredBuffers');
+    });
+  });
+
+  // C4: DuckDBBlobValue.bytes extraction — to_arrow_ipc returns DuckDBBlobValue, not Uint8Array
+  describe('DuckDBBlobValue blob extraction (C4)', () => {
+    it('extracts .bytes from DuckDBBlobValue and concatenates multi-row chunks', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      const mockPort = { postMessage: vi.fn(), onmessage: null };
+      await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
+
+      // Simulate to_arrow_ipc returning 2 rows: schema chunk + data chunk
+      // Each row is (chunk BLOB, done BOOLEAN) — column 0 is DuckDBBlobValue
+      const schemaBlob = { bytes: new Uint8Array([0xaa, 0xbb]) };
+      const dataBlob = { bytes: new Uint8Array([0xcc, 0xdd, 0xee]) };
+      const run = vi
+        .fn()
+        .mockResolvedValueOnce({
+          getRows: vi.fn().mockResolvedValue([
+            [schemaBlob, false],
+            [dataBlob, true],
+          ]),
+        })
+        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      mockGetConnection.mockReturnValue({ run });
+
+      await handler({ type: 'execute_query', queryId: 'q-blob', sql: 'SELECT 42' });
+
+      const batchCall = mockPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'arrow-batch',
+      );
+      expect(batchCall).toBeDefined();
+
+      const buffer = batchCall?.[0].buffer as ArrayBuffer;
+      expect(buffer).toBeInstanceOf(ArrayBuffer);
+      // Must contain concatenated bytes from both chunks (2 + 3 = 5 bytes)
+      expect(buffer.byteLength).toBe(5);
+      const view = new Uint8Array(buffer);
+      expect(view).toEqual(new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd, 0xee]));
+
+      // arrow-end should report correct total bytes
+      const endCall = mockPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'arrow-end',
+      );
+      expect(endCall).toBeDefined();
+      expect(endCall?.[0].totalBytes).toBe(5);
+    });
+
+    it('sends arrow-end with zero bytes when rows have no blob values', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      const mockPort = { postMessage: vi.fn(), onmessage: null };
+      await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
+
+      // Rows with no .bytes property — should produce 0-byte result
+      const run = vi
+        .fn()
+        .mockResolvedValueOnce({
+          getRows: vi.fn().mockResolvedValue([[null, true]]),
+        })
+        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      mockGetConnection.mockReturnValue({ run });
+
+      await handler({ type: 'execute_query', queryId: 'q-null', sql: 'SELECT 1' });
+
+      const batchCall = mockPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'arrow-batch',
+      );
+      // No arrow-batch should be sent for 0-byte result
+      expect(batchCall).toBeUndefined();
+
+      const endCall = mockPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'arrow-end',
+      );
+      expect(endCall).toBeDefined();
+      expect(endCall?.[0].totalBytes).toBe(0);
+      expect(endCall?.[0].totalBatches).toBe(0);
     });
   });
 

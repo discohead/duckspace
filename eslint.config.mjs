@@ -84,6 +84,18 @@ export default tseslint.config(
     extends: [tseslint.configs.disableTypeChecked],
   },
 
+  // Relaxed rules for e2e test infrastructure
+  {
+    files: ['tests/e2e/**/*.ts'],
+    rules: {
+      'no-empty-pattern': 'off',
+      '@typescript-eslint/consistent-type-definitions': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
+      'tsdoc/syntax': 'off',
+    },
+  },
+
   // Relaxed rules for test files
   {
     files: ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts'],

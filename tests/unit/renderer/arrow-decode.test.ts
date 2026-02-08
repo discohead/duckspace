@@ -1,16 +1,33 @@
 import { describe, expect, it, vi } from 'vitest';
 
-// Mock @uwdata/flechette
+// Mock @uwdata/flechette — field types must be DataType objects (not strings)
+// to match the real flechette library behavior.
+function mockTable(fields: { name: string; type: Record<string, unknown> }[]) {
+  const colData: Record<string, { toArray: () => unknown[]; at: (i: number) => unknown }> = {};
+  for (const f of fields) {
+    colData[f.name] = { toArray: () => [], at: () => null };
+  }
+  return {
+    schema: { fields },
+    numRows: 0,
+    getChild: (name: string) => colData[name] ?? null,
+    getChildAt: (index: number) => {
+      const keys = Object.keys(colData);
+      return colData[keys[index] ?? ''] ?? null;
+    },
+  };
+}
+
 vi.mock('@uwdata/flechette', () => ({
   tableFromIPC: vi.fn((_buffer: ArrayBuffer) => {
-    // Return a mock table with two columns
+    // Return a mock table with two columns using realistic DataType objects
     const columns = {
       id: { toArray: () => [1, 2, 3], at: (i: number) => [1, 2, 3][i] },
       name: { toArray: () => ['a', 'b', 'c'], at: (i: number) => ['a', 'b', 'c'][i] },
     };
     const fields = [
-      { name: 'id', type: 'Int32' },
-      { name: 'name', type: 'Utf8' },
+      { name: 'id', type: { typeId: 2, bitWidth: 32, signed: true } },
+      { name: 'name', type: { typeId: 5, offsets: Int32Array } },
     ];
     return {
       schema: { fields },
@@ -62,6 +79,23 @@ describe('decodeArrowBatch', () => {
     const batch = decodeArrowBatch(new ArrayBuffer(100));
     expect(batch).not.toBeNull();
     expect(batch!.getCell(0, 99)).toBeNull();
+  });
+
+  // Regression: flechette DataType objects must produce human-readable names, not [object Object]
+  it('extracts human-readable type names from DataType objects', async () => {
+    const { tableFromIPC } = await import('@uwdata/flechette');
+    vi.mocked(tableFromIPC).mockReturnValueOnce(
+      mockTable([
+        { name: 'a', type: { typeId: 2, bitWidth: 64, signed: false } },
+        { name: 'b', type: { typeId: 6 } },
+        { name: 'c', type: { typeId: 10 } },
+        { name: 'd', type: { typeId: 3, precision: 2 } },
+        { name: 'e', type: { typeId: 7 } },
+      ]) as unknown as ReturnType<typeof tableFromIPC>,
+    );
+    const batch = decodeArrowBatch(new ArrayBuffer(100));
+    expect(batch).not.toBeNull();
+    expect(batch!.columnTypes).toEqual(['UInt64', 'Bool', 'Timestamp', 'Float64', 'Decimal']);
   });
 
   // I10: returns null on corrupt buffer

@@ -44,6 +44,19 @@ export async function initDuckDB(config: DuckDBConfig): Promise<void> {
     await connection.run(`LOAD ${ext}`);
   }
 
+  // Install and load the Arrow community extension for to_arrow_ipc() support.
+  // Required by the data-plane pipeline to stream Arrow IPC buffers to the renderer.
+  // The extension is cached locally after first install (~/.duckdb/extensions/).
+  try {
+    await connection.run('INSTALL arrow FROM community');
+    await connection.run('LOAD arrow');
+  } catch (err) {
+    console.warn(
+      'Failed to load Arrow extension (query streaming will not work):',
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
   // Create system tables
   await createSystemTables();
 }
@@ -100,17 +113,20 @@ export function getConnection(): DuckDBConnection {
 }
 
 /**
- * Runs a DuckDB PRAGMA integrity_check on the database.
+ * Verifies the DuckDB database connection is functional.
  *
- * @returns True if the integrity check passes, false otherwise.
+ * Uses a simple connectivity check (SELECT 1) because the PRAGMA integrity_check
+ * function does not exist in the DuckDB Neo client (@duckdb/node-api).
+ *
+ * @returns True if the database responds correctly, false otherwise.
  * @throws {@link Error} If DuckDB has not been initialized.
  */
 export async function runIntegrityCheck(): Promise<boolean> {
   if (!connection) throw new Error('DuckDB not initialized');
   try {
-    const result = await connection.run('PRAGMA integrity_check');
+    const result = await connection.run('SELECT 1 AS ok');
     const rows = await result.getRows();
-    return rows[0]?.[0] === 'ok';
+    return rows[0]?.[0] === 1;
   } catch (err) {
     console.warn('Integrity check failed:', err instanceof Error ? err.message : String(err));
     return false;

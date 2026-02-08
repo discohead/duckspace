@@ -74,11 +74,24 @@ export function QueryEditor(): ReactElement {
   useEffect(() => {
     if (!queryId || !isExecuting) return;
 
+    const tabId = activeTab?.id;
     const unsubscribe = window.datspace.query.onData(queryId, (batch: ArrowBatch) => {
-      // Fire custom event so ResultGrid can listen
+      // Handle data-plane errors (e.g., SQL syntax errors)
+      if (batch.error) {
+        setError({ code: batch.error.code, message: batch.error.message });
+        setIsExecuting(false);
+        setQueryId(null);
+        void db.queries.update(queryId, {
+          status: 'failed',
+          completedAt: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // Fire custom event so ResultGrid can listen (uses tab ID for matching)
       window.dispatchEvent(
         new CustomEvent('datspace:arrow-batch', {
-          detail: { queryId, batch },
+          detail: { queryId: tabId, batch },
         }),
       );
 
@@ -94,7 +107,7 @@ export function QueryEditor(): ReactElement {
     });
 
     return unsubscribe;
-  }, [queryId, isExecuting]);
+  }, [queryId, isExecuting, activeTab?.id]);
 
   const handleExecute = useCallback(async () => {
     if (!activeTab || !sql.trim()) return;
@@ -102,6 +115,13 @@ export function QueryEditor(): ReactElement {
     setError(null);
     setStatus(null);
     setIsExecuting(true);
+
+    // Signal ResultGrid to clear previous results for this tab
+    window.dispatchEvent(
+      new CustomEvent('datspace:result-reset', {
+        detail: { tabId: activeTab.id },
+      }),
+    );
 
     try {
       const result = await window.datspace.query.execute(sql);

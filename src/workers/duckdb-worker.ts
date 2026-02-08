@@ -117,12 +117,28 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
       return;
     }
 
-    const firstRow = rows[0];
-    if (firstRow?.[0]) {
-      const ipcBuffer = firstRow[0] as unknown as Uint8Array;
-      // Copy to a new ArrayBuffer so we can transfer ownership
-      const buffer = new ArrayBuffer(ipcBuffer.byteLength);
-      new Uint8Array(buffer).set(ipcBuffer);
+    // DuckDB's to_arrow_ipc() returns rows of (chunk BLOB, done BOOLEAN).
+    // Each row's first column is a DuckDBBlobValue with a .bytes: Uint8Array
+    // property — NOT a raw Uint8Array. Concatenate all chunks into one buffer.
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    for (const row of rows) {
+      const val = row[0];
+      if (val && typeof val === 'object' && 'bytes' in val) {
+        const bytes = (val as { bytes: Uint8Array }).bytes;
+        chunks.push(bytes);
+        totalBytes += bytes.byteLength;
+      }
+    }
+
+    if (totalBytes > 0) {
+      const buffer = new ArrayBuffer(totalBytes);
+      const view = new Uint8Array(buffer);
+      let offset = 0;
+      for (const chunk of chunks) {
+        view.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
 
       sendDataPlaneTransfer(
         {

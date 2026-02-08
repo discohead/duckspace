@@ -217,13 +217,13 @@ describe('duckdb-worker', () => {
       const mockPort = { postMessage: vi.fn(), onmessage: null };
       await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
 
-      // Set up connection that returns IPC buffer
-      const ipcBuffer = new Uint8Array([1, 2, 3, 4]);
+      // Set up connection that returns IPC buffer as DuckDBBlobValue
+      const blobValue = { bytes: new Uint8Array([1, 2, 3, 4]) };
       const run = vi
         .fn()
-        // to_arrow_ipc query
+        // to_arrow_ipc query — returns DuckDBBlobValue with .bytes property
         .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([[ipcBuffer]]),
+          getRows: vi.fn().mockResolvedValue([[blobValue, false]]),
         })
         // query history insert (best effort)
         .mockResolvedValueOnce({

@@ -93,14 +93,14 @@ describe('IPC Handlers — Regression', () => {
     });
   });
 
-  // #2/#3: Arrow buffer transfer in bridge
-  describe('setupDataChannel buffer transfer (#2/#3)', () => {
+  // #2/#3: Arrow buffer relay in bridge (explicit copy for cross-context safety)
+  describe('setupDataChannel buffer relay (#2/#3)', () => {
     beforeEach(() => {
       workerPort2MessageHandler = null;
       vi.clearAllMocks();
     });
 
-    it('passes ArrayBuffer in transfer list when forwarding to renderer', () => {
+    it('copies ArrayBuffer when forwarding to renderer', () => {
       const mockWorker = { postMessage: vi.fn() } as any;
       const mockWindow = {
         webContents: { postMessage: vi.fn() },
@@ -111,6 +111,7 @@ describe('IPC Handlers — Regression', () => {
       // Simulate worker sending an Arrow batch with a buffer
       expect(workerPort2MessageHandler).not.toBeNull();
       const testBuffer = new ArrayBuffer(64);
+      new Uint8Array(testBuffer).fill(42);
       workerPort2MessageHandler!({
         type: 'arrow-batch',
         queryId: 'q1',
@@ -120,15 +121,20 @@ describe('IPC Handlers — Regression', () => {
         buffer: testBuffer,
       });
 
-      // electronPort1.postMessage should have been called with a transfer list
+      // electronPort1.postMessage should be called with a COPIED buffer
       expect(mockElectronPort1.postMessage).toHaveBeenCalledTimes(1);
-      const [data, transferList] = mockElectronPort1.postMessage.mock.calls[0]!;
-      expect(data).toHaveProperty('buffer');
-      expect(transferList).toBeInstanceOf(Array);
-      expect(transferList).toContain(testBuffer);
+      const [data] = mockElectronPort1.postMessage.mock.calls[0]!;
+      expect(data).toHaveProperty('type', 'arrow-batch');
+      expect(data).toHaveProperty('queryId', 'q1');
+      expect(data.buffer).toBeInstanceOf(ArrayBuffer);
+      expect(data.buffer.byteLength).toBe(64);
+      // Buffer should be a copy, not the original
+      expect(data.buffer).not.toBe(testBuffer);
+      // Content should match
+      expect(new Uint8Array(data.buffer)).toEqual(new Uint8Array(testBuffer));
     });
 
-    it('forwards buffer property directly, not __transferredBuffers', () => {
+    it('forwards non-buffer messages directly', () => {
       const mockWorker = { postMessage: vi.fn() } as any;
       const mockWindow = {
         webContents: { postMessage: vi.fn() },
@@ -136,19 +142,18 @@ describe('IPC Handlers — Regression', () => {
 
       setupDataChannel(mockWindow, mockWorker);
 
-      const testBuffer = new ArrayBuffer(32);
-      workerPort2MessageHandler!({
-        type: 'arrow-batch',
+      const endMsg = {
+        type: 'arrow-end',
         queryId: 'q1',
-        index: 0,
-        rowCount: 5,
-        byteSize: 32,
-        buffer: testBuffer,
-      });
+        totalBatches: 1,
+        totalRows: 10,
+        totalBytes: 64,
+        durationMs: 42,
+      };
+      workerPort2MessageHandler!(endMsg);
 
-      const [data] = mockElectronPort1.postMessage.mock.calls[0]!;
-      // The forwarded data should preserve the buffer property
-      expect(data.buffer).toBe(testBuffer);
+      expect(mockElectronPort1.postMessage).toHaveBeenCalledTimes(1);
+      expect(mockElectronPort1.postMessage).toHaveBeenCalledWith(endMsg);
     });
   });
 

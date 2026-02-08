@@ -25,14 +25,32 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
 
-  // Reset batches when queryId changes
+  // Reset batches when queryId (tab ID) changes (i.e., tab switch)
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset on queryId change
   useEffect(() => {
     setBatches([]);
     setScrollTop(0);
   }, [queryId]);
 
-  // Listen for Arrow batch events
+  // Reset batches when a new query is executed on this tab
+  useEffect(() => {
+    if (!queryId) return;
+
+    const handler = (event: Event): void => {
+      const detail = (event as CustomEvent<{ tabId: string }>).detail;
+      if (detail.tabId === queryId) {
+        setBatches([]);
+        setScrollTop(0);
+      }
+    };
+
+    window.addEventListener('datspace:result-reset', handler);
+    return () => {
+      window.removeEventListener('datspace:result-reset', handler);
+    };
+  }, [queryId]);
+
+  // Listen for Arrow batch events (filtered by tab ID passed as queryId prop)
   useEffect(() => {
     if (!queryId) return;
 
@@ -88,8 +106,8 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
   const topSpacerHeight = startRow * ROW_HEIGHT;
   const bottomSpacerHeight = merged ? Math.max(0, (merged.rowCount - endRow) * ROW_HEIGHT) : 0;
 
-  // Empty state
-  if (!queryId && batches.length === 0) {
+  // Empty state — show when no result batches have been received
+  if (batches.length === 0) {
     return (
       <div
         style={{

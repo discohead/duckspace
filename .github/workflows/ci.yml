@@ -74,6 +74,33 @@ jobs:
       - run: npm ci
       - run: npm audit --audit-level=moderate || true
 
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Electron system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+            libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \
+            libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2
+      - name: Build E2E artifacts
+        run: npm run build:e2e
+      - name: Run E2E tests
+        run: xvfb-run --auto-servernum npx playwright test
+        env:
+          ELECTRON_RUN_AS_NODE: ''
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-test-results
+          path: test-results/e2e/
+
   mutation:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
