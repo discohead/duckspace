@@ -11,6 +11,8 @@ interface ResultGridProps {
 
 const ROW_HEIGHT = 28;
 const HEADER_HEIGHT = 32;
+/** Maximum number of per-tab result caches to keep in memory. */
+const MAX_CACHED_TABS = 20;
 
 /**
  * Virtualized data grid that displays Arrow IPC query results.
@@ -21,15 +23,83 @@ const HEADER_HEIGHT = 32;
  */
 export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
   const [batches, setBatches] = useState<DecodedBatch[]>([]);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
+  /** Distinguishes "no query run" from "query returned 0 rows". */
+  const [queryState, setQueryState] = useState<'idle' | 'executed'>('idle');
+  /** Status message for non-result statements (DDL/DML success). */
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  // Reset batches when queryId (tab ID) changes (i.e., tab switch)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset on queryId change
+  // QA-001: Callback ref for ResizeObserver — attaches when the container actually mounts
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
+
+  // QA-005: Cache decoded batches per tab ID
+  const batchCacheRef = useRef(new Map<string, DecodedBatch[]>());
+  const previousQueryIdRef = useRef<string | null>(null);
+
+  /** Callback ref that creates/destroys the ResizeObserver when the container mounts/unmounts. */
+  const setContainerRef = useCallback((node: HTMLDivElement | null) => {
+    // Disconnect old observer
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
+    }
+
+    containerRef.current = node;
+
+    if (node) {
+      const observer = new ResizeObserver((entries: ResizeObserverEntry[]) => {
+        for (const entry of entries) {
+          setContainerHeight(entry.contentRect.height);
+        }
+      });
+      observer.observe(node);
+      setContainerHeight(node.clientHeight);
+      observerRef.current = observer;
+    }
+  }, []);
+
+  // Clean up observer on unmount
   useEffect(() => {
-    setBatches([]);
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  // QA-005: Cache/restore batches on tab switch
+  // Cache current batches via ref so the tab-switch effect doesn't depend on batches state
+  const currentBatchesRef = useRef<DecodedBatch[]>([]);
+  currentBatchesRef.current = batches;
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only run on queryId change
+  useEffect(() => {
+    // Save current batches to cache for previous tab
+    if (previousQueryIdRef.current && currentBatchesRef.current.length > 0) {
+      batchCacheRef.current.set(previousQueryIdRef.current, currentBatchesRef.current);
+      // FIFO eviction when over limit
+      if (batchCacheRef.current.size > MAX_CACHED_TABS) {
+        const firstKey = batchCacheRef.current.keys().next().value;
+        if (firstKey !== undefined) {
+          batchCacheRef.current.delete(firstKey);
+        }
+      }
+    }
+
+    // Restore from cache or reset
+    const cached = queryId ? batchCacheRef.current.get(queryId) : undefined;
+    if (cached && cached.length > 0) {
+      setBatches(cached);
+      setQueryState('executed');
+    } else {
+      setBatches([]);
+      setQueryState('idle');
+    }
     setScrollTop(0);
+    setStatusMessage(null);
+    previousQueryIdRef.current = queryId;
   }, [queryId]);
 
   // Reset batches when a new query is executed on this tab
@@ -41,6 +111,10 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
       if (detail.tabId === queryId) {
         setBatches([]);
         setScrollTop(0);
+        setQueryState('executed');
+        setStatusMessage(null);
+        // Invalidate cache — new execution replaces old results
+        batchCacheRef.current.delete(detail.tabId);
       }
     };
 
@@ -58,7 +132,15 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
       const detail = (event as CustomEvent<{ queryId: string; batch: ArrowBatch }>).detail;
       if (detail.queryId !== queryId) return;
 
-      if (detail.batch.isLast || detail.batch.buffer.byteLength === 0) return;
+      // QA-006: Capture statusMessage from DDL/DML success on the final batch
+      if (detail.batch.isLast) {
+        if (detail.batch.statusMessage) {
+          setStatusMessage(detail.batch.statusMessage);
+        }
+        return;
+      }
+
+      if (detail.batch.buffer.byteLength === 0) return;
       const decoded = decodeArrowBatch(detail.batch.buffer);
       if (decoded) {
         setBatches((prev) => [...prev, decoded]);
@@ -70,25 +152,6 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
       window.removeEventListener('datspace:arrow-batch', handler);
     };
   }, [queryId]);
-
-  // Track container height for virtual scrolling
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const observer = new ResizeObserver((entries: ResizeObserverEntry[]) => {
-      for (const entry of entries) {
-        setContainerHeight(entry.contentRect.height);
-      }
-    });
-
-    observer.observe(container);
-    setContainerHeight(container.clientHeight);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
 
   const handleScroll = useCallback(() => {
     const container = containerRef.current;
@@ -108,6 +171,42 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
 
   // Empty state — show when no result batches have been received
   if (batches.length === 0) {
+    // QA-006: DDL/DML success message
+    if (statusMessage) {
+      return (
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: 'monospace',
+            fontSize: 13,
+            color: '#16a34a',
+          }}
+        >
+          {statusMessage}
+        </div>
+      );
+    }
+    // QA-006: Query executed but returned 0 rows
+    if (queryState === 'executed') {
+      return (
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: 'monospace',
+            fontSize: 13,
+            color: '#6b7280',
+          }}
+        >
+          Query returned 0 rows
+        </div>
+      );
+    }
     return (
       <div
         style={{
@@ -127,7 +226,7 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
 
   return (
     <div
-      ref={containerRef}
+      ref={setContainerRef}
       onScroll={handleScroll}
       style={{
         flex: 1,

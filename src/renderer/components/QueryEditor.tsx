@@ -55,6 +55,8 @@ export function QueryEditor(): ReactElement {
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const value = (e.target as HTMLTextAreaElement).value;
       setSql(value);
+      // QA-007: Clear stale error when user edits SQL
+      setError(null);
       debounceSaveSql(value);
     },
     [debounceSaveSql],
@@ -145,6 +147,17 @@ export function QueryEditor(): ReactElement {
     }
   }, [activeTab, sql]);
 
+  // QA-010: Cmd+Enter / Ctrl+Enter keyboard shortcut to execute query
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        void handleExecute();
+      }
+    },
+    [handleExecute],
+  );
+
   const handleCancel = useCallback(async () => {
     if (!queryId) return;
 
@@ -177,6 +190,7 @@ export function QueryEditor(): ReactElement {
       <textarea
         value={sql}
         onChange={handleSqlChange}
+        onKeyDown={handleKeyDown}
         placeholder="Enter SQL query..."
         style={{
           flex: 1,
@@ -217,7 +231,7 @@ export function QueryEditor(): ReactElement {
             opacity: isExecuting || !sql.trim() ? 0.6 : 1,
           }}
         >
-          Execute
+          {isExecuting ? 'Running...' : 'Execute'}
         </button>
 
         {isExecuting && (
