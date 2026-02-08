@@ -174,9 +174,6 @@ export function TabBar(): React.JSX.Element {
   return (
     <div
       className="drag-region"
-      role="tablist"
-      aria-label="Open tabs"
-      onKeyDown={handleTablistKeyDown}
       style={{
         display: 'flex',
         flexDirection: 'row',
@@ -185,81 +182,95 @@ export function TabBar(): React.JSX.Element {
         borderBottom: '1px solid #e5e7eb',
         paddingLeft: 76,
         height: 36,
-        overflowX: 'auto',
       }}
     >
-      {tabs?.map((tab) => (
-        <div
-          key={tab.id}
-          ref={(el) => {
-            if (el) {
-              tabRefs.current.set(tab.id, el);
-            } else {
-              tabRefs.current.delete(tab.id);
-            }
-          }}
-          role="tab"
-          tabIndex={tab.active ? 0 : -1}
-          aria-selected={tab.active}
-          className="no-drag"
-          onClick={() => {
-            void activateTab(tab.id);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
+      <div
+        role="tablist"
+        aria-label="Open tabs"
+        onKeyDown={handleTablistKeyDown}
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          flex: 1,
+          height: '100%',
+          overflowX: 'auto',
+          minWidth: 0,
+        }}
+      >
+        {tabs?.map((tab) => (
+          <div
+            key={tab.id}
+            ref={(el) => {
+              if (el) {
+                tabRefs.current.set(tab.id, el);
+              } else {
+                tabRefs.current.delete(tab.id);
+              }
+            }}
+            role="tab"
+            tabIndex={tab.active ? 0 : -1}
+            aria-selected={tab.active}
+            className="no-drag"
+            onClick={() => {
               void activateTab(tab.id);
-            }
-          }}
-          style={{
-            padding: '4px 12px',
-            cursor: 'pointer',
-            fontSize: 13,
-            border: 'none',
-            backgroundColor: tab.active ? 'white' : 'transparent',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            borderBottom: `2px solid ${tab.active ? '#3b82f6' : 'transparent'}`,
-            height: '100%',
-            fontWeight: tab.active ? 600 : 'normal',
-          }}
-        >
-          <span>{typeIcons[tab.type]}</span>
-          <span>{tab.title}</span>
-          <button
-            type="button"
-            aria-label={`Close ${tab.title}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              void closeTab(tab.id);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                void activateTab(tab.id);
+              }
             }}
             style={{
-              width: 16,
-              height: 16,
-              backgroundColor: 'transparent',
-              border: 'none',
+              padding: '4px 12px',
               cursor: 'pointer',
-              fontSize: 10,
-              opacity: 0.5,
+              fontSize: 13,
+              border: 'none',
+              backgroundColor: tab.active ? 'white' : 'transparent',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              padding: 0,
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.opacity = '1';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.opacity = '0.5';
+              gap: 6,
+              borderBottom: `2px solid ${tab.active ? '#3b82f6' : 'transparent'}`,
+              height: '100%',
+              fontWeight: tab.active ? 600 : 'normal',
             }}
           >
-            x
-          </button>
-        </div>
-      ))}
+            <span>{typeIcons[tab.type]}</span>
+            <span>{tab.title}</span>
+            <button
+              type="button"
+              aria-label={`Close ${tab.title}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                void closeTab(tab.id);
+              }}
+              style={{
+                width: 16,
+                height: 16,
+                backgroundColor: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 10,
+                opacity: 0.5,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.opacity = '1';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.opacity = '0.5';
+              }}
+            >
+              x
+            </button>
+          </div>
+        ))}
+      </div>
 
-      {/* New tab button with dropdown */}
+      {/* New tab button with dropdown — outside the scrollable tablist to avoid overflow clipping */}
       <div ref={menuRef} className="no-drag" style={{ position: 'relative' }}>
         <button
           type="button"
@@ -287,7 +298,7 @@ export function TabBar(): React.JSX.Element {
             style={{
               position: 'absolute',
               top: '100%',
-              left: 0,
+              right: 0,
               zIndex: 10,
               backgroundColor: 'white',
               border: '1px solid #e5e7eb',
