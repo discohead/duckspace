@@ -84,6 +84,8 @@ const { mockMergeBatchesReturn, mockDecodeArrowBatch } = vi.hoisted(() => ({
 vi.mock('@renderer/lib/arrow-decode', () => ({
   decodeArrowBatch: mockDecodeArrowBatch,
   mergeBatches: vi.fn(() => mockMergeBatchesReturn.current),
+  // eslint-disable-next-line @typescript-eslint/no-base-to-string -- test mock; real formatCellValue handles all types
+  formatCellValue: vi.fn((v: unknown) => (v === null || v === undefined ? 'NULL' : String(v))),
 }));
 
 // --------------------------------------------------------------------------

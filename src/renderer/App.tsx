@@ -10,6 +10,7 @@ import type { ReactElement } from 'react';
 import { useCallback, useEffect, useRef } from 'react';
 import { CatalogBrowser } from './components/CatalogBrowser';
 import { CatalogSidebar } from './components/CatalogSidebar';
+import { DataGrid } from './components/DataGrid';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { IngestionProgress } from './components/IngestionProgress';
 import { QueryEditor } from './components/QueryEditor';
@@ -223,11 +224,7 @@ export function App(): ReactElement {
       case 'catalog':
         return <CatalogBrowser />;
       case 'data_grid':
-        return (
-          <div style={styles.placeholder}>
-            <span style={styles.placeholderText}>Data Grid (coming in US2)</span>
-          </div>
-        );
+        return <DataGrid tabId={activeTab.id} tabState={activeTab.state} />;
       case 'settings':
         return (
           <div style={styles.placeholder}>
@@ -242,12 +239,16 @@ export function App(): ReactElement {
   return (
     <ErrorBoundary>
       <div style={styles.container}>
-        <TabBar />
+        <header>
+          <TabBar />
+        </header>
         <div style={styles.body}>
           <CatalogSidebar />
           <main style={styles.main}>{renderContent()}</main>
         </div>
-        <StatusBar />
+        <footer>
+          <StatusBar />
+        </footer>
         <IngestionProgress />
       </div>
     </ErrorBoundary>

@@ -176,6 +176,18 @@ describe('App', () => {
     expect(screen.getByText('Settings')).toBeDefined();
   });
 
+  it('renders TabBar inside a header landmark', () => {
+    render(<App />);
+    const tabBar = screen.getByTestId('tab-bar');
+    expect(tabBar.closest('header')).not.toBeNull();
+  });
+
+  it('renders StatusBar inside a footer landmark', () => {
+    render(<App />);
+    const statusBar = screen.getByTestId('status-bar');
+    expect(statusBar.closest('footer')).not.toBeNull();
+  });
+
   it('renders WelcomeView for unknown tab type', async () => {
     const hooks = await import('@renderer/stores/hooks');
     const unknownTab = {

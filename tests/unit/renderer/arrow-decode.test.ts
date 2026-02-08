@@ -41,7 +41,12 @@ vi.mock('@uwdata/flechette', () => ({
   }),
 }));
 
-import { type DecodedBatch, decodeArrowBatch, mergeBatches } from '@renderer/lib/arrow-decode';
+import {
+  type DecodedBatch,
+  decodeArrowBatch,
+  formatCellValue,
+  mergeBatches,
+} from '@renderer/lib/arrow-decode';
 
 describe('decodeArrowBatch', () => {
   it('decodes buffer into batch with correct metadata', () => {
@@ -113,6 +118,65 @@ describe('decodeArrowBatch', () => {
       expect.any(Error),
     );
     consoleSpy.mockRestore();
+  });
+});
+
+describe('formatCellValue', () => {
+  it('returns NULL for null', () => {
+    expect(formatCellValue(null, 'Int32')).toBe('NULL');
+  });
+
+  it('returns NULL for undefined', () => {
+    expect(formatCellValue(undefined, 'Utf8')).toBe('NULL');
+  });
+
+  it('formats Date type as YYYY-MM-DD', () => {
+    // 2020-01-15T00:00:00.000Z = 1579046400000 ms
+    expect(formatCellValue(1579046400000, 'Date')).toBe('2020-01-15');
+  });
+
+  it('formats Date type from bigint', () => {
+    expect(formatCellValue(1579046400000n, 'Date')).toBe('2020-01-15');
+  });
+
+  it('formats Timestamp as ISO datetime without T and Z', () => {
+    // 2020-01-15T13:30:00.000Z = 1579095000000 ms
+    expect(formatCellValue(1579095000000, 'Timestamp')).toBe('2020-01-15 13:30:00.000');
+  });
+
+  it('formats Timestamp from bigint', () => {
+    expect(formatCellValue(1579095000000n, 'Timestamp')).toBe('2020-01-15 13:30:00.000');
+  });
+
+  it('formats Time as HH:MM:SS from microseconds', () => {
+    // 13:30:00 = 13*3600*1e6 + 30*60*1e6 = 48600000000 microseconds
+    expect(formatCellValue(48600000000, 'Time')).toBe('13:30:00');
+  });
+
+  it('formats Time from bigint microseconds', () => {
+    expect(formatCellValue(48600000000n, 'Time')).toBe('13:30:00');
+  });
+
+  it('handles bigint for non-temporal types', () => {
+    expect(formatCellValue(9007199254740993n, 'Int64')).toBe('9007199254740993');
+  });
+
+  it('uses String() for regular values', () => {
+    expect(formatCellValue(42, 'Int32')).toBe('42');
+    expect(formatCellValue('hello', 'Utf8')).toBe('hello');
+    expect(formatCellValue(true, 'Bool')).toBe('true');
+  });
+
+  it('returns string for non-number Date values', () => {
+    expect(formatCellValue('not-a-number', 'Date')).toBe('not-a-number');
+  });
+
+  it('returns string for non-number Time values', () => {
+    expect(formatCellValue('not-a-number', 'Time')).toBe('not-a-number');
+  });
+
+  it('falls back to String() for empty type name', () => {
+    expect(formatCellValue(123, '')).toBe('123');
   });
 });
 

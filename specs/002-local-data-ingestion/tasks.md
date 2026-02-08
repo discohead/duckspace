@@ -77,10 +77,10 @@
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Create DataGrid.tsx in src/renderer/components/ wrapping `@finos/perspective-react` `<PerspectiveViewer>`: configure `perspective-viewer-datagrid` plugin, accept Arrow IPC `ArrayBuffer` prop, manage Perspective Worker and Table lifecycle (create on mount, delete on unmount), expose sort/filter configuration
-- [ ] T024 [US2] Implement Perspective table lifecycle and Arrow IPC integration in src/renderer/lib/perspective-bridge.ts (new file): create Perspective Web Worker, create Table from first Arrow IPC batch, append subsequent batches via `table.update()`, handle table deletion on tab close, manage per-tab Perspective Table instances
-- [ ] T025 [US2] Add Arrow IPC buffer routing in Renderer data-plane handler: when active tab is `data_grid` type, route incoming Arrow IPC batches to `perspective-bridge.ts` for Perspective table update; when active tab is `query` type, route to existing flechette decode pipeline; always send backpressure ACK
-- [ ] T026 [US2] Add `data_grid` tab type and wire catalog-to-grid flow: clicking a source in CatalogSidebar opens a new `data_grid` tab, triggers `SELECT * FROM "{tableName}"` query via existing data-plane pipeline, streams Arrow IPC to Perspective for rendering, support 1M row initial load with "Load more" affordance for larger tables
+- [x] T023 [US2] Create DataGrid.tsx in src/renderer/components/ wrapping `@finos/perspective-react` `<PerspectiveViewer>`: configure `perspective-viewer-datagrid` plugin, accept Arrow IPC `ArrayBuffer` prop, manage Perspective Worker and Table lifecycle (create on mount, delete on unmount), expose sort/filter configuration
+- [x] T024 [US2] Implement Perspective table lifecycle and Arrow IPC integration in src/renderer/lib/perspective-bridge.ts (new file): create Perspective Web Worker, create Table from first Arrow IPC batch, append subsequent batches via `table.update()`, handle table deletion on tab close, manage per-tab Perspective Table instances
+- [x] T025 [US2] Add Arrow IPC buffer routing in Renderer data-plane handler: when active tab is `data_grid` type, route incoming Arrow IPC batches to `perspective-bridge.ts` for Perspective table update; when active tab is `query` type, route to existing flechette decode pipeline; always send backpressure ACK
+- [x] T026 [US2] Add `data_grid` tab type and wire catalog-to-grid flow: clicking a source in CatalogSidebar opens a new `data_grid` tab, triggers `SELECT * FROM "{tableName}"` query via existing data-plane pipeline, streams Arrow IPC to Perspective for rendering, support 1M row initial load with "Load more" affordance for larger tables
 
 **Checkpoint**: Users can import files AND explore them in an interactive grid with sort/filter. Core MVP experience is complete.
 

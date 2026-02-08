@@ -1,7 +1,12 @@
 import type { ArrowBatch } from '@shared/types';
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { type DecodedBatch, decodeArrowBatch, mergeBatches } from '../lib/arrow-decode';
+import {
+  type DecodedBatch,
+  decodeArrowBatch,
+  formatCellValue,
+  mergeBatches,
+} from '../lib/arrow-decode';
 
 /** Props for the {@link ResultGrid} component. */
 interface ResultGridProps {
@@ -13,6 +18,21 @@ const ROW_HEIGHT = 28;
 const HEADER_HEIGHT = 32;
 /** Maximum number of per-tab result caches to keep in memory. */
 const MAX_CACHED_TABS = 20;
+
+/**
+ * Module-level batch cache that survives component mount/unmount cycles (QA-017).
+ * Maps tab/query ID to decoded Arrow batches.
+ */
+const batchCache = new Map<string, DecodedBatch[]>();
+
+/**
+ * Clears the module-level batch cache. Exported for test isolation only.
+ * @internal
+ */
+// biome-ignore lint/style/useNamingConvention: underscore prefix signals internal/test-only API
+export function _clearBatchCache(): void {
+  batchCache.clear();
+}
 
 /**
  * Virtualized data grid that displays Arrow IPC query results.
@@ -34,8 +54,6 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<ResizeObserver | null>(null);
 
-  // QA-005: Cache decoded batches per tab ID
-  const batchCacheRef = useRef(new Map<string, DecodedBatch[]>());
   const previousQueryIdRef = useRef<string | null>(null);
 
   /** Callback ref that creates/destroys the ResizeObserver when the container mounts/unmounts. */
@@ -74,22 +92,21 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
   const currentBatchesRef = useRef<DecodedBatch[]>([]);
   currentBatchesRef.current = batches;
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only run on queryId change
   useEffect(() => {
     // Save current batches to cache for previous tab
     if (previousQueryIdRef.current && currentBatchesRef.current.length > 0) {
-      batchCacheRef.current.set(previousQueryIdRef.current, currentBatchesRef.current);
+      batchCache.set(previousQueryIdRef.current, currentBatchesRef.current);
       // FIFO eviction when over limit
-      if (batchCacheRef.current.size > MAX_CACHED_TABS) {
-        const firstKey = batchCacheRef.current.keys().next().value;
+      if (batchCache.size > MAX_CACHED_TABS) {
+        const firstKey = batchCache.keys().next().value;
         if (firstKey !== undefined) {
-          batchCacheRef.current.delete(firstKey);
+          batchCache.delete(firstKey);
         }
       }
     }
 
     // Restore from cache or reset
-    const cached = queryId ? batchCacheRef.current.get(queryId) : undefined;
+    const cached = queryId ? batchCache.get(queryId) : undefined;
     if (cached && cached.length > 0) {
       setBatches(cached);
       setQueryState('executed');
@@ -114,7 +131,7 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
         setQueryState('executed');
         setStatusMessage(null);
         // Invalidate cache — new execution replaces old results
-        batchCacheRef.current.delete(detail.tabId);
+        batchCache.delete(detail.tabId);
       }
     };
 
@@ -316,8 +333,7 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
                             ...(isNull ? { color: '#9ca3af', fontStyle: 'italic' as const } : {}),
                           }}
                         >
-                          {/* eslint-disable-next-line @typescript-eslint/no-base-to-string */}
-                          {isNull ? 'NULL' : String(value)}
+                          {formatCellValue(value, merged.columnTypes[colIndex] ?? '')}
                         </td>
                       );
                     })}

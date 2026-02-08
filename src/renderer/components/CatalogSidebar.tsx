@@ -1,8 +1,9 @@
-import type { DataSource } from '@shared/types';
+import type { DataGridTab, DataSource } from '@shared/types';
 import type React from 'react';
 import type { ReactElement } from 'react';
 import { useCallback } from 'react';
-import { useCatalogSources } from '../stores/hooks';
+import { db } from '../stores/db';
+import { useCatalogSources, useTabs } from '../stores/hooks';
 import { ImportDialog } from './ImportDialog';
 
 /**
@@ -36,15 +37,56 @@ const FORMAT_LABELS: Record<DataSource['format'], string> = {
  * and formatted row count. Includes an import button for triggering file
  * ingestion and an empty state message when no sources have been imported.
  *
- * US2 will wire `handleSourceClick` to open a `data_grid` tab.
+ * Clicking an active source opens (or focuses) a `data_grid` tab for that source.
  */
 export function CatalogSidebar(): ReactElement {
   const sources = useCatalogSources();
+  const tabs = useTabs();
 
-  const handleSourceClick = useCallback((source: DataSource): void => {
-    // US2 will wire this to open a data_grid tab via the tab store
-    console.log('Source clicked:', source.name, source.duckdbTableName);
-  }, []);
+  const handleSourceClick = useCallback(
+    (source: DataSource): void => {
+      if (source.status !== 'active' || !source.duckdbTableName) return;
+
+      const tableName = source.duckdbTableName;
+
+      void (async () => {
+        // Check if a data_grid tab already exists for this source
+        const existingTab = tabs?.find(
+          (t): t is DataGridTab => t.type === 'data_grid' && t.state.dataSourceId === source.id,
+        );
+
+        if (existingTab) {
+          // Focus the existing tab
+          await db.transaction('rw', db.tabs, async () => {
+            await db.tabs.toCollection().modify({ active: false });
+            await db.tabs.update(existingTab.id, { active: true });
+          });
+          return;
+        }
+
+        // Create a new data_grid tab
+        const currentTabs = await db.tabs.toArray();
+        const maxOrder = currentTabs.reduce((max, t) => Math.max(max, t.order), -1);
+
+        await db.transaction('rw', db.tabs, async () => {
+          await db.tabs.toCollection().modify({ active: false });
+          await db.tabs.add({
+            id: crypto.randomUUID(),
+            type: 'data_grid',
+            order: maxOrder + 1,
+            title: source.name,
+            active: true,
+            state: {
+              dataSourceId: source.id,
+              tableName,
+            },
+            lastAccessedAt: new Date().toISOString(),
+          });
+        });
+      })();
+    },
+    [tabs],
+  );
 
   return (
     <aside style={styles.sidebar} aria-label="Data Sources">
