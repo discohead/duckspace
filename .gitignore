@@ -1,7 +1,45 @@
-.DS_Store
+# Dependencies
 node_modules/
+
+# Build output
 dist/
 build/
+out/
+.vite/
+
+# Electron Forge
+.webpack/
+
+# Logs
 *.log
+npm-debug.log*
+
+# Environment
 .env
 .env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Test
+coverage/
+test-results/
+playwright-report/
+
+# Mutation testing
+reports/
+
+# Package
+*.tgz
+
+# Electron verify screenshots (generated)
+.claude/verify-output/

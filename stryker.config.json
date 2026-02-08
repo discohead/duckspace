@@ -1,0 +1,32 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker/master/packages/core/schema/stryker-core.schema.json",
+  "packageManager": "npm",
+  "reporters": ["html", "clear-text", "progress"],
+  "htmlReporter": {
+    "fileName": "reports/mutation/index.html"
+  },
+  "testRunner": "vitest",
+  "checkers": ["typescript"],
+  "tsconfigFile": "tsconfig.stryker.json",
+  "ignoreStatic": true,
+  "mutator": {
+    "excludedMutations": ["StringLiteral", "ObjectLiteral"]
+  },
+  "incremental": true,
+  "incrementalFile": "reports/stryker-incremental.json",
+  "mutate": [
+    "src/shared/errors.ts",
+    "src/shared/schemas/config-schema.ts",
+    "src/renderer/lib/arrow-decode.ts",
+    "src/renderer/lib/backpressure.ts",
+    "src/main/config.ts",
+    "src/main/query-router.ts",
+    "src/workers/arrow-stream.ts",
+    "src/main/worker-manager.ts"
+  ],
+  "thresholds": {
+    "high": 90,
+    "low": 80,
+    "break": 90
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "browser": {
+    "browserName": "electron",
+    "launchOptions": {
+      "executablePath": "/Users/jaredmcfarland/Developer/datspace/node_modules/.bin/electron",
+      "args": ["main-entry.js"],
+      "cwd": "/Users/jaredmcfarland/Developer/datspace/.vite/build"
+    }
+  }
+}

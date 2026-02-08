@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "You are about to finish your task. Check: did you run the Electron verify script (`node .claude/scripts/electron-verify.mjs`) and view the screenshot output after your most recent code changes?\n\nContext: $ARGUMENTS\n\nRules:\n- If you already ran verification AND viewed the screenshots after your last code edit, approve.\n- If you made code changes but haven't verified yet, block and explain that verification is needed.\n- If the task was purely non-code (docs, config discussion, planning), approve.\n\nReturn JSON: {\"decision\": \"approve\" or \"block\", \"reason\": \"explanation\"}"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"PostToolUse\", \"additionalContext\": \"Reminder: Run /verify after making UI-related changes to visually confirm your work.\"}}'"
+          }
+        ]
+      }
+    ]
+  }
+}

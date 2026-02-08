@@ -1,0 +1,40 @@
+{
+  "entry": ".",
+  "buildCommand": null,
+  "skipBuild": true,
+  "screenshotDir": ".claude/verify-output",
+  "windowWaitMs": 3000,
+  "defaultWidth": 1280,
+  "defaultHeight": 800,
+  "assertions": [
+    {
+      "name": "window-has-title",
+      "type": "title",
+      "expected": "Datspace"
+    },
+    {
+      "name": "root-mounted",
+      "type": "selector",
+      "selector": "#root",
+      "expectVisible": true
+    },
+    {
+      "name": "tab-bar-rendered",
+      "type": "selector",
+      "selector": ".drag-region",
+      "expectVisible": true
+    },
+    {
+      "name": "new-tab-button",
+      "type": "selector",
+      "selector": ".no-drag",
+      "expectVisible": true
+    }
+  ],
+  "screens": [
+    {
+      "name": "welcome",
+      "setup": null
+    }
+  ]
+}

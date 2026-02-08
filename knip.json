@@ -1,0 +1,26 @@
+{
+  "entry": [
+    "src/main-entry.ts",
+    "src/preload-entry.ts",
+    "src/workers/duckdb-worker.ts",
+    "src/shared/schemas/index.ts",
+    "src/shared/schemas/data-plane-schemas.ts",
+    "src/shared/schemas/worker-schemas.ts",
+    "src/shared/types.ts",
+    "src/shared/errors.ts",
+    "src/main/worker-manager.ts",
+    "vite.main.config.ts",
+    "vite.preload.config.ts",
+    "vite.renderer.config.ts",
+    "scripts/build-e2e.mjs"
+  ],
+  "project": ["src/**/*.ts", "src/**/*.tsx"],
+  "ignore": [
+    "src/**/*.d.ts"
+  ],
+  "ignoreDependencies": [
+    "@electron-forge/*",
+    "@testing-library/jest-dom",
+    "@testing-library/user-event"
+  ]
+}

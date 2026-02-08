@@ -1,0 +1,285 @@
+import type { ArrowBatch, QueryStatusEvent, Tab } from '@shared/types';
+import type { ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { db } from '../stores/db';
+import { useActiveTab } from '../stores/hooks';
+
+/**
+ * SQL query editor with execution controls and status display.
+ * Provides a textarea for SQL input, execute/cancel buttons, and inline error reporting.
+ * Debounce-saves SQL text to Dexie.js and streams Arrow IPC results via custom events.
+ */
+export function QueryEditor(): ReactElement {
+  const activeTab = useActiveTab();
+
+  const [sql, setSql] = useState('');
+  const [queryId, setQueryId] = useState<string | null>(null);
+  const [status, setStatus] = useState<QueryStatusEvent | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [error, setError] = useState<{ code: string; message: string } | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync SQL from active tab state when tab changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-sync on tab id/state change, not type
+  useEffect(() => {
+    if (activeTab?.type === 'query') {
+      const tabState = activeTab.state;
+      setSql(tabState.sql);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab?.id, activeTab?.state]);
+
+  // Debounce-save SQL to Dexie when local state changes
+  const debounceSaveSql = useCallback(
+    (value: string) => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        if (activeTab) {
+          void db.tabs.update(activeTab.id, {
+            'state.sql': value,
+          } as Partial<Tab>);
+        }
+      }, 250);
+    },
+    [activeTab?.id, activeTab], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  // Clean up debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
+  const handleSqlChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const value = (e.target as HTMLTextAreaElement).value;
+      setSql(value);
+      // QA-007: Clear stale error when user edits SQL
+      setError(null);
+      debounceSaveSql(value);
+    },
+    [debounceSaveSql],
+  );
+
+  // Subscribe to query status updates
+  useEffect(() => {
+    const unsubscribe = window.datspace.query.onStatus((statusEvent: QueryStatusEvent) => {
+      if (queryId && statusEvent.queryId === queryId) {
+        setStatus(statusEvent);
+      }
+    });
+    return unsubscribe;
+  }, [queryId]);
+
+  // Subscribe to query data when executing
+  useEffect(() => {
+    if (!queryId || !isExecuting) return;
+
+    const tabId = activeTab?.id;
+    const unsubscribe = window.datspace.query.onData(queryId, (batch: ArrowBatch) => {
+      // Handle data-plane errors (e.g., SQL syntax errors)
+      if (batch.error) {
+        setError({ code: batch.error.code, message: batch.error.message });
+        setIsExecuting(false);
+        setQueryId(null);
+        void db.queries.update(queryId, {
+          status: 'failed',
+          completedAt: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // Fire custom event so ResultGrid can listen (uses tab ID for matching)
+      window.dispatchEvent(
+        new CustomEvent('datspace:arrow-batch', {
+          detail: { queryId: tabId, batch },
+        }),
+      );
+
+      // When stream ends (last batch), update Dexie record
+      if (batch.isLast) {
+        setIsExecuting(false);
+        setQueryId(null);
+        void db.queries.update(queryId, {
+          status: 'completed',
+          completedAt: new Date().toISOString(),
+        });
+      }
+    });
+
+    return unsubscribe;
+  }, [queryId, isExecuting, activeTab?.id]);
+
+  const handleExecute = useCallback(async () => {
+    if (!activeTab || !sql.trim()) return;
+
+    setError(null);
+    setStatus(null);
+    setIsExecuting(true);
+
+    // Signal ResultGrid to clear previous results for this tab
+    window.dispatchEvent(
+      new CustomEvent('datspace:result-reset', {
+        detail: { tabId: activeTab.id },
+      }),
+    );
+
+    try {
+      const result = await window.datspace.query.execute(sql);
+      setQueryId(result.queryId);
+
+      // Create Dexie query record (T044)
+      await db.queries.add({
+        id: result.queryId,
+        tabId: activeTab.id,
+        sql,
+        status: 'running',
+        startedAt: new Date().toISOString(),
+      });
+    } catch (err: unknown) {
+      setIsExecuting(false);
+      const ipcError = err as { code?: string; message?: string };
+      setError({
+        code: ipcError.code ?? 'E9999',
+        message: ipcError.message ?? 'Unknown error executing query',
+      });
+    }
+  }, [activeTab, sql]);
+
+  // QA-010: Cmd+Enter / Ctrl+Enter keyboard shortcut to execute query
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        void handleExecute();
+      }
+    },
+    [handleExecute],
+  );
+
+  const handleCancel = useCallback(async () => {
+    if (!queryId) return;
+
+    try {
+      await window.datspace.query.cancel(queryId);
+      setIsExecuting(false);
+      await db.queries.update(queryId, {
+        status: 'cancelled',
+        completedAt: new Date().toISOString(),
+      });
+      setQueryId(null);
+    } catch (err: unknown) {
+      const ipcError = err as { code?: string; message?: string };
+      setError({
+        code: ipcError.code ?? 'E9999',
+        message: ipcError.message ?? 'Failed to cancel query',
+      });
+    }
+  }, [queryId]);
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        padding: 16,
+        gap: 12,
+      }}
+    >
+      <textarea
+        value={sql}
+        onChange={handleSqlChange}
+        onKeyDown={handleKeyDown}
+        placeholder="Enter SQL query..."
+        style={{
+          flex: 1,
+          minHeight: 120,
+          fontFamily: 'monospace',
+          fontSize: 14,
+          padding: 12,
+          border: '1px solid #d1d5db',
+          borderRadius: 6,
+          resize: 'vertical',
+        }}
+      />
+
+      {/* Toolbar row */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          gap: 8,
+          alignItems: 'center',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            void handleExecute();
+          }}
+          disabled={isExecuting || !sql.trim()}
+          style={{
+            padding: '6px 16px',
+            backgroundColor: '#3b82f6',
+            color: 'white',
+            border: 'none',
+            borderRadius: 4,
+            cursor: isExecuting || !sql.trim() ? 'not-allowed' : 'pointer',
+            fontSize: 13,
+            fontWeight: 600,
+            opacity: isExecuting || !sql.trim() ? 0.6 : 1,
+          }}
+        >
+          {isExecuting ? 'Running...' : 'Execute'}
+        </button>
+
+        {isExecuting && (
+          <button
+            type="button"
+            onClick={() => {
+              void handleCancel();
+            }}
+            style={{
+              padding: '6px 16px',
+              backgroundColor: '#ef4444',
+              color: 'white',
+              border: 'none',
+              borderRadius: 4,
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            Cancel
+          </button>
+        )}
+
+        {/* Status display */}
+        {status && (
+          <span style={{ fontSize: 12, color: '#6b7280' }}>
+            {status.phase} &mdash; {status.elapsedMs}ms
+            {status.batchesStreamed > 0 &&
+              ` | ${status.batchesStreamed} batch${status.batchesStreamed !== 1 ? 'es' : ''} streamed`}
+          </span>
+        )}
+      </div>
+
+      {/* Error panel */}
+      {error && (
+        <div
+          style={{
+            padding: 12,
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fca5a5',
+            borderRadius: 6,
+            color: '#b91c1c',
+            fontSize: 13,
+          }}
+        >
+          <strong>[{error.code}]</strong> {error.message}
+        </div>
+      )}
+    </div>
+  );
+}
