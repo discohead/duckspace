@@ -1,5 +1,11 @@
 import { expect, test } from './fixtures/electron-app';
 
+/** Open the "New tab" dropdown and click the "New Query" menu item. */
+async function createQueryTab(page: import('@playwright/test').Page): Promise<void> {
+  await page.getByRole('button', { name: 'New tab' }).click();
+  await page.getByRole('menuitem', { name: 'New Query' }).click();
+}
+
 test.describe('Tab Management', () => {
   test.beforeEach(async ({ page }) => {
     // Ensure worker is ready before interacting with tabs
@@ -20,7 +26,7 @@ test.describe('Tab Management', () => {
     await expect(page.getByRole('heading', { name: 'Datspace' })).toBeVisible();
 
     // Click + to create a new query tab
-    await page.getByRole('button', { name: '+' }).click();
+    await createQueryTab(page);
 
     // Tab appears with "Query 1" title
     await expect(page.getByRole('tab', { name: /Query 1/ })).toBeVisible();
@@ -36,7 +42,7 @@ test.describe('Tab Management', () => {
 
   test('close tab returns to WelcomeView', async ({ page }) => {
     // Create a tab
-    await page.getByRole('button', { name: '+' }).click();
+    await createQueryTab(page);
     await expect(page.getByRole('tab')).toHaveCount(1);
 
     // Close it
@@ -49,11 +55,11 @@ test.describe('Tab Management', () => {
 
   test('multiple tabs can be created and switched', async ({ page }) => {
     // Create first tab
-    await page.getByRole('button', { name: '+' }).click();
+    await createQueryTab(page);
     await expect(page.getByRole('tab')).toHaveCount(1);
 
     // Create second tab
-    await page.getByRole('button', { name: '+' }).click();
+    await createQueryTab(page);
     await expect(page.getByRole('tab')).toHaveCount(2);
 
     // Second tab is active (most recently created)
