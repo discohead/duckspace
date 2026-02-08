@@ -109,7 +109,9 @@ export const StatusBar: React.FC = () => {
       )}
 
       {/* Main status bar */}
-      <div
+      <output
+        aria-live="polite"
+        aria-label="Application status"
         style={{
           display: 'flex',
           flexDirection: 'row',
@@ -137,7 +139,7 @@ export const StatusBar: React.FC = () => {
           <span>DuckDB: {status ?? 'loading'}</span>
           {activeCount > 0 && <span style={{ marginLeft: '8px' }}>({activeCount} active)</span>}
         </div>
-      </div>
+      </output>
     </div>
   );
 };

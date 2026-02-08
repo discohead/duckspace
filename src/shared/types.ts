@@ -138,6 +138,8 @@ export interface StreamEndMessage {
   totalBytes: number;
   /** Query + transfer duration in milliseconds */
   durationMs: number;
+  /** Human-readable status for non-result statements (DDL/DML success) */
+  statusMessage?: string | undefined;
 }
 
 /** Error delivered on the data plane from DuckDB Worker to Renderer */
@@ -589,6 +591,8 @@ export interface ArrowBatch {
   isLast: boolean;
   /** Error details when batch represents a data-plane error */
   error?: { code: string; message: string } | undefined;
+  /** Human-readable status for non-result statements (DDL/DML success) */
+  statusMessage?: string | undefined;
 }
 
 /** Worker health status pushed from Main Process to Renderer */

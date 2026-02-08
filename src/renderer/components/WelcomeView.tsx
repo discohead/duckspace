@@ -21,6 +21,8 @@ export const WelcomeView: React.FC = () => {
         height: '100%',
         padding: 40,
         textAlign: 'center',
+        overflowY: 'auto' as const,
+        boxSizing: 'border-box' as const,
       }}
     >
       <h1

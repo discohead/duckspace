@@ -27,6 +27,23 @@ let dataPort: MessagePort | null = null;
 const activeQueries = new Map<string, { cancelled: boolean }>();
 let startTime = Date.now();
 
+/**
+ * SQL prefixes that must NOT be wrapped in `to_arrow_ipc()`.
+ * Covers DDL, DML (non-SELECT), and utility statements.
+ */
+const NON_SELECT_PREFIX =
+  /^\s*(CREATE|DROP|ALTER|INSERT|UPDATE|DELETE|COPY|EXPORT|IMPORT|SET|PRAGMA|ATTACH|DETACH|LOAD|INSTALL|BEGIN|COMMIT|ROLLBACK|VACUUM|CHECKPOINT)\b/i;
+
+/** Returns `true` when the SQL should be executed directly without Arrow IPC wrapping. */
+function isNonSelectStatement(sql: string): boolean {
+  return NON_SELECT_PREFIX.test(sql);
+}
+
+/** Strips the `SELECT * FROM to_arrow_ipc((...))` wrapper from DuckDB error messages. */
+function stripArrowIpcWrapper(message: string): string {
+  return message.replace(/SELECT \* FROM to_arrow_ipc\(\(/, '').replace(/\)\)\s*$/, '');
+}
+
 // Handle all incoming messages with Zod validation
 // eslint-disable-next-line @typescript-eslint/no-misused-promises
 port.on('message', async (msg: { type: string; [key: string]: unknown }) => {
@@ -89,12 +106,64 @@ port.on('message', async (msg: { type: string; [key: string]: unknown }) => {
   }
 });
 
+/** Execute a DDL/DML/utility statement directly (no Arrow IPC wrapping). */
+async function handleNonSelectQuery(
+  queryId: string,
+  sql: string,
+  params: unknown[] | undefined,
+  startMs: number,
+): Promise<void> {
+  const conn = getConnection();
+  await (params && params.length > 0 ? conn.run(sql, params as DuckDBValue[]) : conn.run(sql));
+
+  const executionTimeMs = Date.now() - startMs;
+
+  sendDataPlaneMessage({
+    type: 'arrow-end',
+    queryId,
+    totalBatches: 0,
+    totalRows: 0,
+    totalBytes: 0,
+    durationMs: executionTimeMs,
+    statusMessage: 'Statement executed successfully.',
+  });
+
+  // Record in query history (best effort)
+  try {
+    const escapedSql = sql.replace(/'/g, "''");
+    await conn.run(
+      `INSERT INTO _query_history (query_id, sql, execution_time_ms, row_count, status)
+       VALUES ('${queryId}', '${escapedSql}', ${executionTimeMs}, 0, 'success')`,
+    );
+  } catch (histErr) {
+    console.warn(
+      'Failed to insert query history (DDL):',
+      histErr instanceof Error ? histErr.message : String(histErr),
+    );
+  }
+
+  port.postMessage({
+    type: 'query_history_record',
+    queryId,
+    sql,
+    executionTimeMs,
+    rowCount: 0,
+    status: 'success',
+  });
+}
+
 async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
   const { queryId, sql, params } = req;
   activeQueries.set(queryId, { cancelled: false });
   const startMs = Date.now();
 
   try {
+    // QA-002: Execute DDL/DML/utility statements directly without Arrow IPC wrapping
+    if (isNonSelectStatement(sql)) {
+      await handleNonSelectQuery(queryId, sql, params, startMs);
+      return;
+    }
+
     const conn = getConnection();
     const queryState = activeQueries.get(queryId);
 
@@ -196,7 +265,9 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
       status: 'success',
     });
   } catch (error) {
-    const errMsg = error instanceof Error ? error.message : String(error);
+    const rawErrMsg = error instanceof Error ? error.message : String(error);
+    // QA-003: Strip to_arrow_ipc() wrapper from user-facing error messages
+    const errMsg = stripArrowIpcWrapper(rawErrMsg);
     sendDataPlaneMessage({
       type: 'arrow-error',
       queryId,

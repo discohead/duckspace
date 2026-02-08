@@ -72,6 +72,7 @@ ipcRenderer.on(PUSH_EVENTS.PORT, (event: IpcRendererEvent, payload: { channel: s
             rowCount: msg.totalRows,
             byteSize: msg.totalBytes,
             isLast: true,
+            statusMessage: msg.statusMessage,
           };
           for (const cb of callbacks) cb(batch);
         }
