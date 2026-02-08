@@ -43,7 +43,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       }
 
       const electronApp = await electron.launch({
-        args: [MAIN_ENTRY],
+        args: ['--no-sandbox', MAIN_ENTRY],
         env: {
           ...cleanEnv(),
           ELECTRON_RUN_AS_NODE: '', // Must be unset — Claude Code sets this to '1'
