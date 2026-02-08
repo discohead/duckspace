@@ -133,9 +133,15 @@ export function CatalogSidebar(): ReactElement {
               <div style={styles.sourceInfo}>
                 <span style={styles.sourceName}>{source.name}</span>
                 <span style={styles.sourceMeta}>
-                  {source.rowCount != null
-                    ? `${source.rowCount.toLocaleString()} rows`
-                    : 'Importing...'}
+                  {source.status === 'error'
+                    ? 'Import failed'
+                    : source.status === 'stale'
+                      ? 'Re-import needed'
+                      : source.status === 'importing'
+                        ? 'Importing...'
+                        : source.rowCount != null
+                          ? `${source.rowCount.toLocaleString()} rows`
+                          : '—'}
                 </span>
               </div>
               <span style={styles.formatBadge}>{FORMAT_LABELS[source.format]}</span>

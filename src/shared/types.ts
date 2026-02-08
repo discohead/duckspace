@@ -524,6 +524,8 @@ export interface GetColumnStatsRequest {
   readonly type: 'catalog:getColumnStats';
   /** The data source to compute statistics for */
   readonly dataSourceId: string;
+  /** DuckDB table name (fallback for restart recovery when in-memory map is cleared) */
+  readonly tableName?: string | undefined;
   /** Ignore cached stats and recompute. Default: false. */
   readonly forceRecompute?: boolean | undefined;
 }
@@ -1080,6 +1082,8 @@ export interface ColumnStatisticsRecord {
   readonly dataSourceId: string;
   /** Column name */
   readonly columnName: string;
+  /** DuckDB data type (e.g. 'INTEGER', 'VARCHAR', 'DECIMAL(10,2)') */
+  readonly columnType: string;
   /** Total rows in the table */
   readonly rowCount: number;
   /** Number of NULL values */
@@ -1300,7 +1304,11 @@ export interface CatalogNamespace {
    * @param forceRecompute - Ignore cached stats and recompute. Default: false.
    * @returns Column statistics with computation metadata.
    */
-  getColumnStats(dataSourceId: string, forceRecompute?: boolean): Promise<GetColumnStatsResponse>;
+  getColumnStats(
+    dataSourceId: string,
+    forceRecompute?: boolean,
+    tableName?: string,
+  ): Promise<GetColumnStatsResponse>;
 
   /**
    * Subscribe to data source status change events.

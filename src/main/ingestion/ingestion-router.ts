@@ -27,6 +27,12 @@ import { ProgressTracker } from './progress-tracker';
 /** Active table names in DuckDB, used for collision avoidance. */
 const registeredTableNames = new Set<string>();
 
+/** Maps dataSourceId to DuckDB table name for IPC handler lookup. */
+const dataSourceTableMap = new Map<string, string>();
+
+/** Maps jobId to dataSourceId for completion/error event routing. */
+const jobToDataSourceMap = new Map<string, string>();
+
 /** Progress tracker singleton. */
 const progressTracker = new ProgressTracker();
 
@@ -39,10 +45,46 @@ let mainWindow: BrowserWindow | null = null;
 /**
  * Sets the DuckDB worker reference for sending ingestion messages.
  *
+ * Also attaches a message listener to route ingestion-related worker
+ * messages (completion and errors) to the appropriate handlers.
+ *
  * @param w - The DuckDB worker thread.
  */
 export function setWorker(w: Worker): void {
   worker = w;
+
+  // Listen for ingestion-related messages from the worker.
+  // WorkerManager also listens on this worker but does not handle
+  // ingestion message types; this listener handles them.
+  w.on('message', (msg: Record<string, unknown>) => {
+    switch (msg['type']) {
+      case 'ingest_file_complete':
+        handleWorkerComplete(
+          msg as unknown as {
+            readonly jobId: string;
+            readonly tableName: string;
+            readonly rowCount: number;
+            readonly columnCount: number;
+            readonly columns: readonly {
+              readonly name: string;
+              readonly type: string;
+              readonly nullable: boolean;
+            }[];
+            readonly durationMs: number;
+            readonly skippedRows: number;
+          },
+        );
+        break;
+      case 'error': {
+        const message = typeof msg['message'] === 'string' ? msg['message'] : '';
+        const match = /^Ingestion failed for job ([^:]+): (.*)$/.exec(message);
+        if (match?.[1] !== undefined && match[2] !== undefined) {
+          handleWorkerError(match[1], match[2]);
+        }
+        break;
+      }
+    }
+  });
 }
 
 /**
@@ -113,6 +155,12 @@ export async function importFiles(
     const jobId = crypto.randomUUID();
     const dataSourceId = crypto.randomUUID();
     const now = new Date().toISOString();
+
+    // Track dataSourceId → tableName mapping for IPC handlers (e.g., getColumnStats)
+    dataSourceTableMap.set(dataSourceId, tableName);
+
+    // Track jobId → dataSourceId for completion/error event routing
+    jobToDataSourceMap.set(jobId, dataSourceId);
 
     // Start progress tracking
     progressTracker.startJob(jobId, fileSizeBytes);
@@ -235,9 +283,12 @@ export function handleWorkerComplete(msg: {
 }): void {
   progressTracker.completeJob(msg.jobId);
 
+  const dataSourceId = jobToDataSourceMap.get(msg.jobId);
+
   if (mainWindow !== null && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(PUSH_EVENTS.INGESTION_COMPLETE, {
       jobId: msg.jobId,
+      dataSourceId,
       status: 'completed',
       tableName: msg.tableName,
       rowCount: msg.rowCount,
@@ -257,9 +308,12 @@ export function handleWorkerComplete(msg: {
 export function handleWorkerError(jobId: string, errorMessage: string): void {
   progressTracker.failJob(jobId);
 
+  const dataSourceId = jobToDataSourceMap.get(jobId);
+
   if (mainWindow !== null && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(PUSH_EVENTS.INGESTION_COMPLETE, {
       jobId,
+      dataSourceId,
       status: 'failed',
       errorMessage,
     });
@@ -274,4 +328,93 @@ export function handleWorkerError(jobId: string, errorMessage: string): void {
  */
 export function cancelJob(jobId: string): boolean {
   return progressTracker.cancelJob(jobId);
+}
+
+/**
+ * Returns the DuckDB table name for a given data source ID.
+ *
+ * @param dataSourceId - The data source to look up.
+ * @returns The table name, or undefined if not found.
+ */
+export function getTableNameForSource(dataSourceId: string): string | undefined {
+  return dataSourceTableMap.get(dataSourceId);
+}
+
+/**
+ * Registers an external dataSourceId → tableName mapping.
+ * Used when the renderer provides a tableName that wasn't tracked during import
+ * (e.g., after app restart when the in-memory map was cleared).
+ *
+ * @param dataSourceId - The data source ID.
+ * @param tableName - The DuckDB table name.
+ */
+export function registerDataSourceTable(dataSourceId: string, tableName: string): void {
+  dataSourceTableMap.set(dataSourceId, tableName);
+}
+
+/** Shape of the compute_stats_complete Worker response. */
+interface ComputeStatsResult {
+  readonly tableName: string;
+  readonly columns: readonly {
+    readonly columnName: string;
+    readonly columnType: string;
+    readonly rowCount: number;
+    readonly nullCount: number;
+    readonly nullPercentage: number;
+    readonly distinctCount: number;
+    readonly min?: string | undefined;
+    readonly max?: string | undefined;
+    readonly mean?: number | undefined;
+    readonly median?: number | undefined;
+    readonly stddev?: number | undefined;
+    readonly q25?: number | undefined;
+    readonly q75?: number | undefined;
+    readonly topValues?: readonly { readonly value: string; readonly count: number }[] | undefined;
+  }[];
+  readonly durationMs: number;
+}
+
+/**
+ * Sends a `compute_stats` message to the Worker and returns the result.
+ *
+ * @param tableName - The DuckDB table to compute statistics for.
+ * @param topN - Top-N frequent values for categorical columns. Default: 10.
+ * @returns Column statistics from DuckDB SUMMARIZE.
+ * @throws Error if the Worker is not initialized or responds with an error.
+ */
+export function computeStats(tableName: string, topN?: number): Promise<ComputeStatsResult> {
+  if (worker === null) {
+    return Promise.reject(new Error('Worker not initialized'));
+  }
+
+  const w = worker;
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      w.removeListener('message', handler);
+      reject(new Error('Timeout waiting for compute_stats response'));
+    }, 60000); // 60s timeout for large tables
+
+    const handler = (msg: Record<string, unknown>): void => {
+      if (msg['type'] === 'compute_stats_complete' && msg['tableName'] === tableName) {
+        clearTimeout(timeout);
+        w.removeListener('message', handler);
+        resolve(msg as unknown as ComputeStatsResult);
+      } else if (msg['type'] === 'error') {
+        const errMsg = typeof msg['message'] === 'string' ? msg['message'] : 'Worker error';
+        if (errMsg.includes('Statistics computation failed') || errMsg.includes(tableName)) {
+          clearTimeout(timeout);
+          w.removeListener('message', handler);
+          reject(new Error(errMsg));
+        }
+      }
+    };
+
+    w.on('message', handler);
+    w.postMessage({
+      type: 'compute_stats',
+      tableName,
+      topN: topN ?? 10,
+    });
+  });
 }

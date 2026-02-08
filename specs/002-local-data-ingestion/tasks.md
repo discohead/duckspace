@@ -94,11 +94,11 @@
 
 ### Implementation for User Story 3
 
-- [ ] T027 [US3] Add `compute_stats` message handler to Worker dispatch in src/workers/duckdb-worker.ts: run `SUMMARIZE SELECT * FROM "{tableName}"` for base statistics, run `SELECT col, COUNT(*) FROM table GROUP BY col ORDER BY COUNT(*) DESC LIMIT N` for categorical top-N values, map SUMMARIZE output to `WorkerColumnStats` shape, report duration
-- [ ] T028 [US3] Register `catalog:getColumnStats` IPC handler in src/main/ipc-handlers.ts: route to Worker `compute_stats` message, transform Worker response to `GetColumnStatsResponse`, support `forceRecompute` flag to bypass cached stats
-- [ ] T029 [P] [US3] Add `useColumnStats(dataSourceId)` reactive Dexie hook to src/renderer/stores/hooks.ts: live query of `column_statistics` table filtered by `dataSourceId`, return loading/error/data states
-- [ ] T030 [US3] Create ColumnStats.tsx in src/renderer/components/: per-column statistics card showing data type badge, row count, null count + percentage bar, distinct value count, numeric stats (min/max/mean/median/stddev with formatting), categorical top-10 bar chart with value labels and counts, loading spinner during computation
-- [ ] T031 [US3] Create SourceDetail.tsx in src/renderer/components/: source metadata panel (name, file path, format, status, row count, column count, file size, timestamps), column list with ColumnStats integration, "Compute Stats" button triggering `catalog.getColumnStats()`, auto-compute on first view
+- [x] T027 [US3] Add `compute_stats` message handler to Worker dispatch in src/workers/duckdb-worker.ts: run `SUMMARIZE SELECT * FROM "{tableName}"` for base statistics, run `SELECT col, COUNT(*) FROM table GROUP BY col ORDER BY COUNT(*) DESC LIMIT N` for categorical top-N values, map SUMMARIZE output to `WorkerColumnStats` shape, report duration
+- [x] T028 [US3] Register `catalog:getColumnStats` IPC handler in src/main/ipc-handlers.ts: route to Worker `compute_stats` message, transform Worker response to `GetColumnStatsResponse`, support `forceRecompute` flag to bypass cached stats
+- [x] T029 [P] [US3] Add `useColumnStats(dataSourceId)` reactive Dexie hook to src/renderer/stores/hooks.ts: live query of `column_statistics` table filtered by `dataSourceId`, return loading/error/data states
+- [x] T030 [US3] Create ColumnStats.tsx in src/renderer/components/: per-column statistics card showing data type badge, row count, null count + percentage bar, distinct value count, numeric stats (min/max/mean/median/stddev with formatting), categorical top-10 bar chart with value labels and counts, loading spinner during computation
+- [x] T031 [US3] Create SourceDetail.tsx in src/renderer/components/: source metadata panel (name, file path, format, status, row count, column count, file size, timestamps), column list with ColumnStats integration, "Compute Stats" button triggering `catalog.getColumnStats()`, auto-compute on first view
 
 **Checkpoint**: Users can profile their data quality with per-column statistics.
 

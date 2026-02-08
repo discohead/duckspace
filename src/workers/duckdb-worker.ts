@@ -175,8 +175,8 @@ async function handleNonSelectQuery(
   try {
     const escapedSql = sql.replace(/'/g, "''");
     await conn.run(
-      `INSERT INTO _query_history (query_id, sql, execution_time_ms, row_count, status)
-       VALUES ('${queryId}', '${escapedSql}', ${executionTimeMs}, 0, 'success')`,
+      `INSERT INTO _query_history (query_id, sql, execution_time_ms, row_count, status, tags)
+       VALUES ('${queryId}', '${escapedSql}', ${executionTimeMs}, 0, 'success', [])`,
     );
   } catch (histErr) {
     console.warn(
@@ -288,8 +288,8 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
     try {
       const escapedSql = sql.replace(/'/g, "''");
       await conn.run(
-        `INSERT INTO _query_history (query_id, sql, execution_time_ms, row_count, status)
-         VALUES ('${queryId}', '${escapedSql}', ${executionTimeMs}, 0, 'success')`,
+        `INSERT INTO _query_history (query_id, sql, execution_time_ms, row_count, status, tags)
+         VALUES ('${queryId}', '${escapedSql}', ${executionTimeMs}, 0, 'success', [])`,
       );
     } catch (histErr) {
       console.warn(
@@ -325,8 +325,8 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
       const escapedSql = sql.replace(/'/g, "''");
       const escapedErr = errMsg.replace(/'/g, "''");
       await conn.run(
-        `INSERT INTO _query_history (query_id, sql, execution_time_ms, row_count, status, error_message)
-         VALUES ('${queryId}', '${escapedSql}', ${errorExecutionTimeMs}, 0, 'error', '${escapedErr}')`,
+        `INSERT INTO _query_history (query_id, sql, execution_time_ms, row_count, status, error_message, tags)
+         VALUES ('${queryId}', '${escapedSql}', ${errorExecutionTimeMs}, 0, 'error', '${escapedErr}', [])`,
       );
     } catch (histErr) {
       console.warn(
@@ -362,7 +362,7 @@ async function handleListTables(): Promise<void> {
   const result = await conn.run(`
     SELECT table_name, table_type
     FROM information_schema.tables
-    WHERE table_schema = 'main' AND table_name NOT LIKE '__%'
+    WHERE table_schema = 'main' AND table_name NOT LIKE '\\_\\_%' ESCAPE '\\'
     ORDER BY table_name
   `);
   const rows = await result.getRows();
@@ -466,7 +466,7 @@ async function handleHealthCheck(): Promise<void> {
     const conn = getConnection();
     const result = await conn.run(`
       SELECT COUNT(*) FROM information_schema.tables
-      WHERE table_schema = 'main' AND table_name NOT LIKE '__%'
+      WHERE table_schema = 'main' AND table_name NOT LIKE '\\_\\_%' ESCAPE '\\'
     `);
     const rows = await result.getRows();
     response.tables = Number(rows[0]?.[0] ?? 0);
@@ -652,7 +652,7 @@ async function handleIngestFile(req: WorkerIngestFileRequest): Promise<void> {
     const conn = getConnection();
     const readFn = buildReadFunction(filePath, format, options);
     const escapedTable = tableName.replace(/"/g, '""');
-    const sql = `CREATE TABLE "${escapedTable}" AS SELECT * FROM ${readFn}`;
+    const sql = `CREATE OR REPLACE TABLE "${escapedTable}" AS SELECT * FROM ${readFn}`;
 
     try {
       await conn.run(sql);
@@ -661,7 +661,7 @@ async function handleIngestFile(req: WorkerIngestFileRequest): Promise<void> {
       const errMsg = error instanceof Error ? error.message : String(error);
       if ((format === 'csv' || format === 'tsv') && errMsg.includes('not valid UTF8')) {
         const readFnLatin1 = buildReadFunction(filePath, format, options, 'latin-1');
-        const sqlRetry = `CREATE TABLE "${escapedTable}" AS SELECT * FROM ${readFnLatin1}`;
+        const sqlRetry = `CREATE OR REPLACE TABLE "${escapedTable}" AS SELECT * FROM ${readFnLatin1}`;
         await conn.run(sqlRetry);
       } else {
         throw error;

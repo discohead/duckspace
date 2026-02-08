@@ -90,10 +90,16 @@ vi.mock('@main/ipc-handlers', () => ({
   setQueryRouter: vi.fn(),
   setWorkerManager: vi.fn(),
   setMainWindowRef: vi.fn(),
+  setIngestionReady: vi.fn(),
   setupDataChannel: vi.fn(),
   waitForRendererReady: vi.fn().mockResolvedValue(undefined),
   waitForShutdownAck: vi.fn().mockResolvedValue(true),
   sendShutdownPrepare: vi.fn(),
+}));
+
+vi.mock('@main/ingestion/ingestion-router', () => ({
+  setWorker: vi.fn(),
+  setMainWindow: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------

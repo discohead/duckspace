@@ -94,7 +94,7 @@ async function createSystemTables(): Promise<void> {
       row_count         INTEGER NOT NULL DEFAULT 0,
       timestamp         TIMESTAMP NOT NULL DEFAULT current_timestamp,
       source            VARCHAR NOT NULL DEFAULT 'user',
-      tags              VARCHAR[] DEFAULT '{}',
+      tags              VARCHAR[] DEFAULT [],
       status            VARCHAR NOT NULL DEFAULT 'success',
       error_message     VARCHAR
     )

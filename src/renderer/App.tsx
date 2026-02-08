@@ -7,19 +7,23 @@ import type {
 } from '@shared/types';
 import type React from 'react';
 import type { ReactElement } from 'react';
-import { useCallback, useEffect, useRef } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { CatalogBrowser } from './components/CatalogBrowser';
 import { CatalogSidebar } from './components/CatalogSidebar';
-import { DataGrid } from './components/DataGrid';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { IngestionProgress } from './components/IngestionProgress';
 import { QueryEditor } from './components/QueryEditor';
 import { ResultGrid } from './components/ResultGrid';
+import { SourceDetail } from './components/SourceDetail';
 import { StatusBar } from './components/StatusBar';
 import { TabBar } from './components/TabBar';
 import { WelcomeView } from './components/WelcomeView';
+
+// Lazy-load DataGrid to avoid blocking startup with Perspective WASM initialization
+const DataGrid = lazy(() => import('./components/DataGrid').then((m) => ({ default: m.DataGrid })));
+
 import { db } from './stores/db';
-import { useActiveTab, useTabs } from './stores/hooks';
+import { useActiveTab, useTabs, useWorkerHealth } from './stores/hooks';
 
 /**
  * Root application component that renders the tab bar, main content area, and status bar.
@@ -141,12 +145,83 @@ export function App(): ReactElement {
     };
   }, [handleKeyDown]);
 
-  // Listen for ingestion push events and update Dexie state
-  // QA-014: Progress/complete events may arrive before ImportFilesResponse creates
-  // the Dexie record. Progress drops are acceptable (subsequent ones will land).
-  // Complete events retry once after a short delay to avoid losing terminal state.
+  // On startup, clean up stale Dexie state from previous sessions:
+  // 1. Mark 'importing' data sources as 'error' (interrupted imports)
+  // 2. Mark 'running'/'queued' ingestion jobs as 'failed'
+  // (Dexie-only operations — safe to run immediately on mount)
+  useEffect(() => {
+    void db.data_sources
+      .where('status')
+      .equals('importing')
+      .modify({
+        status: 'error' as DataSource['status'],
+        updatedAt: new Date().toISOString(),
+      });
+    void db.ingestion_jobs
+      .where('status')
+      .anyOf('running', 'queued')
+      .modify({
+        status: 'failed' as IngestionJob['status'],
+        completedAt: new Date().toISOString(),
+      });
+  }, []);
+
+  // Verify 'active' data sources have matching DuckDB tables (handles
+  // DB deletion between sessions) — mark orphaned ones as 'stale'.
+  //
+  // This check is deferred until the DuckDB worker reports 'ready' status,
+  // because the mount useEffect fires before Main pushes the initial worker
+  // health (step 8 of the startup sequence). Without this gate, listTables()
+  // could fail or return empty results, falsely marking valid sources as stale.
+  const workerHealth = useWorkerHealth();
+  const [staleCheckDone, setStaleCheckDone] = useState(false);
+
+  useEffect(() => {
+    if (staleCheckDone) return;
+    if (workerHealth?.status !== 'ready') return;
+    setStaleCheckDone(true);
+
+    void (async () => {
+      try {
+        const activeSources = await db.data_sources.where('status').equals('active').toArray();
+        if (activeSources.length === 0) return;
+
+        const catalogEntries = await window.datspace.catalog.listTables();
+        const duckdbTableNames = new Set(catalogEntries.map((e) => e.name));
+
+        for (const source of activeSources) {
+          const found = source.duckdbTableName
+            ? duckdbTableNames.has(source.duckdbTableName)
+            : false;
+          if (source.duckdbTableName && !found) {
+            await db.data_sources.update(source.id, {
+              status: 'stale' as DataSource['status'],
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        }
+      } catch (err) {
+        console.error('[stale-check] error:', err);
+      }
+    })();
+  }, [workerHealth?.status, staleCheckDone]);
+
+  // Listen for ingestion push events and update Dexie state.
+  // The ingestion-router sends full DataSource/IngestionJob objects in initial
+  // push events, which we use to CREATE Dexie records. Subsequent events UPDATE them.
   useEffect(() => {
     const unsubProgress = window.datspace.ingestion.onProgress((event: IngestionProgressEvent) => {
+      // The initial progress event from importFiles() includes a full IngestionJob
+      // object. Use it to create the Dexie record. Subsequent progress events
+      // only include partial update fields.
+      const rawEvent = event as IngestionProgressEvent & {
+        readonly ingestionJob?: IngestionJob;
+      };
+      if (rawEvent.ingestionJob) {
+        void db.ingestion_jobs.put(rawEvent.ingestionJob);
+        return;
+      }
+
       void db.ingestion_jobs.update(event.jobId, {
         status: 'running' as IngestionJob['status'],
         rowsProcessed: event.rowsProcessed,
@@ -177,19 +252,37 @@ export function App(): ReactElement {
         }
       })();
 
-      // Update data source status on completion
-      if (event.status === 'completed') {
-        void db.data_sources.update(event.dataSourceId, {
-          status: 'active' as DataSource['status'],
-          rowCount: event.rowCount,
-          columnCount: event.columnCount,
-          updatedAt: new Date().toISOString(),
-        });
+      // Update data source status on completion or failure
+      if (event.dataSourceId) {
+        if (event.status === 'completed') {
+          void db.data_sources.update(event.dataSourceId, {
+            status: 'active' as DataSource['status'],
+            rowCount: event.rowCount,
+            columnCount: event.columnCount,
+            updatedAt: new Date().toISOString(),
+          });
+        } else if (event.status === 'failed') {
+          void db.data_sources.update(event.dataSourceId, {
+            status: 'error' as DataSource['status'],
+            updatedAt: new Date().toISOString(),
+          });
+        }
       }
     });
 
     const unsubSourceUpdated = window.datspace.catalog.onSourceUpdated(
       (event: CatalogSourceUpdatedEvent) => {
+        // The ingestion pipeline sends source_created events with a full DataSource
+        // object. Use it to create the Dexie record. Standard status update events
+        // only include dataSourceId and status.
+        const rawEvent = event as CatalogSourceUpdatedEvent & {
+          readonly dataSource?: DataSource;
+        };
+        if (rawEvent.dataSource) {
+          void db.data_sources.put(rawEvent.dataSource);
+          return;
+        }
+
         void db.data_sources.where('id').equals(event.dataSourceId).modify({
           status: event.status,
           updatedAt: new Date().toISOString(),
@@ -224,7 +317,24 @@ export function App(): ReactElement {
       case 'catalog':
         return <CatalogBrowser />;
       case 'data_grid':
-        return <DataGrid tabId={activeTab.id} tabState={activeTab.state} />;
+        return (
+          <div style={styles.dataGridLayout}>
+            <div style={styles.dataGridMain}>
+              <Suspense
+                fallback={
+                  <div style={styles.placeholder}>
+                    <span style={styles.placeholderText}>Loading data grid...</span>
+                  </div>
+                }
+              >
+                <DataGrid tabId={activeTab.id} tabState={activeTab.state} />
+              </Suspense>
+            </div>
+            <div style={styles.dataGridDetail}>
+              <SourceDetail dataSourceId={activeTab.state.dataSourceId} />
+            </div>
+          </div>
+        );
       case 'settings':
         return (
           <div style={styles.placeholder}>
@@ -281,6 +391,22 @@ const styles = {
     display: 'flex',
     flexDirection: 'column' as const,
     height: '100%',
+  },
+  dataGridLayout: {
+    display: 'flex',
+    height: '100%',
+    overflow: 'hidden' as const,
+  },
+  dataGridMain: {
+    flex: 1,
+    overflow: 'hidden' as const,
+    minWidth: 0,
+  },
+  dataGridDetail: {
+    width: 320,
+    borderLeft: '1px solid #e5e7eb',
+    overflowY: 'auto' as const,
+    flexShrink: 0,
   },
   placeholder: {
     display: 'flex',

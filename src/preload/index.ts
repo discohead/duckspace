@@ -231,10 +231,12 @@ const api: DatspaceAPI = {
     getColumnStats: (
       dataSourceId: string,
       forceRecompute?: boolean,
+      tableName?: string,
     ): Promise<GetColumnStatsResponse> =>
       ipcRenderer.invoke(IPC_CHANNELS.CATALOG_GET_COLUMN_STATS, {
         type: 'catalog:getColumnStats',
         dataSourceId,
+        tableName,
         forceRecompute,
       }),
 

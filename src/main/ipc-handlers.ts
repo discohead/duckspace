@@ -376,10 +376,66 @@ export function registerIPCHandlers(): void {
     return { success: false, message: 'Not yet implemented' };
   });
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  ipcMain.handle(IPC_CHANNELS.CATALOG_GET_COLUMN_STATS, async () => {
-    return { columns: [] };
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.CATALOG_GET_COLUMN_STATS,
+    wrapIPCHandler(
+      IPC_CHANNELS.CATALOG_GET_COLUMN_STATS,
+      async (
+        _event: unknown,
+        args: { dataSourceId: string; tableName?: string; forceRecompute?: boolean },
+      ) => {
+        const { getTableNameForSource, computeStats, registerDataSourceTable } = await import(
+          './ingestion/ingestion-router'
+        );
+
+        // Resolve tableName: first check the in-memory map, then fall back to
+        // a tableName provided by the renderer (for restart recovery).
+        let tableName = getTableNameForSource(args.dataSourceId);
+        if (!tableName && args.tableName) {
+          tableName = args.tableName;
+          registerDataSourceTable(args.dataSourceId, tableName);
+        }
+        if (!tableName) {
+          throw new Error(`No table name found for data source: ${args.dataSourceId}`);
+        }
+
+        const startMs = Date.now();
+        const result = await computeStats(tableName);
+
+        const columns = result.columns.map((col) => ({
+          id: `${args.dataSourceId}__${col.columnName}`,
+          dataSourceId: args.dataSourceId,
+          columnName: col.columnName,
+          columnType: col.columnType,
+          rowCount: col.rowCount,
+          nullCount: col.nullCount,
+          nullPercentage: col.nullPercentage,
+          distinctCount: col.distinctCount,
+          min: col.min,
+          max: col.max,
+          mean: col.mean,
+          median: col.median,
+          stddev: col.stddev,
+          q25: col.q25,
+          q75: col.q75,
+          topValues: col.topValues?.map((tv) => ({
+            value: tv.value,
+            count: tv.count,
+            percentage: col.rowCount > 0 ? (tv.count / col.rowCount) * 100 : 0,
+          })),
+          computedAt: new Date().toISOString(),
+        }));
+
+        return {
+          type: 'catalog:getColumnStats:response' as const,
+          dataSourceId: args.dataSourceId,
+          columns,
+          computedAt: new Date().toISOString(),
+          durationMs: Date.now() - startMs,
+        };
+      },
+    ),
+  );
 
   // === Watch Channels (placeholders for US4) ===
 

@@ -65,6 +65,20 @@ vi.mock('@renderer/stores/db', () => {
         update: vi.fn().mockResolvedValue(1),
       },
       transaction: vi.fn((_mode: string, _table: unknown, fn: () => unknown) => fn()),
+      data_sources: {
+        where: vi.fn().mockReturnValue({
+          equals: vi.fn().mockReturnValue({ modify: vi.fn().mockResolvedValue(0) }),
+        }),
+        put: vi.fn(),
+        update: vi.fn(),
+      },
+      ingestion_jobs: {
+        where: vi.fn().mockReturnValue({
+          anyOf: vi.fn().mockReturnValue({ modify: vi.fn().mockResolvedValue(0) }),
+        }),
+        put: vi.fn(),
+        update: vi.fn(),
+      },
     },
   };
 });

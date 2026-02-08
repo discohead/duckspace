@@ -2,6 +2,7 @@ import type {
   AppStateEntry,
   CatalogEntry,
   ColumnSchemaRecord,
+  ColumnStatisticsRecord,
   DataSource,
   IngestionJob,
   Preference,
@@ -165,4 +166,34 @@ export function useIngestionJobs(
     }
     return db.ingestion_jobs.orderBy('startedAt').reverse().toArray();
   }, [statusFilter]);
+}
+
+/**
+ * Returns column statistics for a data source, sorted by column name.
+ * Reactively updates when statistics are computed or updated in Dexie.js.
+ *
+ * @param dataSourceId - The data source to fetch statistics for.
+ * @returns An array of ColumnStatisticsRecord, or undefined while loading.
+ */
+export function useColumnStats(
+  dataSourceId: string | undefined,
+): ColumnStatisticsRecord[] | undefined {
+  return useLiveQuery(async () => {
+    if (!dataSourceId) return [];
+    return db.column_statistics.where('dataSourceId').equals(dataSourceId).toArray();
+  }, [dataSourceId]);
+}
+
+/**
+ * Returns a single data source by ID.
+ * Reactively updates when the data source changes in Dexie.js.
+ *
+ * @param dataSourceId - The data source ID to look up.
+ * @returns The DataSource record, or undefined if not found or still loading.
+ */
+export function useDataSource(dataSourceId: string | undefined): DataSource | undefined {
+  return useLiveQuery(async () => {
+    if (!dataSourceId) return undefined;
+    return db.data_sources.get(dataSourceId);
+  }, [dataSourceId]);
 }

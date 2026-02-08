@@ -11,8 +11,13 @@ import {
   loadConfig,
 } from './config';
 import {
+  setMainWindow as setIngestionMainWindow,
+  setWorker as setIngestionWorker,
+} from './ingestion/ingestion-router';
+import {
   registerIPCHandlers,
   sendShutdownPrepare,
+  setIngestionReady,
   setMainWindowRef,
   setQueryRouter,
   setupDataChannel,
@@ -81,6 +86,7 @@ export async function reactivateWindow(): Promise<void> {
   setMainWindowRef(mainWindow);
   workerManager.setMainWindow(mainWindow);
   queryRouter.setMainWindow(mainWindow);
+  setIngestionMainWindow(mainWindow);
   setupDataChannel(mainWindow, worker);
   await waitForRendererReady();
   workerManager.pushCurrentHealth();
@@ -191,11 +197,18 @@ export async function startupSequence(): Promise<void> {
   queryRouter = new QueryRouter(worker);
   setQueryRouter(queryRouter);
 
+  // Step 4b: Initialize ingestion router with worker reference
+  setIngestionWorker(worker);
+
   // Step 5: Create BrowserWindow
   mainWindow = await createWindow();
   setMainWindowRef(mainWindow);
   workerManager.setMainWindow(mainWindow);
   queryRouter.setMainWindow(mainWindow);
+  setIngestionMainWindow(mainWindow);
+
+  // Step 5b: Mark ingestion router as ready for IPC requests
+  setIngestionReady();
 
   // Step 6: Setup MessagePort data channel
   setupDataChannel(mainWindow, worker);

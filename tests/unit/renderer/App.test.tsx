@@ -28,6 +28,20 @@ vi.mock('@renderer/stores/db', () => ({
     },
     transaction: vi.fn((_m: string, _t: unknown, fn: () => unknown) => fn()),
     app_state: { put: vi.fn() },
+    data_sources: {
+      where: vi.fn().mockReturnValue({
+        equals: vi.fn().mockReturnValue({ modify: vi.fn().mockResolvedValue(0) }),
+      }),
+      put: vi.fn(),
+      update: vi.fn(),
+    },
+    ingestion_jobs: {
+      where: vi.fn().mockReturnValue({
+        anyOf: vi.fn().mockReturnValue({ modify: vi.fn().mockResolvedValue(0) }),
+      }),
+      put: vi.fn(),
+      update: vi.fn(),
+    },
   },
 }));
 
