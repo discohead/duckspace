@@ -35,7 +35,7 @@
  */
 
 import { DuckDBInstance } from '@duckdb/node-api';
-import { Worker, isMainThread, workerData, parentPort } from 'node:worker_threads';
+import { Worker, isMainThread, parentPort } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 
 // Parameters that trigger the crash in Electron

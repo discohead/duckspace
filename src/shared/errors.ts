@@ -507,6 +507,16 @@ export function alreadyWatchingError(dirPath: string): DatspaceError {
 // ---------------------------------------------------------------------------
 
 /**
+ * Extracts a file path from a DuckDB I/O error message.
+ * DuckDB formats these as: "IO Error: No such file or directory: '/path/to/file'"
+ * Falls back to the full message if no path can be extracted.
+ */
+function extractFilePath(errorMessage: string): string {
+  const match = errorMessage.match(/:\s*['"]([^'"]+)['"]\s*$/);
+  return match?.[1] ?? errorMessage;
+}
+
+/**
  * Classify a raw DuckDB error into the datspace error taxonomy.
  * Inspects the error message to determine the appropriate structured error code.
  */
@@ -529,10 +539,10 @@ export function classifyDuckDBError(error: Error): DatspaceError {
     return new DatspaceError(ERROR_CODES.TYPE_MISMATCH, error.message);
   }
   if (msg.includes('no such file')) {
-    return fileNotFoundError(error.message);
+    return fileNotFoundError(extractFilePath(error.message));
   }
   if (msg.includes('permission denied')) {
-    return filePermissionDeniedError(error.message);
+    return filePermissionDeniedError(extractFilePath(error.message));
   }
 
   // Default fallback: classify as syntax error (lossy — the original error may not

@@ -57,28 +57,28 @@ describe('QueryRouter — Regression', () => {
       await router.previewTable('users', -1);
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      expect(sql).toBe('SELECT * FROM "users" LIMIT 10000');
+      expect(sql).toBe('SELECT * FROM "users" LIMIT 100000');
     });
 
     it('falls back to default limit for NaN limit', async () => {
       await router.previewTable('users', NaN);
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      expect(sql).toBe('SELECT * FROM "users" LIMIT 10000');
+      expect(sql).toBe('SELECT * FROM "users" LIMIT 100000');
     });
 
-    it('passes through large limit without clamping', async () => {
+    it('clamps large limit to DEFAULT_PREVIEW_LIMIT', async () => {
       await router.previewTable('users', 999999);
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      expect(sql).toMatch(/LIMIT 999999$/);
+      expect(sql).toBe('SELECT * FROM "users" LIMIT 100000');
     });
 
     it('falls back to default limit for zero limit', async () => {
       await router.previewTable('users', 0);
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      expect(sql).toBe('SELECT * FROM "users" LIMIT 10000');
+      expect(sql).toBe('SELECT * FROM "users" LIMIT 100000');
     });
   });
 });

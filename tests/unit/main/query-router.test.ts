@@ -297,13 +297,13 @@ describe('QueryRouter', () => {
   });
 
   describe('previewTable', () => {
-    it('executes SELECT * with default 10k limit', async () => {
+    it('executes SELECT * with default 100k limit', async () => {
       await router.previewTable('users');
 
       expect(worker.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'execute_query',
-          sql: 'SELECT * FROM "users" LIMIT 10000',
+          sql: 'SELECT * FROM "users" LIMIT 100000',
         }),
       );
     });
@@ -337,7 +337,7 @@ describe('QueryRouter', () => {
       await router.previewTable('schema.my_table');
       expect(worker.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({
-          sql: 'SELECT * FROM "schema.my_table" LIMIT 10000',
+          sql: 'SELECT * FROM "schema.my_table" LIMIT 100000',
         }),
       );
     });

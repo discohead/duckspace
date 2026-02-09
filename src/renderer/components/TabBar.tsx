@@ -239,6 +239,7 @@ export function TabBar(): React.JSX.Element {
             <span>{tab.title}</span>
             <button
               type="button"
+              tabIndex={-1}
               aria-label={`Close ${tab.title}`}
               onClick={(e) => {
                 e.stopPropagation();

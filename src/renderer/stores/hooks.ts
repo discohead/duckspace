@@ -209,7 +209,7 @@ export function useDataSource(dataSourceId: string | undefined): DataSource | un
 export function useWatchDirectories(activeOnly?: boolean): WatchDirectory[] | undefined {
   return useLiveQuery(async () => {
     if (activeOnly) {
-      return db.watch_directories.where('isActive').equals(1).sortBy('createdAt');
+      return db.watch_directories.filter((d) => d.isActive).sortBy('createdAt');
     }
     return db.watch_directories.orderBy('createdAt').toArray();
   }, [activeOnly]);

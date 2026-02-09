@@ -213,7 +213,9 @@ export class QueryRouter {
     }
     const safeTable = tableName.replace(/"/g, '""');
     const effectiveLimit =
-      limit !== undefined && Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_PREVIEW_LIMIT;
+      limit !== undefined && Number.isFinite(limit) && limit > 0
+        ? Math.min(limit, DEFAULT_PREVIEW_LIMIT)
+        : DEFAULT_PREVIEW_LIMIT;
     return this.executeQuery(`SELECT * FROM "${safeTable}" LIMIT ${effectiveLimit}`);
   }
 

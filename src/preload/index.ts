@@ -57,6 +57,8 @@ const dataCallbacks = new Map<string, Set<(batch: ArrowBatch) => void>>();
  * query to bound memory usage.
  */
 const MAX_PENDING_BATCHES = 100;
+/** Timeout (ms) before unclaimed pendingBatches entries are cleaned up after terminal events. */
+const PENDING_BATCH_CLEANUP_MS = 30_000;
 const pendingBatches = new Map<string, ArrowBatch[]>();
 
 // Receive MessagePorts from Main Process
@@ -118,6 +120,12 @@ ipcRenderer.on(PUSH_EVENTS.PORT, (event: IpcRendererEvent, payload: { channel: s
             pendingBatches.set(msg.queryId, buf);
           }
           buf.push(batch);
+          // Schedule cleanup if no subscriber claims the buffered data
+          setTimeout(() => {
+            if (!dataCallbacks.has(msg.queryId)) {
+              pendingBatches.delete(msg.queryId);
+            }
+          }, PENDING_BATCH_CLEANUP_MS);
         }
       } else {
         // msg.type === 'arrow-error'
@@ -140,6 +148,12 @@ ipcRenderer.on(PUSH_EVENTS.PORT, (event: IpcRendererEvent, payload: { channel: s
             pendingBatches.set(msg.queryId, buf);
           }
           buf.push(batch);
+          // Schedule cleanup if no subscriber claims the buffered data
+          setTimeout(() => {
+            if (!dataCallbacks.has(msg.queryId)) {
+              pendingBatches.delete(msg.queryId);
+            }
+          }, PENDING_BATCH_CLEANUP_MS);
         }
       }
     };
