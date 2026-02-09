@@ -40,6 +40,14 @@ export interface QueryHandle {
   queryId: string;
 }
 
+/** Extended query handle returned by preview queries, surfacing any limit clamping. */
+export interface PreviewHandle extends QueryHandle {
+  /** The row limit actually applied to the query. */
+  effectiveLimit: number;
+  /** True when the requested limit exceeded the safe maximum and was clamped. */
+  wasClamped: boolean;
+}
+
 /** Request payload for `query:cancel` IPC channel */
 export interface QueryCancelRequest {
   /** The queryId returned by query:execute */
@@ -104,6 +112,10 @@ export interface CatalogPreviewRequest {
 export interface CatalogPreviewResponse {
   /** Query ID for receiving data on the MessagePort */
   queryId: string;
+  /** The row limit actually applied to the query. */
+  effectiveLimit: number;
+  /** True when the requested limit exceeded the safe maximum and was clamped. */
+  wasClamped: boolean;
 }
 
 // ============================================================
@@ -1267,10 +1279,10 @@ export interface CatalogNamespace {
    * Preview sample rows from a table, returned as Arrow IPC batches.
    *
    * @param tableName - Name of the table to preview.
-   * @param limit - Maximum number of rows to return (default: 100).
-   * @returns A QueryHandle for the preview query.
+   * @param limit - Maximum number of rows to return (default: 100,000).
+   * @returns A PreviewHandle with the query ID and effective limit info.
    */
-  previewTable(tableName: string, limit?: number): Promise<QueryHandle>;
+  previewTable(tableName: string, limit?: number): Promise<PreviewHandle>;
 
   /**
    * List all data sources with optional filters.

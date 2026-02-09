@@ -41,18 +41,16 @@ async function getClient(): Promise<PerspectiveClient> {
     // __wasm_module__ from the element class (ignoring init_client). Since
     // DataGrid.tsx imports @finos/perspective-viewer (registering the element),
     // we MUST await the viewer's init_client so __wasm_module__ is populated.
-    const viewerWasm = fetch(
-      new URL(
-        '/node_modules/@finos/perspective-viewer/dist/wasm/perspective-viewer.wasm',
-        window.location.origin,
-      ),
+    const viewerWasmUrl = new URL(
+      '@finos/perspective-viewer/dist/wasm/perspective-viewer.wasm',
+      import.meta.url,
     );
-    const serverWasm = fetch(
-      new URL(
-        '/node_modules/@finos/perspective/dist/wasm/perspective-server.wasm',
-        window.location.origin,
-      ),
+    const serverWasmUrl = new URL(
+      '@finos/perspective/dist/wasm/perspective-server.wasm',
+      import.meta.url,
     );
+    const viewerWasm = fetch(viewerWasmUrl);
+    const serverWasm = fetch(serverWasmUrl);
 
     // Await viewer init — sets __wasm_module__ on the custom element class
     await pspViewer.default.init_client(viewerWasm);

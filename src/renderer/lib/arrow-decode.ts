@@ -146,10 +146,12 @@ function unknownToString(value: unknown): string {
   if (typeof value === 'bigint') return value.toString();
   if (typeof value === 'symbol') return value.toString();
   try {
-    return JSON.stringify(value);
+    const json = JSON.stringify(value);
+    if (json !== undefined) return json;
   } catch {
-    return String(value);
+    // fall through to String() fallback
   }
+  return String(value);
 }
 
 /**

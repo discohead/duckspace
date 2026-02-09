@@ -249,7 +249,7 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
     // when allocating Arrow buffers for wide tables at high row counts in Electron.
     // Both conn.run() and conn.stream() trigger the crash — it's in the nanoarrow
     // extension's ArrowAppender constructor, not the execution mode.
-    // The DEFAULT_PREVIEW_LIMIT (10k) keeps us safely below the crash threshold.
+    // The DEFAULT_PREVIEW_LIMIT (100k) keeps us safely below the crash threshold.
     const wrappedSql = `SELECT * FROM to_arrow_ipc((${sql}))`;
     const result =
       params && params.length > 0

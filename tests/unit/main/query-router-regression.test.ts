@@ -68,17 +68,39 @@ describe('QueryRouter — Regression', () => {
     });
 
     it('clamps large limit to DEFAULT_PREVIEW_LIMIT', async () => {
-      await router.previewTable('users', 999999);
+      const result = await router.previewTable('users', 999999);
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
       expect(sql).toBe('SELECT * FROM "users" LIMIT 100000');
+      expect(result.effectiveLimit).toBe(100000);
+      expect(result.wasClamped).toBe(true);
     });
 
     it('falls back to default limit for zero limit', async () => {
-      await router.previewTable('users', 0);
+      const result = await router.previewTable('users', 0);
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
       expect(sql).toBe('SELECT * FROM "users" LIMIT 100000');
+      expect(result.effectiveLimit).toBe(100000);
+      expect(result.wasClamped).toBe(false);
+    });
+
+    it('returns wasClamped false when limit is within range', async () => {
+      const result = await router.previewTable('users', 500);
+
+      const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
+      expect(sql).toBe('SELECT * FROM "users" LIMIT 500');
+      expect(result.effectiveLimit).toBe(500);
+      expect(result.wasClamped).toBe(false);
+    });
+
+    it('returns wasClamped false when no limit provided', async () => {
+      const result = await router.previewTable('users');
+
+      const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
+      expect(sql).toBe('SELECT * FROM "users" LIMIT 100000');
+      expect(result.effectiveLimit).toBe(100000);
+      expect(result.wasClamped).toBe(false);
     });
   });
 });

@@ -178,6 +178,18 @@ describe('formatCellValue', () => {
   it('falls back to String() for empty type name', () => {
     expect(formatCellValue(123, '')).toBe('123');
   });
+
+  it('returns non-empty string for function values (JSON.stringify returns undefined)', () => {
+    const fn = () => {};
+    const result = formatCellValue(fn, 'Unknown');
+    expect(result).not.toBe('');
+    expect(typeof result).toBe('string');
+  });
+
+  it('returns non-empty string for undefined-valued objects', () => {
+    const result = formatCellValue({ a: 1 }, 'Struct');
+    expect(result).toBe('{"a":1}');
+  });
 });
 
 describe('mergeBatches', () => {

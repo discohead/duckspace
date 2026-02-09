@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto';
 import type { Worker } from 'node:worker_threads';
 import { PUSH_EVENTS, TIMEOUTS } from '@shared/constants';
 import { shuttingDownError } from '@shared/errors';
-import type { CatalogEntry, ColumnSchema, QueryHandle, QueryStatusEvent } from '@shared/types';
+import type {
+  CatalogEntry,
+  ColumnSchema,
+  PreviewHandle,
+  QueryHandle,
+  QueryStatusEvent,
+} from '@shared/types';
 import type { BrowserWindow } from 'electron';
 
 /**
@@ -206,7 +212,7 @@ export class QueryRouter {
    *   while still being generous enough for most analytical workflows.
    * @returns A query handle for the preview query.
    */
-  async previewTable(tableName: string, limit?: number): Promise<QueryHandle> {
+  async previewTable(tableName: string, limit?: number): Promise<PreviewHandle> {
     // I6: Strict identifier validation — reject names with control chars or SQL injection patterns
     if (!/^[\w$.]+$/u.test(tableName)) {
       throw new Error(`Invalid table name: "${tableName}"`);
@@ -216,7 +222,10 @@ export class QueryRouter {
       limit !== undefined && Number.isFinite(limit) && limit > 0
         ? Math.min(limit, DEFAULT_PREVIEW_LIMIT)
         : DEFAULT_PREVIEW_LIMIT;
-    return this.executeQuery(`SELECT * FROM "${safeTable}" LIMIT ${effectiveLimit}`);
+    const wasClamped =
+      limit !== undefined && Number.isFinite(limit) && limit > DEFAULT_PREVIEW_LIMIT;
+    const handle = await this.executeQuery(`SELECT * FROM "${safeTable}" LIMIT ${effectiveLimit}`);
+    return { ...handle, effectiveLimit, wasClamped };
   }
 
   /**
