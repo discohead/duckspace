@@ -159,6 +159,7 @@ export function DataGrid({ tabId, tabState }: DataGridProps): ReactElement {
   // Hide the settings/configure button inside perspective-viewer's shadow DOM.
   // The button has id="settings_button" and no ::part attribute, so it can
   // only be hidden via a style injected into the shadow root.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: table gates PerspectiveViewer render; effect must re-run when viewer appears
   useEffect(() => {
     const viewer = viewerWrapperRef.current?.querySelector('perspective-viewer');
     if (!viewer?.shadowRoot) return;
@@ -170,7 +171,6 @@ export function DataGrid({ tabId, tabState }: DataGridProps): ReactElement {
     return () => {
       style.remove();
     };
-    // biome-ignore lint/correctness/useExhaustiveDependencies: table gates PerspectiveViewer render; effect must re-run when viewer appears
   }, [table]);
 
   // Loading state

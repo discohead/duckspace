@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let mockWorkerHealth:
@@ -147,5 +147,25 @@ describe('StatusBar', () => {
     mockRecoveryTriggered = undefined;
     render(<StatusBar />);
     expect(screen.queryByText(/Previous session did not shut down cleanly/)).toBeNull();
+  });
+
+  it('dismisses recovery banner when x button is clicked', () => {
+    mockRecoveryTriggered = true;
+    render(<StatusBar />);
+    expect(screen.getByText(/Previous session/)).toBeDefined();
+    fireEvent.click(screen.getByText('x'));
+    expect(screen.queryByText(/Previous session/)).toBeNull();
+  });
+
+  it('auto-dismisses recovery banner after timeout', () => {
+    vi.useFakeTimers();
+    mockRecoveryTriggered = true;
+    render(<StatusBar />);
+    expect(screen.getByText(/Previous session/)).toBeDefined();
+    act(() => {
+      vi.advanceTimersByTime(8000);
+    });
+    expect(screen.queryByText(/Previous session/)).toBeNull();
+    vi.useRealTimers();
   });
 });
