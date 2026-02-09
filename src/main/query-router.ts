@@ -9,13 +9,13 @@ import type { BrowserWindow } from 'electron';
  * Default row limit for preview queries.
  *
  * DuckDB's nanoarrow extension crashes (SIGTRAP in `ArrowScalarData::Initialize`)
- * when `to_arrow_ipc()` allocates Arrow buffers for wide tables (58+ columns) at
- * high row counts. 100k rows × 58 columns triggers the crash in the `ArrowAppender`
- * constructor. 10k rows stays safely within nanoarrow's allocation limits while still
- * providing a useful data preview. Users can always run explicit queries with higher
- * LIMIT values via the Query tab.
+ * when `to_arrow_ipc()` processes ~200,000+ rows inside Electron's runtime.
+ * With synthetic data the boundary is exactly 200,000; with real data
+ * (variable-length VARCHARs) the threshold is lower. 100k is confirmed safe
+ * with 58-column CSV data in Electron.
+ * Standalone Node.js is unaffected. See: https://github.com/paleolimbot/duckdb-nanoarrow/issues/43
  */
-const DEFAULT_PREVIEW_LIMIT = 10_000;
+const DEFAULT_PREVIEW_LIMIT = 100_000;
 
 interface ActiveQuery {
   queryId: string;

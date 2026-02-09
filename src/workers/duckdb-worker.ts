@@ -239,33 +239,26 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
     const conn = getConnection();
     const queryState = activeQueries.get(queryId);
 
-    // Use conn.run() (non-streaming) for to_arrow_ipc() queries.
-    // conn.stream() uses duckdb_execute_prepared_streaming which triggers a
-    // nanoarrow SIGTRAP crash in ArrowScalarData<double>::Initialize.
+    // Use conn.run() (not conn.stream()) for to_arrow_ipc() queries.
+    // See: https://github.com/paleolimbot/duckdb-nanoarrow/issues/43
+    // The nanoarrow extension crashes (SIGTRAP in ArrowScalarData::Initialize)
+    // when allocating Arrow buffers for wide tables at high row counts in Electron.
+    // Both conn.run() and conn.stream() trigger the crash — it's in the nanoarrow
+    // extension's ArrowAppender constructor, not the execution mode.
+    // The DEFAULT_PREVIEW_LIMIT (10k) keeps us safely below the crash threshold.
     const wrappedSql = `SELECT * FROM to_arrow_ipc((${sql}))`;
     const result =
       params && params.length > 0
         ? await conn.run(wrappedSql, params as DuckDBValue[])
         : await conn.run(wrappedSql);
 
-    const rows = await result.getRows();
-
-    // Concatenate all to_arrow_ipc() rows into a single Arrow IPC buffer.
-    // Each row = (chunk BLOB, done BOOLEAN). Column 0 is DuckDBBlobValue.
-    // Row 0 contains the IPC schema message; subsequent rows contain record
-    // batches. Perspective requires a complete IPC stream (schema + data) in
-    // each buffer, so individual rows cannot be sent separately.
-    //
-    // Memory is bounded by DEFAULT_PREVIEW_LIMIT (10k rows) in QueryRouter,
-    // keeping the concatenated buffer well within worker heap limits (~5-10 MB
-    // for 10k rows × 58 columns). The previous 100k limit triggered a native
-    // nanoarrow SIGTRAP crash in ArrowScalarData::Initialize.
+    // Collect all IPC chunks (row 0 = schema, row 1+ = record batches).
+    // Must be concatenated into a single buffer for Perspective.
     const chunks: Uint8Array[] = [];
     let totalBytes = 0;
-
+    const rows = await result.getRows();
     for (const row of rows) {
       if (queryState?.cancelled) break;
-
       const val = row[0];
       if (val && typeof val === 'object' && 'bytes' in val) {
         const bytes = (val as { bytes: Uint8Array }).bytes;
