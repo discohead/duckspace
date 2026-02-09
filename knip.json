@@ -12,6 +12,7 @@
     "src/shared/errors.ts",
     "src/main/worker-manager.ts",
     "src/main/ingestion/ingestion-router.ts",
+    "src/main/ingestion/file-watcher.ts",
     "src/main/ingestion/progress-tracker.ts",
     "vite.main.config.ts",
     "vite.preload.config.ts",
@@ -24,7 +25,6 @@
   "ignoreDependencies": [
     "@electron-forge/*",
     "@testing-library/jest-dom",
-    "@testing-library/user-event",
-    "chokidar"
+    "@testing-library/user-event"
   ]
 }

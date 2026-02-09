@@ -53,32 +53,32 @@ describe('QueryRouter — Regression', () => {
       await expect(router.previewTable('a"b"c')).rejects.toThrow('Invalid table name');
     });
 
-    it('uses default limit of 100 for negative limit', async () => {
+    it('falls back to default limit for negative limit', async () => {
       await router.previewTable('users', -1);
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      expect(sql).toMatch(/LIMIT 100$/);
+      expect(sql).toBe('SELECT * FROM "users" LIMIT 10000');
     });
 
-    it('uses default limit of 100 for NaN limit', async () => {
+    it('falls back to default limit for NaN limit', async () => {
       await router.previewTable('users', NaN);
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      expect(sql).toMatch(/LIMIT 100$/);
+      expect(sql).toBe('SELECT * FROM "users" LIMIT 10000');
     });
 
-    it('clamps excessively large limit to 10000', async () => {
+    it('passes through large limit without clamping', async () => {
       await router.previewTable('users', 999999);
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      expect(sql).toMatch(/LIMIT 10000$/);
+      expect(sql).toMatch(/LIMIT 999999$/);
     });
 
-    it('uses default limit of 100 for zero limit', async () => {
+    it('falls back to default limit for zero limit', async () => {
       await router.previewTable('users', 0);
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      expect(sql).toMatch(/LIMIT 100$/);
+      expect(sql).toBe('SELECT * FROM "users" LIMIT 10000');
     });
   });
 });

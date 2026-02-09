@@ -33,6 +33,9 @@ const dataSourceTableMap = new Map<string, string>();
 /** Maps jobId to dataSourceId for completion/error event routing. */
 const jobToDataSourceMap = new Map<string, string>();
 
+/** Maps file path to dataSourceId for file-based lookups. */
+const filePathToDataSourceMap = new Map<string, string>();
+
 /** Progress tracker singleton. */
 const progressTracker = new ProgressTracker();
 
@@ -161,6 +164,9 @@ export async function importFiles(
 
     // Track jobId → dataSourceId for completion/error event routing
     jobToDataSourceMap.set(jobId, dataSourceId);
+
+    // Track filePath → dataSourceId for file-based lookups
+    filePathToDataSourceMap.set(filePath, dataSourceId);
 
     // Start progress tracking
     progressTracker.startJob(jobId, fileSizeBytes);
@@ -417,4 +423,96 @@ export function computeStats(tableName: string, topN?: number): Promise<ComputeS
       topN: topN ?? 10,
     });
   });
+}
+
+/**
+ * Remove a data source and optionally drop its DuckDB table.
+ *
+ * If tableName is provided, sends a `drop_table` message to the Worker.
+ * Cleans up internal maps regardless of whether the table drop succeeds.
+ *
+ * @param dataSourceId - The data source ID to remove.
+ * @param tableName - The DuckDB table name to drop (optional).
+ * @returns Promise resolving to success status and table name.
+ * @throws Error if Worker is not initialized or drop_table times out.
+ */
+export function removeSource(
+  dataSourceId: string,
+  tableName: string | undefined,
+): Promise<{ success: boolean; tableName: string }> {
+  // Clean up maps immediately
+  dataSourceTableMap.delete(dataSourceId);
+  if (tableName !== undefined) {
+    registeredTableNames.delete(tableName);
+  }
+
+  // If no table name or worker not available, just return success
+  if (tableName === undefined || worker === null) {
+    return Promise.resolve({ success: true, tableName: tableName ?? '' });
+  }
+
+  const w = worker;
+  const targetTable = tableName;
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      w.removeListener('message', handler);
+      reject(new Error('Timeout waiting for drop_table response'));
+    }, 30000); // 30s timeout
+
+    const handler = (msg: Record<string, unknown>): void => {
+      if (msg['type'] === 'drop_table_complete' && msg['tableName'] === targetTable) {
+        clearTimeout(timeout);
+        w.removeListener('message', handler);
+        resolve({ success: true, tableName: targetTable });
+      } else if (msg['type'] === 'error') {
+        const errMsg = typeof msg['message'] === 'string' ? msg['message'] : 'Worker error';
+        if (errMsg.includes('drop_table') || errMsg.includes(targetTable)) {
+          clearTimeout(timeout);
+          w.removeListener('message', handler);
+          reject(new Error(errMsg));
+        }
+      }
+    };
+
+    w.on('message', handler);
+    w.postMessage({
+      type: 'drop_table',
+      tableName: targetTable,
+      isView: false,
+    });
+  });
+}
+
+/**
+ * Returns the data source ID associated with a file path.
+ *
+ * @param filePath - The absolute file path to look up.
+ * @returns The data source ID, or undefined if not found.
+ */
+export function getDataSourceIdByFilePath(filePath: string): string | undefined {
+  return filePathToDataSourceMap.get(filePath);
+}
+
+/**
+ * Retry importing a data source that previously failed.
+ *
+ * Removes the old table name from the registry if one exists,
+ * then calls {@link importFiles} with the 'retry' trigger.
+ *
+ * @param dataSourceId - The data source ID to retry.
+ * @param filePath - The absolute file path to import.
+ * @returns Import job metadata.
+ */
+export async function retryImport(
+  dataSourceId: string,
+  filePath: string,
+): Promise<ImportFilesResponse> {
+  // Remove old table name from registry if it exists
+  const oldTableName = dataSourceTableMap.get(dataSourceId);
+  if (oldTableName !== undefined) {
+    registeredTableNames.delete(oldTableName);
+  }
+
+  return importFiles([filePath], 'retry');
 }

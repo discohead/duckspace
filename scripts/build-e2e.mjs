@@ -31,6 +31,7 @@ const OUT_DIR = path.join(ROOT, '.vite/build');
 const EXTERNALS = [
   'electron',
   '@duckdb/node-api',
+  'chokidar',
   // Match both 'fs' and 'node:fs' forms of all built-in modules
   ...builtinModules,
   ...builtinModules.map((m) => `node:${m}`),

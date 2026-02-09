@@ -137,6 +137,34 @@ Test each feature area systematically:
   - Unexpected external requests
   - Slow requests
 
+### Main Process Log Forwarding
+`browser_console_messages` only captures renderer-side logs. To see main process logs (e.g. `[FileWatcher]`, `[QueryRouter]`), install a log forwarder via `electron_evaluate`:
+
+```js
+// In electron_evaluate:
+const { BrowserWindow } = process._linkedBinding('electron_browser_window');
+const win = BrowserWindow.getAllWindows()[0];
+const origLog = console.log;
+const origWarn = console.warn;
+const forward = (level, args) => {
+  const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+  if (msg.includes('[FileWatcher]') || msg.includes('[QueryRouter]') || msg.includes('[Lifecycle]')) {
+    try { win.webContents.executeJavaScript('console.log("[MAIN] " + ' + JSON.stringify(msg) + ')'); } catch(e) {}
+  }
+};
+console.log = function(...args) { origLog.apply(console, args); forward('LOG', args); };
+console.warn = function(...args) { origWarn.apply(console, args); forward('WARN', args); };
+```
+
+After installing, main process diagnostic logs matching the prefix filters will appear in subsequent `browser_console_messages` calls as `[MAIN] ...` entries.
+
+**Important `electron_evaluate` context notes:**
+- `require` is NOT available (the eval context is neither CJS nor ESM)
+- `import()` fails ("no dynamic import callback")
+- Access Electron APIs via `process._linkedBinding('electron_browser_window')`, `process._linkedBinding('electron_browser_app')`, etc.
+- Bridge to renderer via `BrowserWindow.getAllWindows()[0].webContents.executeJavaScript(...)`
+- Access IndexedDB/Dexie data by running queries inside `executeJavaScript`
+
 ## Throughout All Phases
 - Take screenshots at every significant state change
 - Capture console messages after every interaction

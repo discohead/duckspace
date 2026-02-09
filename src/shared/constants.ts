@@ -43,6 +43,7 @@ export const IPC_CHANNELS = {
   WATCH_ADD_DIRECTORY: 'watch:addDirectory',
   WATCH_REMOVE_DIRECTORY: 'watch:removeDirectory',
   WATCH_LIST_DIRECTORIES: 'watch:listDirectories',
+  WATCH_RESTORE_DIRECTORIES: 'watch:restoreDirectories',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -199,4 +200,4 @@ export const APP_NAME = 'Datspace';
 export const DEXIE_DB_NAME = 'Datspace';
 
 /** Current Dexie.js schema version; increment when adding/modifying tables. */
-export const DEXIE_SCHEMA_VERSION = 2;
+export const DEXIE_SCHEMA_VERSION = 3;

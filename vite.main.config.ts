@@ -52,6 +52,8 @@ export default defineConfig({
       external: [
         '@duckdb/node-api',
         'worker_threads',
+        'chokidar',
+        /^node:/,
       ],
     },
   },

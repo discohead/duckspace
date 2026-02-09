@@ -219,21 +219,12 @@ describe('duckdb-worker', () => {
 
       // Set up connection that returns IPC buffer as DuckDBBlobValue
       const blobValue = { bytes: new Uint8Array([1, 2, 3, 4]) };
-      const run = vi
-        .fn()
-        // to_arrow_ipc query — returns DuckDBBlobValue with .bytes property
-        .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([[blobValue, false]]),
-        })
-        // query history insert (best effort)
-        .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([]),
-        });
+      const run = createMockRun([[blobValue, false]]);
       mockGetConnection.mockReturnValue({ run });
 
       await handler({ type: 'execute_query', queryId: 'q1', sql: 'SELECT 1' });
 
-      // Check SQL wrapping
+      // Check SQL wrapping — uses conn.run()
       expect(run).toHaveBeenCalledWith('SELECT * FROM to_arrow_ipc((SELECT 1))');
 
       // Check arrow-batch was sent on data port
@@ -330,11 +321,7 @@ describe('duckdb-worker', () => {
       const mockPort = { postMessage: vi.fn(), onmessage: null };
       await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
 
-      const failRun = vi
-        .fn()
-        .mockRejectedValueOnce(new Error('syntax error in SQL'))
-        // For query history insert (getConnection is called again)
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      const failRun = vi.fn().mockRejectedValueOnce(new Error('syntax error in SQL'));
       mockGetConnection.mockReturnValue({ run: failRun });
 
       mockParentPort.postMessage.mockClear();
@@ -376,7 +363,9 @@ describe('duckdb-worker', () => {
       const slowRun = vi.fn().mockImplementation(async () => {
         // Cancel while query is "running"
         await handler({ type: 'cancel_query', queryId: 'q-cancel' });
-        return { getRows: vi.fn().mockResolvedValue([[new Uint8Array([1, 2])]]) };
+        return {
+          getRows: vi.fn().mockResolvedValue([[{ bytes: new Uint8Array([1, 2]) }, false]]),
+        };
       });
       mockGetConnection.mockReturnValue({ run: slowRun });
 
@@ -803,12 +792,8 @@ describe('duckdb-worker', () => {
       await loadWorker();
       const handler = getMessageHandler();
       // Do NOT set up data port — leave dataPort null
-      const run = vi
-        .fn()
-        .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([[new Uint8Array([1, 2, 3])]]),
-        })
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      const blobValue = { bytes: new Uint8Array([1, 2, 3]) };
+      const run = createMockRun([[blobValue, false]]);
       mockGetConnection.mockReturnValue({ run });
       mockParentPort.postMessage.mockClear();
 
@@ -823,13 +808,8 @@ describe('duckdb-worker', () => {
     it('posts error when dataPort is null during arrow-end send', async () => {
       await loadWorker();
       const handler = getMessageHandler();
-      // Do NOT set up data port
-      const run = vi
-        .fn()
-        .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([]),
-        })
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      // Do NOT set up data port — run returns no data rows
+      const run = createMockRun([]);
       mockGetConnection.mockReturnValue({ run });
       mockParentPort.postMessage.mockClear();
 
@@ -844,12 +824,9 @@ describe('duckdb-worker', () => {
     it('posts error when dataPort is null during arrow-error send', async () => {
       await loadWorker();
       const handler = getMessageHandler();
-      // Do NOT set up data port
-      const run = vi
-        .fn()
-        .mockRejectedValueOnce(new Error('test error'))
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
-      mockGetConnection.mockReturnValue({ run });
+      // Do NOT set up data port — run rejects
+      const failRun = vi.fn().mockRejectedValueOnce(new Error('test error'));
+      mockGetConnection.mockReturnValue({ run: failRun });
       mockParentPort.postMessage.mockClear();
 
       await handler({ type: 'execute_query', queryId: 'q-no-port-err', sql: 'BAD SQL' });
@@ -875,11 +852,8 @@ describe('duckdb-worker', () => {
       const mockPort = { postMessage: vi.fn(), onmessage: null };
       await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
 
-      const run = vi
-        .fn()
-        .mockRejectedValueOnce(new Error(errorMessage))
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
-      mockGetConnection.mockReturnValue({ run });
+      const failRun = vi.fn().mockRejectedValueOnce(new Error(errorMessage));
+      mockGetConnection.mockReturnValue({ run: failRun });
 
       await handler({ type: 'execute_query', queryId: 'q-classify', sql: 'BAD' });
 

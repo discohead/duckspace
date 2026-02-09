@@ -127,12 +127,16 @@ The `playwright-electron` MCP server enables visual interaction with the running
 
 **Prerequisites before using MCP tools:**
 1. **Vite dev server** must be running on port 5173 — the dev build hardcodes `http://localhost:5173` as the renderer URL. Start with: `npx vite --config vite.renderer.config.ts --port 5173`
-2. **Build artifacts** must exist in `.vite/build/`: `main-entry.js`, `preload-entry.js`, `duckdb-worker.js`. Run `npx electron-forge start` once to produce them (or rebuild the worker standalone — see Build System above).
+2. **Build artifacts** must exist in `.vite/build/`: `main-entry.js`, `preload-entry.js`, `duckdb-worker.js`. Rebuild with `npm run build:e2e` (preferred — injects Forge-equivalent globals). Alternatively, run `npx electron-forge start` once to produce them. **Do NOT manually invoke `vite.build()`** — the Forge Vite plugin injects `MAIN_WINDOW_VITE_DEV_SERVER_URL`, externalizes `electron`, and targets Node.js, which manual builds miss.
 3. **No stale Electron processes** — `requestSingleInstanceLock()` causes new instances to silently quit if an old one holds the lock. Check with `ps aux | grep electron.*main-entry` and kill any strays.
 
 **Key tools:** `electron_first_window` (launches app + returns window), `browser_snapshot` (accessibility tree for interaction), `browser_take_screenshot` (visual capture), `browser_click`/`browser_type` (UI interaction).
 
 **Critical: `ELECTRON_RUN_AS_NODE`** — Claude Code sets `ELECTRON_RUN_AS_NODE=1` in its environment. This must be unset for the MCP server process (configured via `claude mcp add -e ELECTRON_RUN_AS_NODE=`). Do NOT use `launchOptions.env` in the Playwright config to fix this — Playwright's `_electron.launch()` REPLACES the entire `process.env` when `env` is specified, stripping PATH/HOME/etc.
+
+**`electron_evaluate` context:** The eval context is neither CJS nor ESM — `require` is undefined, `import.meta` is invalid, `import()` fails. Access Electron APIs via `process._linkedBinding('electron_browser_window')` etc. Bridge to the renderer via `BrowserWindow.getAllWindows()[0].webContents.executeJavaScript(...)`. Forward main process logs to the renderer console by monkey-patching `console.log` to call `executeJavaScript` for matching prefixes (e.g. `[FileWatcher]`). Access IndexedDB/Dexie data by running queries inside `executeJavaScript`.
+
+**Chokidar v4 + Electron 33: polling required.** Chokidar v4's native `fs.watch()` does NOT emit file events in Electron 33's main process (FSEvents/kqueue integration issue with Chromium's event loop). Fix: `usePolling: true` with `interval: 1000` is set in `FileWatcher.addDirectory()`. This uses stat-based polling instead of native OS events. CPU overhead is negligible for a desktop app watching a handful of directories.
 
 ## Specs
 

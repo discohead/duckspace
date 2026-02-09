@@ -4,6 +4,7 @@ import type {
   IngestionCompleteEvent,
   IngestionJob,
   IngestionProgressEvent,
+  WatchFileEvent,
 } from '@shared/types';
 import type React from 'react';
 import type { ReactElement } from 'react';
@@ -290,10 +291,70 @@ export function App(): ReactElement {
       },
     );
 
+    // T038: Listen for watch:fileEvent push events from the file watcher.
+    // Update sourceCount on 'add'/'unlink' events for the originating watch directory.
+    const unsubWatchFileEvent = window.datspace.watch.onFileEvent((event: WatchFileEvent) => {
+      if (event.eventType === 'add' || event.eventType === 'unlink') {
+        const delta = event.eventType === 'add' ? 1 : -1;
+        // Use .modify() callback for atomic read-modify-write within a single
+        // IndexedDB transaction, preventing race conditions when multiple file
+        // events arrive concurrently (e.g. two CSVs discovered simultaneously).
+        void db.watch_directories
+          .where('id')
+          .equals(event.watchDirectoryId)
+          .modify((dir: { sourceCount: number; updatedAt: string }) => {
+            dir.sourceCount = Math.max(0, dir.sourceCount + delta);
+            dir.updatedAt = new Date().toISOString();
+          })
+          .then((updated) => {
+            if (updated === 0) {
+              console.warn(`[App:watch] No watch directory found for id=${event.watchDirectoryId}`);
+            }
+          });
+      }
+    });
+
+    // Restore previously configured watch directories on startup
+    void (async () => {
+      try {
+        const dirs = await db.watch_directories.filter((d) => d.isActive).toArray();
+        console.log(`[App:watch] Restoring ${String(dirs.length)} active watch directories`);
+        if (dirs.length > 0) {
+          const restored = await window.datspace.watch.restoreDirectories(dirs);
+          console.log(
+            `[App:watch] Restored ${String(restored)}/${String(dirs.length)} directories`,
+          );
+
+          // Recount sourceCount from actual data_sources records to fix stale
+          // counts from previous sessions. restoreDirectories uses ignoreInitial:
+          // true so no 'add' events fire for existing files — the persisted
+          // sourceCount from last session may be wrong if files were added/removed
+          // while the app was closed.
+          for (const dir of dirs) {
+            const sources = await db.data_sources
+              .filter((s) => s.watchDirectoryId === dir.id)
+              .count();
+            if (sources !== dir.sourceCount) {
+              console.log(
+                `[App:watch] Correcting sourceCount for "${dir.displayName}": ${String(dir.sourceCount)} → ${String(sources)}`,
+              );
+              await db.watch_directories.update(dir.id, {
+                sourceCount: sources,
+                updatedAt: new Date().toISOString(),
+              });
+            }
+          }
+        }
+      } catch (err: unknown) {
+        console.warn('[App:watch] Failed to restore watch directories:', err);
+      }
+    })();
+
     return () => {
       unsubProgress();
       unsubComplete();
       unsubSourceUpdated();
+      unsubWatchFileEvent();
     };
   }, []);
 

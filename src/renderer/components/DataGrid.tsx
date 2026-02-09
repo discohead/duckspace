@@ -64,6 +64,8 @@ export function DataGrid({ tabId, tabState }: DataGridProps): ReactElement {
   const [rowCount, setRowCount] = useState<number>(0);
   /** Prevent double-initiation on StrictMode remount. */
   const queryInitiatedRef = useRef(false);
+  /** Track the active query ID so we can cancel on unmount. */
+  const activeQueryIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!tabState.tableName || queryInitiatedRef.current) return;
@@ -78,9 +80,11 @@ export function DataGrid({ tabId, tabState }: DataGridProps): ReactElement {
         setError(null);
 
         // Execute SELECT * via existing previewTable which streams Arrow IPC
-        const handle = await window.datspace.catalog.previewTable(tabState.tableName, 1_000_000);
+        const handle = await window.datspace.catalog.previewTable(tabState.tableName);
 
         if (cancelled) return;
+
+        activeQueryIdRef.current = handle.queryId;
 
         // Subscribe to Arrow IPC data batches for this query
         unsubData = window.datspace.query.onData(handle.queryId, (batch: ArrowBatch) => {
@@ -95,6 +99,7 @@ export function DataGrid({ tabId, tabState }: DataGridProps): ReactElement {
 
           // Stream end — done loading
           if (batch.isLast) {
+            activeQueryIdRef.current = null;
             setIsLoading(false);
             return;
           }
@@ -134,9 +139,39 @@ export function DataGrid({ tabId, tabState }: DataGridProps): ReactElement {
       cancelled = true;
       queryInitiatedRef.current = false;
       unsubData?.();
+
+      // Cancel the active query to prevent concurrent to_arrow_ipc() calls
+      // which can trigger nanoarrow SIGTRAP crashes on tab switch.
+      const qid = activeQueryIdRef.current;
+      if (qid) {
+        activeQueryIdRef.current = null;
+        void window.datspace.query.cancel(qid);
+      }
+
       void deleteTable(tabId);
     };
   }, [tabId, tabState.tableName]);
+
+  /** Ref to the wrapper div — used to find the perspective-viewer element
+   *  and inject CSS into its shadow DOM to hide the settings button. */
+  const viewerWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Hide the settings/configure button inside perspective-viewer's shadow DOM.
+  // The button has id="settings_button" and no ::part attribute, so it can
+  // only be hidden via a style injected into the shadow root.
+  useEffect(() => {
+    const viewer = viewerWrapperRef.current?.querySelector('perspective-viewer');
+    if (!viewer?.shadowRoot) return;
+
+    const style = document.createElement('style');
+    style.textContent = '#settings_button { display: none !important; }';
+    viewer.shadowRoot.appendChild(style);
+
+    return () => {
+      style.remove();
+    };
+    // biome-ignore lint/correctness/useExhaustiveDependencies: table gates PerspectiveViewer render; effect must re-run when viewer appears
+  }, [table]);
 
   // Loading state
   if (isLoading && !table) {
@@ -169,14 +204,16 @@ export function DataGrid({ tabId, tabState }: DataGridProps): ReactElement {
 
   return (
     <div style={styles.container}>
-      <PerspectiveViewer
-        table={table}
-        config={{
-          plugin: 'Datagrid',
-          settings: false,
-        }}
-        style={styles.viewer}
-      />
+      <div ref={viewerWrapperRef} style={styles.viewerWrapper}>
+        <PerspectiveViewer
+          table={table}
+          config={{
+            plugin: 'Datagrid',
+            settings: false,
+          }}
+          style={styles.viewer}
+        />
+      </div>
       <div style={styles.footer}>
         <span style={styles.footerText}>
           {rowCount.toLocaleString()} row{rowCount !== 1 ? 's' : ''}
@@ -196,9 +233,15 @@ const styles = {
     width: '100%',
     overflow: 'hidden' as const,
   },
-  viewer: {
+  viewerWrapper: {
     flex: 1,
     width: '100%',
+    overflow: 'hidden' as const,
+    position: 'relative' as const,
+  },
+  viewer: {
+    width: '100%',
+    height: '100%',
   },
   centered: {
     display: 'flex',

@@ -5,6 +5,18 @@ import { shuttingDownError } from '@shared/errors';
 import type { CatalogEntry, ColumnSchema, QueryHandle, QueryStatusEvent } from '@shared/types';
 import type { BrowserWindow } from 'electron';
 
+/**
+ * Default row limit for preview queries.
+ *
+ * DuckDB's nanoarrow extension crashes (SIGTRAP in `ArrowScalarData::Initialize`)
+ * when `to_arrow_ipc()` allocates Arrow buffers for wide tables (58+ columns) at
+ * high row counts. 100k rows × 58 columns triggers the crash in the `ArrowAppender`
+ * constructor. 10k rows stays safely within nanoarrow's allocation limits while still
+ * providing a useful data preview. Users can always run explicit queries with higher
+ * LIMIT values via the Query tab.
+ */
+const DEFAULT_PREVIEW_LIMIT = 10_000;
+
 interface ActiveQuery {
   queryId: string;
   sql: string;
@@ -188,7 +200,10 @@ export class QueryRouter {
    * Executes a SELECT * preview query for a table with a row limit.
    *
    * @param tableName - The name of the table to preview.
-   * @param limit - Maximum rows (defaults to 100, capped at 10,000).
+   * @param limit - Maximum rows to return. Defaults to {@link DEFAULT_PREVIEW_LIMIT}.
+   *   DuckDB's nanoarrow `to_arrow_ipc()` can crash (SIGTRAP) on very large unbounded
+   *   result sets due to Arrow batch allocation sizing. A default limit prevents this
+   *   while still being generous enough for most analytical workflows.
    * @returns A query handle for the preview query.
    */
   async previewTable(tableName: string, limit?: number): Promise<QueryHandle> {
@@ -197,9 +212,9 @@ export class QueryRouter {
       throw new Error(`Invalid table name: "${tableName}"`);
     }
     const safeTable = tableName.replace(/"/g, '""');
-    const raw = limit ?? 0;
-    const validLimit = Number.isFinite(raw) && raw > 0 ? Math.min(raw, 10000) : 100;
-    return this.executeQuery(`SELECT * FROM "${safeTable}" LIMIT ${validLimit}`);
+    const effectiveLimit =
+      limit !== undefined && Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_PREVIEW_LIMIT;
+    return this.executeQuery(`SELECT * FROM "${safeTable}" LIMIT ${effectiveLimit}`);
   }
 
   /**

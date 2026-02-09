@@ -203,7 +203,7 @@ const api: DatspaceAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.QUERY_DESCRIBE_TABLE, { tableName }),
 
     previewTable: (tableName: string, limit?: number) =>
-      ipcRenderer.invoke(IPC_CHANNELS.CATALOG_PREVIEW, { tableName, limit: limit ?? 100 }),
+      ipcRenderer.invoke(IPC_CHANNELS.CATALOG_PREVIEW, { tableName, limit }),
 
     getSources: (filters?: GetSourcesRequest['filters']): Promise<DataSource[]> =>
       ipcRenderer
@@ -253,11 +253,13 @@ const api: DatspaceAPI = {
     importFiles: (
       filePaths: readonly string[],
       trigger: IngestionTrigger,
+      dataSourceId?: string,
     ): Promise<ImportFilesResponse> =>
       ipcRenderer.invoke(IPC_CHANNELS.INGESTION_IMPORT_FILES, {
         type: 'ingestion:importFiles',
         filePaths,
         trigger,
+        dataSourceId,
       }),
 
     cancelJob: (jobId: string): Promise<CancelJobResponse> =>
@@ -316,6 +318,14 @@ const api: DatspaceAPI = {
       ipcRenderer
         .invoke(IPC_CHANNELS.WATCH_LIST_DIRECTORIES)
         .then((r: { directories: WatchDirectory[] }) => r.directories),
+
+    restoreDirectories: (directories: readonly WatchDirectory[]): Promise<number> =>
+      ipcRenderer
+        .invoke(IPC_CHANNELS.WATCH_RESTORE_DIRECTORIES, {
+          type: 'watch:restoreDirectories',
+          directories,
+        })
+        .then((r: { restored: number }) => r.restored),
 
     onFileEvent: (callback: (event: WatchFileEvent) => void): (() => void) => {
       const handler = (_: IpcRendererEvent, data: WatchFileEvent): void => {

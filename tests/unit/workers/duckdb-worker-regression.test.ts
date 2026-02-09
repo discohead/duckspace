@@ -91,12 +91,7 @@ describe('duckdb-worker — Regression', () => {
 
       // DuckDB to_arrow_ipc returns DuckDBBlobValue objects with .bytes property
       const blobValue = { bytes: new Uint8Array([1, 2, 3, 4]) };
-      const run = vi
-        .fn()
-        .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([[blobValue, false]]),
-        })
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      const run = createMockRun([[blobValue, false]]);
       mockGetConnection.mockReturnValue({ run });
 
       await handler({ type: 'execute_query', queryId: 'q1', sql: 'SELECT 1' });
@@ -115,8 +110,10 @@ describe('duckdb-worker — Regression', () => {
   });
 
   // C4: DuckDBBlobValue.bytes extraction — to_arrow_ipc returns DuckDBBlobValue, not Uint8Array
-  describe('DuckDBBlobValue blob extraction (C4)', () => {
-    it('extracts .bytes from DuckDBBlobValue and concatenates multi-row chunks', async () => {
+  // All rows are concatenated into a single Arrow IPC buffer because Perspective
+  // requires a complete IPC stream (schema + record batches) in each buffer.
+  describe('DuckDBBlobValue blob concatenation (C4)', () => {
+    it('concatenates all to_arrow_ipc rows into a single arrow-batch', async () => {
       await loadWorker();
       const handler = getMessageHandler();
 
@@ -127,37 +124,34 @@ describe('duckdb-worker — Regression', () => {
       // Each row is (chunk BLOB, done BOOLEAN) — column 0 is DuckDBBlobValue
       const schemaBlob = { bytes: new Uint8Array([0xaa, 0xbb]) };
       const dataBlob = { bytes: new Uint8Array([0xcc, 0xdd, 0xee]) };
-      const run = vi
-        .fn()
-        .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([
-            [schemaBlob, false],
-            [dataBlob, true],
-          ]),
-        })
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      const run = createMockRun([
+        [schemaBlob, false],
+        [dataBlob, true],
+      ]);
       mockGetConnection.mockReturnValue({ run });
 
       await handler({ type: 'execute_query', queryId: 'q-blob', sql: 'SELECT 42' });
 
-      const batchCall = mockPort.postMessage.mock.calls.find(
+      // All to_arrow_ipc() rows are concatenated into ONE arrow-batch
+      const batchCalls = mockPort.postMessage.mock.calls.filter(
         (c: any[]) => c[0]?.type === 'arrow-batch',
       );
-      expect(batchCall).toBeDefined();
+      expect(batchCalls).toHaveLength(1);
 
-      const buffer = batchCall?.[0].buffer as ArrayBuffer;
-      expect(buffer).toBeInstanceOf(ArrayBuffer);
-      // Must contain concatenated bytes from both chunks (2 + 3 = 5 bytes)
-      expect(buffer.byteLength).toBe(5);
-      const view = new Uint8Array(buffer);
-      expect(view).toEqual(new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd, 0xee]));
+      // Single concatenated batch: schema (2 bytes) + data (3 bytes) = 5 bytes
+      const batch = batchCalls[0]?.[0];
+      expect(batch.buffer).toBeInstanceOf(ArrayBuffer);
+      expect(batch.buffer.byteLength).toBe(5);
+      expect(batch.index).toBe(0);
+      expect(new Uint8Array(batch.buffer)).toEqual(new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd, 0xee]));
 
-      // arrow-end should report correct total bytes
+      // arrow-end should report 1 batch with correct total bytes
       const endCall = mockPort.postMessage.mock.calls.find(
         (c: any[]) => c[0]?.type === 'arrow-end',
       );
       expect(endCall).toBeDefined();
       expect(endCall?.[0].totalBytes).toBe(5);
+      expect(endCall?.[0].totalBatches).toBe(1);
     });
 
     it('sends arrow-end with zero bytes when rows have no blob values', async () => {
@@ -168,12 +162,7 @@ describe('duckdb-worker — Regression', () => {
       await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
 
       // Rows with no .bytes property — should produce 0-byte result
-      const run = vi
-        .fn()
-        .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([[null, true]]),
-        })
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      const run = createMockRun([[null, true]]);
       mockGetConnection.mockReturnValue({ run });
 
       await handler({ type: 'execute_query', queryId: 'q-null', sql: 'SELECT 1' });
@@ -202,12 +191,7 @@ describe('duckdb-worker — Regression', () => {
       const mockPort = { postMessage: vi.fn(), onmessage: null };
       await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
 
-      const run = vi
-        .fn()
-        .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([]),
-        })
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      const run = createMockRun([]);
       mockGetConnection.mockReturnValue({ run });
 
       await handler({
@@ -228,12 +212,7 @@ describe('duckdb-worker — Regression', () => {
       const mockPort = { postMessage: vi.fn(), onmessage: null };
       await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
 
-      const run = vi
-        .fn()
-        .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([]),
-        })
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      const run = createMockRun([]);
       mockGetConnection.mockReturnValue({ run });
 
       await handler({
@@ -250,6 +229,58 @@ describe('duckdb-worker — Regression', () => {
     });
   });
 
+  // Concurrent query serialization: two messages must not run conn.run() simultaneously
+  describe('concurrent query serialization', () => {
+    it('serialises overlapping execute_query and compute_stats messages', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      const mockPort = { postMessage: vi.fn(), onmessage: null };
+      await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
+
+      // Track the order of conn.run() invocations. Each call records its start
+      // and waits for a deferred resolution so we can detect overlap.
+      const callOrder: string[] = [];
+      let resolveFirst: (() => void) | undefined;
+      const firstBlocks = new Promise<void>((r) => {
+        resolveFirst = r;
+      });
+
+      const slowRun = vi.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes('to_arrow_ipc')) {
+          callOrder.push('execute_start');
+          await firstBlocks; // blocks until we release
+          callOrder.push('execute_end');
+        } else if (sql.includes('SUMMARIZE')) {
+          callOrder.push('stats_start');
+          callOrder.push('stats_end');
+        }
+        return { getRows: vi.fn().mockResolvedValue([]) };
+      });
+      mockGetConnection.mockReturnValue({ run: slowRun });
+
+      // Fire both messages concurrently (simulates two IPC messages arriving)
+      const p1 = handler({ type: 'execute_query', queryId: 'q-a', sql: 'SELECT 1' });
+      const p2 = handler({
+        type: 'compute_stats',
+        tableName: 'test_table',
+        columns: [],
+        topN: 5,
+      });
+
+      // Let the first query complete
+      await vi.waitFor(() => {
+        if (!callOrder.includes('execute_start')) throw new Error('waiting for execute_start');
+      });
+      resolveFirst?.();
+
+      await Promise.all([p1, p2]);
+
+      // The mutex ensures execute completes BEFORE stats starts
+      expect(callOrder.indexOf('execute_end')).toBeLessThan(callOrder.indexOf('stats_start'));
+    });
+  });
+
   // QA-026: Error messages must strip to_arrow_ipc() wrapper
   describe('stripArrowIpcWrapper strips wrapper from error messages (QA-026)', () => {
     it('strips to_arrow_ipc wrapper from DuckDB error messages', async () => {
@@ -260,7 +291,7 @@ describe('duckdb-worker — Regression', () => {
       await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
 
       // Simulate DuckDB throwing an error with the wrapper in the message
-      const run = vi
+      const failRun = vi
         .fn()
         .mockRejectedValueOnce(
           new Error(
@@ -269,7 +300,7 @@ describe('duckdb-worker — Regression', () => {
               '                                    ^',
           ),
         );
-      mockGetConnection.mockReturnValue({ run });
+      mockGetConnection.mockReturnValue({ run: failRun });
 
       await handler({
         type: 'execute_query',
@@ -287,6 +318,66 @@ describe('duckdb-worker — Regression', () => {
       // Must still contain the user's original SQL context
       expect(errorMsg).toContain('SELCT typo FROM nonexistent');
       expect(errorMsg).toContain('Parser Error');
+    });
+  });
+
+  // QA: drop_table message must include isView field (schema validation)
+  describe('drop_table message includes isView (schema regression)', () => {
+    it('handles drop_table with isView: false without validation error', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      const run = createMockRun([]);
+      mockGetConnection.mockReturnValue({ run });
+
+      await handler({
+        type: 'drop_table',
+        tableName: 'test_table',
+        isView: false,
+      });
+
+      // Should have called conn.run with DROP TABLE
+      expect(run).toHaveBeenCalledWith(expect.stringContaining('DROP TABLE IF EXISTS'));
+      // Should have posted drop_table_complete
+      const completeCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'drop_table_complete',
+      );
+      expect(completeCall).toBeDefined();
+      expect(completeCall?.[0].tableName).toBe('test_table');
+    });
+
+    it('handles drop_table with isView: true using DROP VIEW', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      const run = createMockRun([]);
+      mockGetConnection.mockReturnValue({ run });
+
+      await handler({
+        type: 'drop_table',
+        tableName: 'test_view',
+        isView: true,
+      });
+
+      // Should have called conn.run with DROP VIEW
+      expect(run).toHaveBeenCalledWith(expect.stringContaining('DROP VIEW IF EXISTS'));
+    });
+
+    it('rejects drop_table without isView as invalid', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      // Simulate the old bug: missing isView field
+      await handler({
+        type: 'drop_table',
+        tableName: 'test_table',
+      });
+
+      // Worker should reject the message as invalid (Zod validation failure)
+      const errorCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'error' && c[0]?.message?.includes('Invalid'),
+      );
+      expect(errorCall).toBeDefined();
     });
   });
 });

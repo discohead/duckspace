@@ -8,6 +8,7 @@ import type {
   Preference,
   Query,
   Tab,
+  WatchDirectory,
   WorkerHealthRecord,
 } from '@shared/types';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -196,4 +197,20 @@ export function useDataSource(dataSourceId: string | undefined): DataSource | un
     if (!dataSourceId) return undefined;
     return db.data_sources.get(dataSourceId);
   }, [dataSourceId]);
+}
+
+/**
+ * Returns watch directories from the Dexie store with optional active-only filter.
+ * Reactively updates when watch directories change in Dexie.js.
+ *
+ * @param activeOnly - If true, only returns directories with isActive === true.
+ * @returns An array of WatchDirectory records, or undefined while loading.
+ */
+export function useWatchDirectories(activeOnly?: boolean): WatchDirectory[] | undefined {
+  return useLiveQuery(async () => {
+    if (activeOnly) {
+      return db.watch_directories.where('isActive').equals(1).sortBy('createdAt');
+    }
+    return db.watch_directories.orderBy('createdAt').toArray();
+  }, [activeOnly]);
 }

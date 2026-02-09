@@ -352,6 +352,8 @@ export interface IngestFileOptions {
   readonly header?: boolean | undefined;
   /** JSON: Format hint. Default: 'auto'. */
   readonly jsonFormat?: 'auto' | 'array' | 'newline_delimited' | 'unstructured' | undefined;
+  /** JSON: Maximum nesting depth for auto-flattening. Passed as `maximum_depth` to DuckDB `read_json()`. */
+  readonly maxDepth?: number | undefined;
   /** XLSX: Sheet name or 0-based index. Default: first sheet. */
   readonly sheet?: string | number | undefined;
   /** Sample size for type inference. Default: 20480. */
@@ -1385,6 +1387,7 @@ export interface IngestionNamespace {
   importFiles(
     filePaths: readonly string[],
     trigger: IngestionTrigger,
+    dataSourceId?: string,
   ): Promise<ImportFilesResponse>;
 
   /**
@@ -1459,6 +1462,15 @@ export interface WatchNamespace {
    * @returns Array of WatchDirectory objects.
    */
   listDirectories(): Promise<WatchDirectory[]>;
+
+  /**
+   * Restore previously configured watch directories on app restart.
+   * The Main process re-creates chokidar watchers for each provided config.
+   *
+   * @param directories - Watch directory configs to restore.
+   * @returns Count of successfully restored directories.
+   */
+  restoreDirectories(directories: readonly WatchDirectory[]): Promise<number>;
 
   /**
    * Subscribe to file system events from watched directories.

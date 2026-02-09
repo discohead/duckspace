@@ -52,6 +52,32 @@ let dataPort: MessagePort | null = null;
 const activeQueries = new Map<string, { cancelled: boolean }>();
 let startTime = Date.now();
 
+// ---------------------------------------------------------------------------
+// Query serialization mutex
+// ---------------------------------------------------------------------------
+// The DuckDB Node-API connection does NOT support concurrent `conn.run()` calls.
+// Because `port.on('message', async handler)` does NOT serialize handler
+// invocations (each message starts the handler independently, and when one
+// handler yields at `await`, the next can start), two overlapping `conn.run()`
+// calls cause a nanoarrow SIGTRAP crash. This mutex ensures at most one
+// DuckDB operation runs at a time.
+let mutexTail: Promise<void> = Promise.resolve();
+
+/**
+ * Enqueue an async operation so it runs after all previously enqueued work.
+ * Non-DuckDB messages (port setup, heartbeat) bypass the mutex.
+ */
+function serialise<T>(fn: () => Promise<T>): Promise<T> {
+  const next = mutexTail.then(fn, fn);
+  // Update the tail but suppress unhandled-rejection warnings — errors are
+  // caught inside each handler and posted back as error messages.
+  mutexTail = next.then(
+    () => {},
+    () => {},
+  );
+  return next;
+}
+
 /**
  * SQL prefixes that must NOT be wrapped in `to_arrow_ipc()`.
  * Covers DDL, DML (non-SELECT), and utility statements.
@@ -98,41 +124,44 @@ port.on('message', async (msg: { type: string; [key: string]: unknown }) => {
 
     const validated = parsed.data;
     switch (validated.type) {
-      case 'execute_query':
-        await handleExecuteQuery(validated);
-        break;
+      // --- Non-DuckDB handlers: bypass mutex ---
       case 'cancel_query':
         handleCancelQuery(validated);
-        break;
-      case 'get_table_info':
-        await handleGetTableInfo(validated);
-        break;
-      case 'list_tables':
-        await handleListTables();
-        break;
-      case 'health_check':
-        await handleHealthCheck();
         break;
       case 'heartbeat':
         handleHeartbeat(validated);
         break;
+
+      // --- DuckDB handlers: serialised via mutex ---
+      case 'execute_query':
+        await serialise(() => handleExecuteQuery(validated));
+        break;
+      case 'get_table_info':
+        await serialise(() => handleGetTableInfo(validated));
+        break;
+      case 'list_tables':
+        await serialise(() => handleListTables());
+        break;
+      case 'health_check':
+        await serialise(() => handleHealthCheck());
+        break;
       case 'configure':
-        await handleConfigure(validated);
+        await serialise(() => handleConfigure(validated));
         break;
       case 'shutdown':
-        await handleShutdown();
+        await serialise(() => handleShutdown());
         break;
       case 'ingest_file':
-        await handleIngestFile(validated);
+        await serialise(() => handleIngestFile(validated));
         break;
       case 'preview_file':
-        await handlePreviewFile(validated);
+        await serialise(() => handlePreviewFile(validated));
         break;
       case 'sniff_csv':
-        await handleSniffCsv(validated);
+        await serialise(() => handleSniffCsv(validated));
         break;
       case 'compute_stats':
-        await handleComputeStats(validated);
+        await serialise(() => handleComputeStats(validated));
         break;
       case 'drop_table':
         await handleDropTable(validated);
@@ -210,31 +239,33 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
     const conn = getConnection();
     const queryState = activeQueries.get(queryId);
 
+    // Use conn.run() (non-streaming) for to_arrow_ipc() queries.
+    // conn.stream() uses duckdb_execute_prepared_streaming which triggers a
+    // nanoarrow SIGTRAP crash in ArrowScalarData<double>::Initialize.
     const wrappedSql = `SELECT * FROM to_arrow_ipc((${sql}))`;
     const result =
       params && params.length > 0
         ? await conn.run(wrappedSql, params as DuckDBValue[])
         : await conn.run(wrappedSql);
+
     const rows = await result.getRows();
 
-    if (queryState?.cancelled) {
-      sendDataPlaneMessage({
-        type: 'arrow-end',
-        queryId,
-        totalBatches: 0,
-        totalRows: 0,
-        totalBytes: 0,
-        durationMs: Date.now() - startMs,
-      });
-      return;
-    }
-
-    // DuckDB's to_arrow_ipc() returns rows of (chunk BLOB, done BOOLEAN).
-    // Each row's first column is a DuckDBBlobValue with a .bytes: Uint8Array
-    // property — NOT a raw Uint8Array. Concatenate all chunks into one buffer.
+    // Concatenate all to_arrow_ipc() rows into a single Arrow IPC buffer.
+    // Each row = (chunk BLOB, done BOOLEAN). Column 0 is DuckDBBlobValue.
+    // Row 0 contains the IPC schema message; subsequent rows contain record
+    // batches. Perspective requires a complete IPC stream (schema + data) in
+    // each buffer, so individual rows cannot be sent separately.
+    //
+    // Memory is bounded by DEFAULT_PREVIEW_LIMIT (10k rows) in QueryRouter,
+    // keeping the concatenated buffer well within worker heap limits (~5-10 MB
+    // for 10k rows × 58 columns). The previous 100k limit triggered a native
+    // nanoarrow SIGTRAP crash in ArrowScalarData::Initialize.
     const chunks: Uint8Array[] = [];
     let totalBytes = 0;
+
     for (const row of rows) {
+      if (queryState?.cancelled) break;
+
       const val = row[0];
       if (val && typeof val === 'object' && 'bytes' in val) {
         const bytes = (val as { bytes: Uint8Array }).bytes;
@@ -253,35 +284,19 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
       }
 
       sendDataPlaneTransfer(
-        {
-          type: 'arrow-batch',
-          queryId,
-          index: 0,
-          totalBatches: 1,
-          rowCount: 0,
-          byteSize: buffer.byteLength,
-        },
+        { type: 'arrow-batch', queryId, index: 0, rowCount: 0, byteSize: totalBytes },
         buffer,
       );
-
-      sendDataPlaneMessage({
-        type: 'arrow-end',
-        queryId,
-        totalBatches: 1,
-        totalRows: 0,
-        totalBytes: buffer.byteLength,
-        durationMs: Date.now() - startMs,
-      });
-    } else {
-      sendDataPlaneMessage({
-        type: 'arrow-end',
-        queryId,
-        totalBatches: 0,
-        totalRows: 0,
-        totalBytes: 0,
-        durationMs: Date.now() - startMs,
-      });
     }
+
+    sendDataPlaneMessage({
+      type: 'arrow-end',
+      queryId,
+      totalBatches: totalBytes > 0 ? 1 : 0,
+      totalRows: 0,
+      totalBytes,
+      durationMs: Date.now() - startMs,
+    });
 
     // Record in query history (best effort)
     const executionTimeMs = Date.now() - startMs;
@@ -572,6 +587,9 @@ function buildJsonParams(options: IngestFileOptions): string[] {
   const params: string[] = [];
   const fmt = options.jsonFormat ?? 'auto';
   params.push(`format='${fmt}'`);
+  if (options.maxDepth !== undefined) {
+    params.push(`maximum_depth=${options.maxDepth}`);
+  }
   if (options.ignoreErrors !== undefined) {
     params.push(`ignore_errors=${options.ignoreErrors ? 'true' : 'false'}`);
   }
@@ -665,6 +683,27 @@ async function handleIngestFile(req: WorkerIngestFileRequest): Promise<void> {
         await conn.run(sqlRetry);
       } else {
         throw error;
+      }
+    }
+
+    // T045: Rename DuckDB-generated column names to col_1, col_2, ... for headerless CSV/TSV
+    if (options.header === false && (format === 'csv' || format === 'tsv')) {
+      const colResult = await conn.run(`
+        SELECT column_name, ordinal_position
+        FROM information_schema.columns
+        WHERE table_schema = 'main' AND table_name = '${escapeSqlString(tableName)}'
+        ORDER BY ordinal_position
+      `);
+      const colRows = await colResult.getRows();
+      for (const row of colRows) {
+        const oldName = row[0] as string;
+        const ordinal = row[1] as number;
+        const newName = `col_${ordinal}`;
+        if (oldName !== newName) {
+          await conn.run(
+            `ALTER TABLE "${escapedTable}" RENAME COLUMN "${oldName.replace(/"/g, '""')}" TO "${newName}"`,
+          );
+        }
       }
     }
 

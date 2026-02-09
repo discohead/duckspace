@@ -32,6 +32,7 @@ vi.mock('@renderer/stores/db', () => ({
       where: vi.fn().mockReturnValue({
         equals: vi.fn().mockReturnValue({ modify: vi.fn().mockResolvedValue(0) }),
       }),
+      filter: vi.fn().mockReturnValue({ count: vi.fn().mockResolvedValue(0) }),
       put: vi.fn(),
       update: vi.fn(),
     },
@@ -41,6 +42,10 @@ vi.mock('@renderer/stores/db', () => ({
       }),
       put: vi.fn(),
       update: vi.fn(),
+    },
+    watch_directories: {
+      filter: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) }),
+      update: vi.fn().mockResolvedValue(1),
     },
   },
 }));
@@ -88,6 +93,11 @@ describe('App', () => {
       catalog: {
         ...(window.datspace?.catalog ?? {}),
         onSourceUpdated: noop,
+      },
+      watch: {
+        ...(window.datspace?.watch ?? {}),
+        onFileEvent: noop,
+        restoreDirectories: vi.fn().mockResolvedValue(0),
       },
     } as any;
   });

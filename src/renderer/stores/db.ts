@@ -66,6 +66,11 @@ export class DatspaceDB extends Dexie {
       watch_directories: 'id, path, isActive',
       column_statistics: 'id, dataSourceId, [dataSourceId+columnName]',
     });
+
+    // v3: Add createdAt index + unique path constraint to watch_directories
+    this.version(3).stores({
+      watch_directories: 'id, &path, isActive, createdAt',
+    });
   }
 }
 

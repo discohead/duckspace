@@ -41,6 +41,7 @@ export const IngestFileOptionsSchema = z
     encoding: z.enum(['utf-8', 'latin-1']).optional(),
     header: z.boolean().optional(),
     jsonFormat: z.enum(['auto', 'array', 'newline_delimited', 'unstructured']).optional(),
+    maxDepth: z.number().int().positive().optional(),
     sheet: z.union([z.string(), z.number()]).optional(),
     sampleSize: z.number().positive().int().optional(),
     ignoreErrors: z.boolean().optional(),

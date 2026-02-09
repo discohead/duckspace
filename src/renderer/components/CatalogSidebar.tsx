@@ -1,10 +1,18 @@
 import type { DataGridTab, DataSource } from '@shared/types';
 import type React from 'react';
 import type { ReactElement } from 'react';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { db } from '../stores/db';
 import { useCatalogSources, useTabs } from '../stores/hooks';
 import { ImportDialog } from './ImportDialog';
+import { WatchDirConfig } from './WatchDirConfig';
+
+/** Tracks the open context menu position and target data source. */
+interface ContextMenuState {
+  readonly sourceId: string;
+  readonly x: number;
+  readonly y: number;
+}
 
 /**
  * Color-coded status dot colors for data source lifecycle states.
@@ -42,6 +50,98 @@ const FORMAT_LABELS: Record<DataSource['format'], string> = {
 export function CatalogSidebar(): ReactElement {
   const sources = useCatalogSources();
   const tabs = useTabs();
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  /** Dismiss the context menu on outside click. */
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const handleClickOutside = (): void => {
+      setContextMenu(null);
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [contextMenu]);
+
+  /** Auto-focus first menu item when context menu opens. */
+  useEffect(() => {
+    if (contextMenu && menuRef.current) {
+      const firstItem = menuRef.current.querySelector<HTMLElement>('[role="menuitem"]');
+      firstItem?.focus();
+    }
+  }, [contextMenu]);
+
+  /** Open context menu on right-click of a source entry. */
+  const handleContextMenu = useCallback((e: React.MouseEvent, source: DataSource): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ sourceId: source.id, x: e.clientX, y: e.clientY });
+  }, []);
+
+  /** Remove a data source from DuckDB and Dexie, with confirmation. */
+  const handleRemoveSource = useCallback((sourceId: string, sourceName: string): void => {
+    setContextMenu(null);
+    if (
+      !window.confirm(
+        `Remove "${sourceName}"? This will delete the data source and its DuckDB table.`,
+      )
+    ) {
+      return;
+    }
+    void (async () => {
+      try {
+        await window.datspace.catalog.removeSource(sourceId);
+        await db.data_sources.delete(sourceId);
+        setRemoveError(null);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to remove data source.';
+        setRemoveError(message);
+      }
+    })();
+  }, []);
+
+  /** Retry import for a failed or stale source. */
+  const handleRetryImport = useCallback((source: DataSource): void => {
+    setContextMenu(null);
+    void window.datspace.ingestion.importFiles([source.filePath], 'retry', source.id);
+  }, []);
+
+  /** WAI-ARIA menu keyboard navigation handler. */
+  const handleMenuKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (e.key === 'Escape') {
+      setContextMenu(null);
+      return;
+    }
+    const menu = menuRef.current;
+    if (!menu) return;
+    const items = menu.querySelectorAll<HTMLElement>('[role="menuitem"]');
+    const current = document.activeElement as HTMLElement | null;
+    const idx = current ? [...items].indexOf(current) : -1;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      items[idx < items.length - 1 ? idx + 1 : 0]?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      items[idx > 0 ? idx - 1 : items.length - 1]?.focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      items[0]?.focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      items[items.length - 1]?.focus();
+    }
+  }, []);
+
+  /** Copy the DuckDB table name to the system clipboard. */
+  const handleCopyTableName = useCallback((tableName: string): void => {
+    setContextMenu(null);
+    void navigator.clipboard.writeText(tableName);
+  }, []);
 
   const handleSourceClick = useCallback(
     (source: DataSource): void => {
@@ -120,6 +220,9 @@ export function CatalogSidebar(): ReactElement {
               onClick={() => {
                 handleSourceClick(source);
               }}
+              onContextMenu={(e) => {
+                handleContextMenu(e, source);
+              }}
               title={source.filePath}
             >
               <span
@@ -149,6 +252,106 @@ export function CatalogSidebar(): ReactElement {
           ))
         )}
       </div>
+      {removeError && (
+        <div
+          role="alert"
+          style={styles.errorBanner}
+          onClick={() => {
+            setRemoveError(null);
+          }}
+          onKeyDown={() => {
+            /* click handler is primary */
+          }}
+        >
+          {removeError}
+        </div>
+      )}
+      {contextMenu &&
+        (() => {
+          const targetSource = sources?.find((s) => s.id === contextMenu.sourceId);
+          if (!targetSource) return null;
+          const canRetry = targetSource.status === 'error' || targetSource.status === 'stale';
+          const tableName = targetSource.duckdbTableName;
+          const itemCount = (tableName != null ? 1 : 0) + (canRetry ? 1 : 0) + 1;
+          const menuWidth = 160;
+          const menuHeight = itemCount * 32 + 8;
+          const x = Math.min(contextMenu.x, window.innerWidth - menuWidth - 8);
+          const y = Math.min(contextMenu.y, window.innerHeight - menuHeight - 8);
+          return (
+            <div
+              ref={menuRef}
+              role="menu"
+              aria-label="Source actions"
+              style={{
+                ...styles.contextMenu,
+                top: y,
+                left: x,
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+              onKeyDown={handleMenuKeyDown}
+            >
+              {tableName != null && (
+                <button
+                  role="menuitem"
+                  type="button"
+                  style={styles.contextMenuItem}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f3f4f6';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#1f2937';
+                  }}
+                  onClick={() => {
+                    handleCopyTableName(tableName);
+                  }}
+                >
+                  Copy Table Name
+                </button>
+              )}
+              {canRetry && (
+                <button
+                  role="menuitem"
+                  type="button"
+                  style={styles.contextMenuItem}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f3f4f6';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#1f2937';
+                  }}
+                  onClick={() => {
+                    handleRetryImport(targetSource);
+                  }}
+                >
+                  Retry Import
+                </button>
+              )}
+              <button
+                role="menuitem"
+                type="button"
+                style={styles.contextMenuItem}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f3f4f6';
+                  e.currentTarget.style.color = '#ef4444';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = '#1f2937';
+                }}
+                onClick={() => {
+                  handleRemoveSource(targetSource.id, targetSource.name);
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          );
+        })()}
+      <WatchDirConfig />
     </aside>
   );
 }
@@ -257,5 +460,39 @@ const styles = {
     letterSpacing: '0.03em',
     flexShrink: 0,
     lineHeight: '14px',
+  },
+  contextMenu: {
+    position: 'fixed' as const,
+    zIndex: 1000,
+    backgroundColor: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: 6,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    padding: 4,
+    minWidth: 160,
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
+  contextMenuItem: {
+    display: 'block',
+    width: '100%',
+    padding: '6px 12px',
+    border: 'none',
+    backgroundColor: 'transparent',
+    color: '#1f2937',
+    fontSize: 13,
+    textAlign: 'left' as const,
+    cursor: 'pointer',
+    borderRadius: 4,
+    fontFamily: 'inherit',
+    lineHeight: '20px',
+  },
+  errorBanner: {
+    padding: '6px 12px',
+    backgroundColor: '#fef2f2',
+    color: '#991b1b',
+    fontSize: 12,
+    borderTop: '1px solid #fecaca',
+    cursor: 'pointer',
   },
 } satisfies Record<string, React.CSSProperties>;
