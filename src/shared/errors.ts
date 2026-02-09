@@ -512,7 +512,7 @@ export function alreadyWatchingError(dirPath: string): DatspaceError {
  * Falls back to the full message if no path can be extracted.
  */
 function extractFilePath(errorMessage: string): string {
-  const match = errorMessage.match(/:\s*['"]([^'"]+)['"]\s*$/);
+  const match = /:\s*['"]([^'"]+)['"]\s*$/.exec(errorMessage);
   return match?.[1] ?? errorMessage;
 }
 

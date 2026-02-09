@@ -25,7 +25,7 @@ vi.mock('@renderer/stores/db', () => ({
       }),
       bulkAdd: mockBulkAdd,
     },
-    transaction: (...args: unknown[]) => mockTransaction(...args),
+    transaction: mockTransaction,
   },
 }));
 

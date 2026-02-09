@@ -146,7 +146,7 @@ function unknownToString(value: unknown): string {
   if (typeof value === 'bigint') return value.toString();
   if (typeof value === 'symbol') return value.toString();
   try {
-    return JSON.stringify(value) ?? String(value);
+    return JSON.stringify(value);
   } catch {
     return String(value);
   }

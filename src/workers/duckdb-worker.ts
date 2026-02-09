@@ -72,8 +72,12 @@ function serialise<T>(fn: () => Promise<T>): Promise<T> {
   // Update the tail but suppress unhandled-rejection warnings — errors are
   // caught inside each handler and posted back as error messages.
   mutexTail = next.then(
-    () => {},
-    () => {},
+    () => {
+      /* intentional no-op: suppress unhandled-rejection warnings */
+    },
+    () => {
+      /* intentional no-op: suppress unhandled-rejection warnings */
+    },
   );
   return next;
 }
