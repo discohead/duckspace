@@ -690,8 +690,8 @@ export interface CatalogSourceUpdatedEvent {
   readonly dataSourceId: string;
   /** New status */
   readonly status: DataSourceStatus;
-  /** Previous status */
-  readonly previousStatus: DataSourceStatus;
+  /** Previous status (unavailable when emitted by file watcher) */
+  readonly previousStatus?: DataSourceStatus | undefined;
 }
 
 // ============================================================

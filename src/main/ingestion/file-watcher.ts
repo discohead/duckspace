@@ -13,9 +13,15 @@ import {
   directoryPermissionDeniedError,
   notADirectoryError,
 } from '@shared/errors';
-import type { DataSourceFormat, WatchDirectory, WatchFileEvent } from '@shared/types';
+import type {
+  CatalogSourceUpdatedEvent,
+  DataSourceFormat,
+  WatchDirectory,
+  WatchFileEvent,
+} from '@shared/types';
 import { type FSWatcher, watch } from 'chokidar';
 import type { BrowserWindow } from 'electron';
+import { getDataSourceIdByFilePath } from './ingestion-router';
 
 // ---------------------------------------------------------------------------
 // Extension → Format mapping (synchronous, no I/O)
@@ -422,6 +428,9 @@ export class FileWatcher {
 
   /**
    * Notify the renderer that a data source's status has changed.
+   * Looks up the `dataSourceId` from the ingestion router's file-path map.
+   * If no data source is registered for the path (e.g. file was never ingested),
+   * the event is dropped with a warning.
    */
   private emitSourceUpdated(filePath: string, status: 'stale' | 'removed'): void {
     if (this.mainWindow === undefined || this.mainWindow.isDestroyed()) {
@@ -430,10 +439,21 @@ export class FileWatcher {
       );
       return;
     }
-    this.mainWindow.webContents.send(PUSH_EVENTS.CATALOG_SOURCE_UPDATED, {
-      filePath,
+
+    const dataSourceId = getDataSourceIdByFilePath(filePath);
+    if (dataSourceId === undefined) {
+      console.warn(
+        `[FileWatcher] No dataSourceId found for "${filePath}", dropping sourceUpdated (${status})`,
+      );
+      return;
+    }
+
+    const event: CatalogSourceUpdatedEvent = {
+      type: 'catalog:sourceUpdated',
+      dataSourceId,
       status,
-    });
+    };
+    this.mainWindow.webContents.send(PUSH_EVENTS.CATALOG_SOURCE_UPDATED, event);
   }
 
   // -----------------------------------------------------------------------

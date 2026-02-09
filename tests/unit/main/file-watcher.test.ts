@@ -28,9 +28,13 @@ vi.mock('node:fs/promises', () => ({
   constants: { R_OK: 4 },
 }));
 
-// Prevent dynamic import of ingestion-router from running actual code
+// Mock ingestion-router — both the static import (getDataSourceIdByFilePath)
+// and the dynamic import (importFiles) used in event handlers.
+const mockGetDataSourceIdByFilePath = vi.fn<(filePath: string) => string | undefined>();
 vi.mock('@main/ingestion/ingestion-router', () => ({
   importFiles: vi.fn(() => Promise.resolve()),
+  getDataSourceIdByFilePath: (...args: unknown[]) =>
+    mockGetDataSourceIdByFilePath(args[0] as string),
 }));
 
 // ---------------------------------------------------------------------------
@@ -278,6 +282,10 @@ describe('FileWatcher', () => {
       } as unknown as Electron.BrowserWindow;
       watcher.setMainWindow(mockWindow);
 
+      // Mock the data source lookup so emitSourceUpdated can resolve the ID
+      const testDataSourceId = 'ds-test-123';
+      mockGetDataSourceIdByFilePath.mockReturnValue(testDataSourceId);
+
       const dir = makeWatchDir({ path: '/tmp/unlink-send-test' });
       await watcher.addDirectory(dir);
 
@@ -288,7 +296,8 @@ describe('FileWatcher', () => {
       expect(mockSend).toHaveBeenCalledWith(
         'catalog:sourceUpdated',
         expect.objectContaining({
-          filePath: '/tmp/unlink-send-test/data.json',
+          type: 'catalog:sourceUpdated',
+          dataSourceId: testDataSourceId,
           status: 'removed',
         }),
       );

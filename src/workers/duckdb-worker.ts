@@ -168,10 +168,10 @@ port.on('message', async (msg: { type: string; [key: string]: unknown }) => {
         await serialise(() => handleComputeStats(validated));
         break;
       case 'drop_table':
-        await handleDropTable(validated);
+        await serialise(() => handleDropTable(validated));
         break;
       case 'install_extension':
-        await handleInstallExtension(validated);
+        await serialise(() => handleInstallExtension(validated));
         break;
     }
   } catch (error) {
