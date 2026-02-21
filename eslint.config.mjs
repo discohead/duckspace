@@ -58,6 +58,9 @@ export default tseslint.config(
       ],
       '@typescript-eslint/consistent-type-exports': 'error',
 
+      // Unused variables: allow _-prefixed args (intentionally unused parameters)
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+
       // Exhaustiveness and safety
       '@typescript-eslint/switch-exhaustiveness-check': 'error',
 
