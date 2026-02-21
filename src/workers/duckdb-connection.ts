@@ -71,9 +71,9 @@ export async function initDuckDB(config: DuckDBConfig): Promise<void> {
     await connection.run('INSTALL arrow FROM community');
     await connection.run('LOAD arrow');
   } catch (err) {
-    console.warn(
-      'Failed to load Arrow extension (query streaming will not work):',
-      err instanceof Error ? err.message : String(err),
+    const errMsg = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Arrow extension is required for query streaming but failed to load: ${errMsg}`,
     );
   }
 

@@ -256,7 +256,12 @@ export class FileWatcher {
         }),
       );
     }
-    await Promise.all(closePromises);
+    const results = await Promise.allSettled(closePromises);
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        console.warn('[FileWatcher] Failed to close a watcher:', result.reason);
+      }
+    }
   }
 
   /**
@@ -362,6 +367,11 @@ export class FileWatcher {
     try {
       const ext = path.extname(filePath).slice(1).toLowerCase();
       const format = getFormatFromExtension(ext);
+
+      // Guard: skip if extension did not resolve to a known format
+      if (format === undefined) {
+        return;
+      }
 
       this.emitWatchFileEvent({
         type: 'watch:fileEvent',

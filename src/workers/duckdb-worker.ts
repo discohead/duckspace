@@ -482,7 +482,11 @@ async function handleHealthCheck(): Promise<void> {
     `);
     const rows = await result.getRows();
     response.tables = Number(rows[0]?.[0] ?? 0);
-  } catch {
+  } catch (error: unknown) {
+    console.warn(
+      '[DuckDB Worker] Health check query failed:',
+      error instanceof Error ? error.message : String(error),
+    );
     response.status = 'degraded';
   }
 
@@ -719,7 +723,7 @@ async function handleIngestFile(req: WorkerIngestFileRequest): Promise<void> {
     });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    port.postMessage({ type: 'error', message: `Ingestion failed for job ${jobId}: ${errMsg}` });
+    port.postMessage({ type: 'error', message: errMsg, jobId });
   }
 }
 
@@ -980,6 +984,16 @@ async function handleInstallExtension(req: WorkerInstallExtensionRequest): Promi
   const { extensionName, source } = req;
 
   try {
+    if (!/^[\w]+$/u.test(extensionName)) {
+      port.postMessage({
+        type: 'install_extension_complete',
+        extensionName,
+        loaded: false,
+        errorMessage: 'Invalid extension name: must contain only word characters',
+      });
+      return;
+    }
+
     const conn = getConnection();
     const installSql =
       source === 'community'
@@ -1000,6 +1014,7 @@ async function handleInstallExtension(req: WorkerInstallExtensionRequest): Promi
       type: 'install_extension_complete',
       extensionName,
       loaded: false,
+      errorMessage: errMsg,
     });
   }
 }

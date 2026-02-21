@@ -108,7 +108,11 @@ export function CatalogSidebar(): ReactElement {
   /** Retry import for a failed or stale source. */
   const handleRetryImport = useCallback((source: DataSource): void => {
     setContextMenu(null);
-    void window.datspace.ingestion.importFiles([source.filePath], 'retry', source.id);
+    void window.datspace.ingestion
+      .importFiles([source.filePath], 'retry', source.id)
+      .catch((err: unknown) => {
+        console.error('[CatalogSidebar] Retry import failed:', err);
+      });
   }, []);
 
   /** WAI-ARIA menu keyboard navigation handler. */
@@ -140,7 +144,9 @@ export function CatalogSidebar(): ReactElement {
   /** Copy the DuckDB table name to the system clipboard. */
   const handleCopyTableName = useCallback((tableName: string): void => {
     setContextMenu(null);
-    void navigator.clipboard.writeText(tableName);
+    void navigator.clipboard.writeText(tableName).catch((err: unknown) => {
+      console.error('[CatalogSidebar] Clipboard write failed:', err);
+    });
   }, []);
 
   const handleSourceClick = useCallback(
@@ -183,7 +189,9 @@ export function CatalogSidebar(): ReactElement {
             lastAccessedAt: new Date().toISOString(),
           });
         });
-      })();
+      })().catch((err: unknown) => {
+        console.error('[CatalogSidebar] Source click handler failed:', err);
+      });
     },
     [tabs],
   );
@@ -203,7 +211,11 @@ export function CatalogSidebar(): ReactElement {
                 type="button"
                 style={styles.emptyAction}
                 onClick={() => {
-                  void window.datspace.ingestion.importFiles([], 'file_picker');
+                  void window.datspace.ingestion
+                    .importFiles([], 'file_picker')
+                    .catch((err: unknown) => {
+                      console.error('[CatalogSidebar] Import files failed:', err);
+                    });
                 }}
               >
                 Import files

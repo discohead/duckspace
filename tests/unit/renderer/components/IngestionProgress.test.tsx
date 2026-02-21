@@ -12,7 +12,7 @@ vi.mock('@renderer/stores/hooks', () => ({
 }));
 
 // Mock window.datspace.ingestion.cancelJob
-const mockCancelJob = vi.fn();
+const mockCancelJob = vi.fn().mockResolvedValue(undefined);
 
 beforeEach(() => {
   vi.clearAllMocks();

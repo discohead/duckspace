@@ -44,7 +44,7 @@ export const IPC_CHANNELS = {
   WATCH_REMOVE_DIRECTORY: 'watch:removeDirectory',
   WATCH_LIST_DIRECTORIES: 'watch:listDirectories',
   WATCH_RESTORE_DIRECTORIES: 'watch:restoreDirectories',
-} as const;
+} as const satisfies Record<string, string>;
 
 // ---------------------------------------------------------------------------
 // 2. Push Event Names (webContents.send / ipcRenderer.on)
@@ -65,7 +65,7 @@ export const PUSH_EVENTS = {
   INGESTION_COMPLETE: 'ingestion:complete',
   WATCH_FILE_EVENT: 'watch:fileEvent',
   CATALOG_SOURCE_UPDATED: 'catalog:sourceUpdated',
-} as const;
+} as const satisfies Record<string, string>;
 
 // ---------------------------------------------------------------------------
 // 3. Data Plane Channel Names

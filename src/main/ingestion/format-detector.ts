@@ -173,6 +173,9 @@ export async function detectFormat(filePath: string): Promise<DataSourceFormat> 
 
     // Fall back to extension-based detection even though magic didn't match.
     // The file may be truncated or have non-standard headers.
+    console.warn(
+      `[FormatDetector] Magic bytes for "${filePath}" do not match expected format "${formatFromExtension}"; falling back to extension-based detection`,
+    );
     return formatFromExtension;
   }
 

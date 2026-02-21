@@ -24,6 +24,7 @@ export const ColumnStatisticsSchema = z
     id: z.string().min(1),
     dataSourceId: z.string().min(1),
     columnName: z.string().min(1),
+    columnType: z.string().min(1).describe('DuckDB data type (e.g. INTEGER, VARCHAR)'),
     rowCount: z.number().int().nonnegative(),
     nullCount: z.number().int().nonnegative(),
     nullPercentage: z.number().nonnegative(),

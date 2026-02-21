@@ -7,20 +7,26 @@
  */
 
 import { stat } from 'node:fs/promises';
-import path from 'node:path';
 
 import type { Worker } from 'node:worker_threads';
 import { PUSH_EVENTS } from '@shared/constants';
 import { fileNotFoundError, filePermissionDeniedError } from '@shared/errors';
+import {
+  WorkerComputeStatsCompleteSchema,
+  WorkerIngestFileCompleteSchema,
+  WorkerIngestFileProgressSchema,
+} from '@shared/schemas/worker-schemas';
 import type {
-  DataSource,
+  CatalogSourceUpdatedEvent,
   DataSourceFormat,
   ImportFilesResponse,
   ImportFilesResponseJob,
-  IngestionJob,
+  IngestionCompleteEvent,
+  IngestionProgressEvent,
   IngestionTrigger,
 } from '@shared/types';
 import type { BrowserWindow } from 'electron';
+import type { z } from 'zod';
 import { detectFormat, generateTableName } from './format-detector';
 import { ProgressTracker } from './progress-tracker';
 
@@ -61,28 +67,25 @@ export function setWorker(w: Worker): void {
   // ingestion message types; this listener handles them.
   w.on('message', (msg: Record<string, unknown>) => {
     switch (msg['type']) {
-      case 'ingest_file_complete':
-        handleWorkerComplete(
-          msg as unknown as {
-            readonly jobId: string;
-            readonly tableName: string;
-            readonly rowCount: number;
-            readonly columnCount: number;
-            readonly columns: readonly {
-              readonly name: string;
-              readonly type: string;
-              readonly nullable: boolean;
-            }[];
-            readonly durationMs: number;
-            readonly skippedRows: number;
-          },
-        );
+      case 'ingest_file_complete': {
+        const parsed = WorkerIngestFileCompleteSchema.safeParse(msg);
+        if (parsed.success) {
+          handleWorkerComplete(parsed.data);
+        }
         break;
+      }
+      case 'ingest_file_progress': {
+        const parsed = WorkerIngestFileProgressSchema.safeParse(msg);
+        if (parsed.success) {
+          handleWorkerProgress(parsed.data);
+        }
+        break;
+      }
       case 'error': {
+        const jobId = typeof msg['jobId'] === 'string' ? msg['jobId'] : undefined;
         const message = typeof msg['message'] === 'string' ? msg['message'] : '';
-        const match = /^Ingestion failed for job ([^:]+): (.*)$/.exec(message);
-        if (match?.[1] !== undefined && match[2] !== undefined) {
-          handleWorkerError(match[1], match[2]);
+        if (jobId !== undefined && jobToDataSourceMap.has(jobId)) {
+          handleWorkerError(jobId, message);
         }
         break;
       }
@@ -122,7 +125,7 @@ export function getProgressTracker(): ProgressTracker {
  */
 export async function importFiles(
   filePaths: readonly string[],
-  trigger: IngestionTrigger,
+  _trigger: IngestionTrigger,
 ): Promise<ImportFilesResponse> {
   if (worker === null) {
     throw new Error('Worker not initialized');
@@ -157,7 +160,6 @@ export async function importFiles(
     // Create job ID and data source ID
     const jobId = crypto.randomUUID();
     const dataSourceId = crypto.randomUUID();
-    const now = new Date().toISOString();
 
     // Track dataSourceId → tableName mapping for IPC handlers (e.g., getColumnStats)
     dataSourceTableMap.set(dataSourceId, tableName);
@@ -190,48 +192,22 @@ export async function importFiles(
 
     // Relay to renderer: notify about new data source and job
     if (mainWindow !== null && !mainWindow.isDestroyed()) {
-      const dataSource: DataSource = {
-        id: dataSourceId,
-        name: path.basename(filePath, path.extname(filePath)),
-        filePath,
-        format,
-        status: 'importing',
-        duckdbTableName: tableName,
-        fileSizeBytes,
-        tags: [],
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      const ingestionJob: IngestionJob = {
-        id: jobId,
-        dataSourceId,
-        status: 'running',
-        filePath,
-        format,
-        fileSizeBytes,
-        rowsProcessed: 0,
-        batchesReceived: 0,
-        bytesProcessed: 0,
-        startedAt: now,
-        triggeredBy: trigger,
-      };
-
       mainWindow.webContents.send(PUSH_EVENTS.CATALOG_SOURCE_UPDATED, {
-        type: 'source_created',
-        dataSource,
-      });
+        type: 'catalog:sourceUpdated',
+        dataSourceId,
+        status: 'importing',
+      } satisfies CatalogSourceUpdatedEvent);
 
       mainWindow.webContents.send(PUSH_EVENTS.INGESTION_PROGRESS, {
+        type: 'ingestion:progress',
         jobId,
         dataSourceId,
-        ingestionJob,
         status: 'running',
         rowsProcessed: 0,
         bytesProcessed: 0,
-        percentage: 0,
-        elapsedMs: 0,
-      });
+        estimatedTotalRows: undefined,
+        durationMs: 0,
+      } satisfies IngestionProgressEvent);
     }
   }
 
@@ -257,14 +233,15 @@ export function handleWorkerProgress(msg: {
 
   if (mainWindow !== null && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(PUSH_EVENTS.INGESTION_PROGRESS, {
+      type: 'ingestion:progress',
       jobId: msg.jobId,
+      dataSourceId: jobToDataSourceMap.get(msg.jobId) ?? '',
       status: 'running',
       rowsProcessed: msg.rowsProcessed,
       bytesProcessed: msg.bytesProcessed,
-      percentage: estimate?.percentage,
       estimatedTotalRows: estimate?.estimatedTotalRows,
-      elapsedMs: estimate?.elapsedMs ?? msg.durationMs,
-    });
+      durationMs: estimate?.elapsedMs ?? msg.durationMs,
+    } satisfies IngestionProgressEvent);
   }
 }
 
@@ -293,15 +270,16 @@ export function handleWorkerComplete(msg: {
 
   if (mainWindow !== null && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(PUSH_EVENTS.INGESTION_COMPLETE, {
+      type: 'ingestion:complete',
       jobId: msg.jobId,
-      dataSourceId,
+      dataSourceId: dataSourceId ?? '',
       status: 'completed',
-      tableName: msg.tableName,
       rowCount: msg.rowCount,
       columnCount: msg.columnCount,
       durationMs: msg.durationMs,
-      skippedRows: msg.skippedRows,
-    });
+      errorMessage: undefined,
+      errorCode: undefined,
+    } satisfies IngestionCompleteEvent);
   }
 }
 
@@ -318,11 +296,16 @@ export function handleWorkerError(jobId: string, errorMessage: string): void {
 
   if (mainWindow !== null && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(PUSH_EVENTS.INGESTION_COMPLETE, {
+      type: 'ingestion:complete',
       jobId,
-      dataSourceId,
+      dataSourceId: dataSourceId ?? '',
       status: 'failed',
+      rowCount: undefined,
+      columnCount: undefined,
+      durationMs: 0,
       errorMessage,
-    });
+      errorCode: undefined,
+    } satisfies IngestionCompleteEvent);
   }
 }
 
@@ -358,27 +341,8 @@ export function registerDataSourceTable(dataSourceId: string, tableName: string)
   dataSourceTableMap.set(dataSourceId, tableName);
 }
 
-/** Shape of the compute_stats_complete Worker response. */
-interface ComputeStatsResult {
-  readonly tableName: string;
-  readonly columns: readonly {
-    readonly columnName: string;
-    readonly columnType: string;
-    readonly rowCount: number;
-    readonly nullCount: number;
-    readonly nullPercentage: number;
-    readonly distinctCount: number;
-    readonly min?: string | undefined;
-    readonly max?: string | undefined;
-    readonly mean?: number | undefined;
-    readonly median?: number | undefined;
-    readonly stddev?: number | undefined;
-    readonly q25?: number | undefined;
-    readonly q75?: number | undefined;
-    readonly topValues?: readonly { readonly value: string; readonly count: number }[] | undefined;
-  }[];
-  readonly durationMs: number;
-}
+/** Shape of the compute_stats_complete Worker response, derived from Zod schema. */
+type ComputeStatsResult = z.infer<typeof WorkerComputeStatsCompleteSchema>;
 
 /**
  * Sends a `compute_stats` message to the Worker and returns the result.
@@ -403,9 +367,14 @@ export function computeStats(tableName: string, topN?: number): Promise<ComputeS
 
     const handler = (msg: Record<string, unknown>): void => {
       if (msg['type'] === 'compute_stats_complete' && msg['tableName'] === tableName) {
+        const parsed = WorkerComputeStatsCompleteSchema.safeParse(msg);
         clearTimeout(timeout);
         w.removeListener('message', handler);
-        resolve(msg as unknown as ComputeStatsResult);
+        if (parsed.success) {
+          resolve(parsed.data);
+        } else {
+          reject(new Error('Invalid compute_stats_complete message from Worker'));
+        }
       } else if (msg['type'] === 'error') {
         const errMsg = typeof msg['message'] === 'string' ? msg['message'] : 'Worker error';
         if (errMsg.includes('Statistics computation failed') || errMsg.includes(tableName)) {
@@ -515,4 +484,17 @@ export async function retryImport(
   }
 
   return importFiles([filePath], 'retry');
+}
+
+/**
+ * Resets all in-memory state maps.
+ *
+ * Call this on worker restart to prevent stale mappings from a previous
+ * worker session from corrupting new ingestion operations.
+ */
+export function resetState(): void {
+  registeredTableNames.clear();
+  dataSourceTableMap.clear();
+  jobToDataSourceMap.clear();
+  filePathToDataSourceMap.clear();
 }

@@ -157,6 +157,9 @@ export function App(): ReactElement {
       .modify({
         status: 'error' as DataSource['status'],
         updatedAt: new Date().toISOString(),
+      })
+      .catch((err: unknown) => {
+        console.error('[App] Failed to clean up stale data sources:', err);
       });
     void db.ingestion_jobs
       .where('status')
@@ -164,6 +167,9 @@ export function App(): ReactElement {
       .modify({
         status: 'failed' as IngestionJob['status'],
         completedAt: new Date().toISOString(),
+      })
+      .catch((err: unknown) => {
+        console.error('[App] Failed to clean up stale ingestion jobs:', err);
       });
   }, []);
 

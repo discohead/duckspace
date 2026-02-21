@@ -257,6 +257,7 @@ export const WorkerErrorMessageSchema = z
   .object({
     type: z.literal('error'),
     message: z.string(),
+    jobId: z.string().optional(),
   })
   .strict()
   .describe('Worker -> Main: Unhandled error');
@@ -368,7 +369,7 @@ export const WorkerDropTableRequestSchema = z
 export const WorkerInstallExtensionRequestSchema = z
   .object({
     type: z.literal('install_extension'),
-    extensionName: z.string(),
+    extensionName: z.string().regex(/^[\w]+$/u, 'Extension name must contain only word characters'),
     source: z.enum(['core', 'community']).optional(),
   })
   .strict()
@@ -477,6 +478,7 @@ export const WorkerInstallExtensionCompleteSchema = z
     type: z.literal('install_extension_complete'),
     extensionName: z.string(),
     loaded: z.boolean(),
+    errorMessage: z.string().optional(),
   })
   .strict()
   .describe('Worker -> Main: Extension installed');

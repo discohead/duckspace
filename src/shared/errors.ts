@@ -55,7 +55,7 @@ export const ERROR_CODES = {
   PORT_DISCONNECTED: 'E6004',
   MEMORY_PRESSURE: 'E6005',
   SHUTTING_DOWN: 'E6006',
-} as const;
+} as const satisfies Record<string, string>;
 
 /** Union type of all valid error code string literals (e.g., 'E1001', 'E6003'). */
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

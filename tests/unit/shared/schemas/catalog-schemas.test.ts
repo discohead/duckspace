@@ -55,6 +55,7 @@ describe('catalog-schemas', () => {
       id: 'ds1__col1',
       dataSourceId: 'ds1',
       columnName: 'col1',
+      columnType: 'INTEGER',
       rowCount: 1000,
       nullCount: 50,
       nullPercentage: 5.0,
