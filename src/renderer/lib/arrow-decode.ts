@@ -136,6 +136,67 @@ export function decodeArrowBatch(buffer: ArrayBuffer): DecodedBatch | null {
 }
 
 /**
+ * Converts an unknown value to a display string, handling all primitive types explicitly.
+ * Avoids calling `String()` on `unknown` which triggers `@typescript-eslint/no-base-to-string`.
+ */
+function unknownToString(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'boolean') return String(value);
+  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === 'symbol') return value.toString();
+  try {
+    const json = JSON.stringify(value);
+    if (typeof json === 'string') return json;
+  } catch {
+    // fall through to String() fallback
+  }
+  return String(value);
+}
+
+/**
+ * Formats a cell value for display based on its Arrow column type name.
+ *
+ * Flechette normalizes Date and Timestamp values to millisecond epoch numbers
+ * (without the `useDate` option). This function converts them to human-readable
+ * ISO strings. Time values from DuckDB are typically microseconds.
+ *
+ * @param value - The raw cell value from {@link DecodedBatch.getCell}.
+ * @param typeName - The column type name from {@link DecodedBatch.columnTypes}.
+ * @returns A formatted string for display.
+ */
+export function formatCellValue(value: unknown, typeName: string): string {
+  if (value === null || value === undefined) return 'NULL';
+
+  switch (typeName) {
+    case 'Date': {
+      if (typeof value === 'number' || typeof value === 'bigint') {
+        return new Date(Number(value)).toISOString().slice(0, 10);
+      }
+      return unknownToString(value);
+    }
+    case 'Timestamp': {
+      if (typeof value === 'number' || typeof value === 'bigint') {
+        return new Date(Number(value)).toISOString().replace('T', ' ').replace('Z', '');
+      }
+      return unknownToString(value);
+    }
+    case 'Time': {
+      const us =
+        typeof value === 'bigint' ? Number(value) : typeof value === 'number' ? value : NaN;
+      if (Number.isNaN(us)) return unknownToString(value);
+      const totalSec = Math.floor(us / 1_000_000);
+      const h = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+      const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+      const s = String(totalSec % 60).padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    }
+    default:
+      return unknownToString(value);
+  }
+}
+
+/**
  * Merges multiple decoded batches into a single combined view.
  * Cell access delegates to the appropriate underlying batch using cumulative row offsets.
  *

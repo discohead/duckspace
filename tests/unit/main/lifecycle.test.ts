@@ -90,10 +90,28 @@ vi.mock('@main/ipc-handlers', () => ({
   setQueryRouter: vi.fn(),
   setWorkerManager: vi.fn(),
   setMainWindowRef: vi.fn(),
+  setIngestionReady: vi.fn(),
+  setFileWatcher: vi.fn(),
   setupDataChannel: vi.fn(),
   waitForRendererReady: vi.fn().mockResolvedValue(undefined),
   waitForShutdownAck: vi.fn().mockResolvedValue(true),
   sendShutdownPrepare: vi.fn(),
+}));
+
+vi.mock('@main/ingestion/ingestion-router', () => ({
+  setWorker: vi.fn(),
+  setMainWindow: vi.fn(),
+}));
+
+vi.mock('@main/ingestion/file-watcher', () => ({
+  FileWatcher: vi.fn().mockImplementation(() => ({
+    setMainWindow: vi.fn(),
+    addDirectory: vi.fn().mockResolvedValue(undefined),
+    removeDirectory: vi.fn().mockResolvedValue(undefined),
+    closeAll: vi.fn().mockResolvedValue(undefined),
+    getActiveWatchers: vi.fn().mockReturnValue([]),
+    isWatching: vi.fn().mockReturnValue(false),
+  })),
 }));
 
 // ---------------------------------------------------------------------------

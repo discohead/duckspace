@@ -10,7 +10,7 @@
  * Organized by domain:
  *   1. IPC Control Plane Messages
  *   2. Data Plane Messages (MessagePort)
- *   3. Worker Control Messages (Main <-> DuckDB Worker)
+ *   3. Worker Control Messages (Main \<-\> DuckDB Worker)
  *   4. Entity Types (Dexie.js collections)
  *   5. API Types (Preload bridge surface)
  *   6. Configuration
@@ -38,6 +38,14 @@ export interface QueryExecuteResponse {
 export interface QueryHandle {
   /** UUID for tracking this query execution */
   queryId: string;
+}
+
+/** Extended query handle returned by preview queries, surfacing any limit clamping. */
+export interface PreviewHandle extends QueryHandle {
+  /** The row limit actually applied to the query. */
+  effectiveLimit: number;
+  /** True when the requested limit exceeded the safe maximum and was clamped. */
+  wasClamped: boolean;
 }
 
 /** Request payload for `query:cancel` IPC channel */
@@ -96,7 +104,7 @@ export interface CatalogDescribeResponse {
 export interface CatalogPreviewRequest {
   /** DuckDB table or view name */
   tableName: string;
-  /** Number of sample rows (default: 100) */
+  /** Number of sample rows (default: 100,000) */
   limit?: number | undefined;
 }
 
@@ -104,6 +112,10 @@ export interface CatalogPreviewRequest {
 export interface CatalogPreviewResponse {
   /** Query ID for receiving data on the MessagePort */
   queryId: string;
+  /** The row limit actually applied to the query. */
+  effectiveLimit: number;
+  /** True when the requested limit exceeded the safe maximum and was clamped. */
+  wasClamped: boolean;
 }
 
 // ============================================================
@@ -182,10 +194,10 @@ export type DataPlaneMessage =
   | DataPlaneCancelMessage;
 
 // ============================================================
-// 3. Worker Control Messages (Main <-> DuckDB Worker)
+// 3. Worker Control Messages (Main \<-\> DuckDB Worker)
 // ============================================================
 
-/** Main -> DuckDB Worker: Execute SQL query */
+/** Main -\> DuckDB Worker: Execute SQL query */
 export interface WorkerQueryRequest {
   type: 'execute_query';
   /** UUID assigned by QueryRouter */
@@ -207,19 +219,19 @@ export interface WorkerQueryRequest {
     | undefined;
 }
 
-/** Main -> DuckDB Worker: Cancel a running query */
+/** Main -\> DuckDB Worker: Cancel a running query */
 export interface WorkerCancelRequest {
   type: 'cancel_query';
   queryId: string;
 }
 
-/** Main -> DuckDB Worker: Get table information */
+/** Main -\> DuckDB Worker: Get table information */
 export interface WorkerGetTableInfoRequest {
   type: 'get_table_info';
   tableName: string;
 }
 
-/** DuckDB Worker -> Main: Table info response */
+/** DuckDB Worker -\> Main: Table info response */
 export interface WorkerGetTableInfoResponse {
   type: 'table_info';
   tableName: string;
@@ -228,7 +240,7 @@ export interface WorkerGetTableInfoResponse {
   sizeBytes: number;
 }
 
-/** DuckDB Worker -> Main: Catalog update after table registration */
+/** DuckDB Worker -\> Main: Catalog update after table registration */
 export interface WorkerCatalogUpdate {
   type: 'catalog_update';
   table: string;
@@ -239,7 +251,7 @@ export interface WorkerCatalogUpdate {
   registrationType: 'table' | 'view';
 }
 
-/** Worker -> Main: Initialization complete */
+/** Worker -\> Main: Initialization complete */
 export interface WorkerReadyMessage {
   type: 'ready';
   worker: 'duckdb';
@@ -253,18 +265,18 @@ export interface WorkerReadyMessage {
     | undefined;
 }
 
-/** Main -> Worker: Request graceful shutdown */
+/** Main -\> Worker: Request graceful shutdown */
 export interface ShutdownRequest {
   type: 'shutdown';
 }
 
-/** Worker -> Main: Shutdown complete */
+/** Worker -\> Main: Shutdown complete */
 export interface ShutdownComplete {
   type: 'shutdown-complete';
   worker: 'duckdb';
 }
 
-/** Main -> DuckDB Worker: Update runtime configuration */
+/** Main -\> DuckDB Worker: Update runtime configuration */
 export interface WorkerConfigUpdate {
   type: 'configure';
   settings: {
@@ -274,12 +286,12 @@ export interface WorkerConfigUpdate {
   };
 }
 
-/** Main -> DuckDB Worker: Health check */
+/** Main -\> DuckDB Worker: Health check */
 export interface WorkerHealthCheck {
   type: 'health_check';
 }
 
-/** DuckDB Worker -> Main: Health check response */
+/** DuckDB Worker -\> Main: Health check response */
 export interface WorkerHealthResponse {
   type: 'health_check_result';
   status: 'healthy' | 'degraded' | 'failed';
@@ -288,14 +300,14 @@ export interface WorkerHealthResponse {
   activeQueries: number;
 }
 
-/** Main -> DuckDB Worker: Heartbeat ping */
+/** Main -\> DuckDB Worker: Heartbeat ping */
 export interface HeartbeatRequest {
   type: 'heartbeat';
   /** Monotonic timestamp for latency measurement */
   sentAt: number;
 }
 
-/** DuckDB Worker -> Main: Heartbeat response */
+/** DuckDB Worker -\> Main: Heartbeat response */
 export interface HeartbeatAck {
   type: 'heartbeat_ack';
   /** Echo back the sentAt timestamp */
@@ -324,6 +336,365 @@ export type { WorkerInboundMessage, WorkerOutboundMessage };
 export type WorkerMessage = WorkerInboundMessage | WorkerOutboundMessage;
 
 // ============================================================
+// 3a. Ingestion Enums & Options
+// ============================================================
+
+/** Supported file formats for local data ingestion */
+export type DataSourceFormat = 'csv' | 'tsv' | 'parquet' | 'json' | 'jsonl' | 'xlsx' | 'arrow_ipc';
+
+/** Lifecycle status of a registered data source */
+export type DataSourceStatus = 'importing' | 'active' | 'stale' | 'error' | 'removed';
+
+/** Lifecycle status of an ingestion job */
+export type IngestionJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+/** How an ingestion job was triggered */
+export type IngestionTrigger = 'file_picker' | 'drag_and_drop' | 'watch_directory' | 'retry';
+
+/**
+ * Options controlling how a file is parsed during ingestion.
+ * Passed to the DuckDB Worker alongside the file path and format.
+ */
+export interface IngestFileOptions {
+  /** CSV/TSV: Override auto-detected delimiter. */
+  readonly delimiter?: string | undefined;
+  /** CSV/TSV: Override encoding detection. Default: 'utf-8'. */
+  readonly encoding?: 'utf-8' | 'latin-1' | undefined;
+  /** CSV: Whether first row is a header. Default: auto-detect. */
+  readonly header?: boolean | undefined;
+  /** JSON: Format hint. Default: 'auto'. */
+  readonly jsonFormat?: 'auto' | 'array' | 'newline_delimited' | 'unstructured' | undefined;
+  /** JSON: Maximum nesting depth for auto-flattening. Passed as `maximum_depth` to DuckDB `read_json()`. */
+  readonly maxDepth?: number | undefined;
+  /** XLSX: Sheet name or 0-based index. Default: first sheet. */
+  readonly sheet?: string | number | undefined;
+  /** Sample size for type inference. Default: 20480. */
+  readonly sampleSize?: number | undefined;
+  /** Whether to skip invalid rows instead of failing. Default: true. */
+  readonly ignoreErrors?: boolean | undefined;
+}
+
+// ============================================================
+// 3b. Ingestion IPC Request/Response Types
+// ============================================================
+
+/**
+ * Request payload for `ingestion:importFiles` IPC channel.
+ * Initiates import of one or more local files into DuckDB.
+ *
+ * @throws E2001 - File not found
+ * @throws E2002 - Unsupported format
+ * @throws E2003 - Permission denied
+ */
+export interface ImportFilesRequest {
+  readonly type: 'ingestion:importFiles';
+  /** Absolute paths to the files to import */
+  readonly filePaths: readonly string[];
+  /** How this import was initiated */
+  readonly trigger: IngestionTrigger;
+}
+
+/** A single job entry returned in an ImportFilesResponse */
+export interface ImportFilesResponseJob {
+  /** Assigned IngestionJob.id */
+  readonly jobId: string;
+  /** Assigned DataSource.id */
+  readonly dataSourceId: string;
+  /** Absolute path to the imported file */
+  readonly filePath: string;
+  /** Detected file format */
+  readonly format: DataSourceFormat;
+}
+
+/** Response payload for `ingestion:importFiles` IPC channel */
+export interface ImportFilesResponse {
+  readonly type: 'ingestion:importFiles:response';
+  /** One job per requested file path */
+  readonly jobs: readonly ImportFilesResponseJob[];
+}
+
+/** Request payload for `ingestion:cancelJob` IPC channel */
+export interface CancelJobRequest {
+  readonly type: 'ingestion:cancelJob';
+  /** The ingestion job to cancel */
+  readonly jobId: string;
+}
+
+/** Response payload for `ingestion:cancelJob` IPC channel */
+export interface CancelJobResponse {
+  readonly type: 'ingestion:cancelJob:response';
+  /** The ingestion job that was targeted */
+  readonly jobId: string;
+  /** false if the job was already completed/failed */
+  readonly cancelled: boolean;
+}
+
+/** Request payload for `ingestion:getProgress` IPC channel */
+export interface GetProgressRequest {
+  readonly type: 'ingestion:getProgress';
+  /** The ingestion job to query */
+  readonly jobId: string;
+}
+
+/** Response payload for `ingestion:getProgress` IPC channel */
+export interface GetProgressResponse {
+  readonly type: 'ingestion:getProgress:response';
+  /** The queried ingestion job */
+  readonly jobId: string;
+  /** Current job status */
+  readonly status: IngestionJobStatus;
+  /** Cumulative rows imported so far */
+  readonly rowsProcessed: number;
+  /** Cumulative bytes of Arrow IPC data received */
+  readonly bytesProcessed: number;
+  /** Estimated total rows (extrapolated from first batch) */
+  readonly estimatedTotalRows: number | undefined;
+  /** Elapsed time in milliseconds */
+  readonly durationMs: number;
+  /** Error detail on failure */
+  readonly errorMessage: string | undefined;
+}
+
+// ============================================================
+// 3c. Catalog IPC Request/Response Types (Extended for Ingestion)
+// ============================================================
+
+/**
+ * Request payload for `catalog:getSources` IPC channel.
+ * Lists all data sources with optional filters.
+ */
+export interface GetSourcesRequest {
+  readonly type: 'catalog:getSources';
+  /** Optional filters to narrow the results */
+  readonly filters?:
+    | {
+        readonly status?: readonly DataSourceStatus[] | undefined;
+        readonly format?: readonly DataSourceFormat[] | undefined;
+        readonly tags?: readonly string[] | undefined;
+      }
+    | undefined;
+}
+
+/** Response payload for `catalog:getSources` IPC channel */
+export interface GetSourcesResponse {
+  readonly type: 'catalog:getSources:response';
+  /** Matching data sources */
+  readonly sources: readonly DataSource[];
+}
+
+/**
+ * Request payload for `catalog:removeSource` IPC channel.
+ * Removes a data source and drops its DuckDB table.
+ *
+ * @throws E2010 - Source not found
+ * @throws E2011 - Table drop failed
+ */
+export interface RemoveSourceRequest {
+  readonly type: 'catalog:removeSource';
+  /** The data source to remove */
+  readonly dataSourceId: string;
+}
+
+/** Response payload for `catalog:removeSource` IPC channel */
+export interface RemoveSourceResponse {
+  readonly type: 'catalog:removeSource:response';
+  /** The data source that was removed */
+  readonly dataSourceId: string;
+  /** DuckDB table that was dropped */
+  readonly tableName: string;
+  /** Whether the table was successfully dropped */
+  readonly success: boolean;
+}
+
+/**
+ * Request payload for `catalog:updateSource` IPC channel.
+ * Updates data source metadata (name, tags).
+ */
+export interface UpdateSourceRequest {
+  readonly type: 'catalog:updateSource';
+  /** The data source to update */
+  readonly dataSourceId: string;
+  /** Fields to update */
+  readonly updates: {
+    readonly name?: string | undefined;
+    readonly tags?: readonly string[] | undefined;
+  };
+}
+
+/** Response payload for `catalog:updateSource` IPC channel */
+export interface UpdateSourceResponse {
+  readonly type: 'catalog:updateSource:response';
+  /** The data source that was updated */
+  readonly dataSourceId: string;
+  /** The updated data source record */
+  readonly source: DataSource;
+}
+
+/**
+ * Request payload for `catalog:getColumnStats` IPC channel.
+ * Computes or retrieves column statistics for a data source.
+ */
+export interface GetColumnStatsRequest {
+  readonly type: 'catalog:getColumnStats';
+  /** The data source to compute statistics for */
+  readonly dataSourceId: string;
+  /** DuckDB table name (fallback for restart recovery when in-memory map is cleared) */
+  readonly tableName?: string | undefined;
+  /** Ignore cached stats and recompute. Default: false. */
+  readonly forceRecompute?: boolean | undefined;
+}
+
+/** Response payload for `catalog:getColumnStats` IPC channel */
+export interface GetColumnStatsResponse {
+  readonly type: 'catalog:getColumnStats:response';
+  /** The data source these statistics belong to */
+  readonly dataSourceId: string;
+  /** Per-column statistics */
+  readonly columns: readonly ColumnStatisticsRecord[];
+  /** ISO 8601 timestamp when stats were computed */
+  readonly computedAt: string;
+  /** Computation duration in milliseconds */
+  readonly durationMs: number;
+}
+
+// ============================================================
+// 3d. Watch Directory IPC Request/Response Types
+// ============================================================
+
+/**
+ * Request payload for `watch:addDirectory` IPC channel.
+ * Configures a new watch directory for automatic file ingestion.
+ *
+ * @throws E2020 - Directory not found
+ * @throws E2021 - Not a directory
+ * @throws E2022 - Permission denied
+ * @throws E2023 - Already watching
+ */
+export interface AddWatchDirectoryRequest {
+  readonly type: 'watch:addDirectory';
+  /** Absolute directory path to watch */
+  readonly path: string;
+  /** Watch configuration options */
+  readonly options?:
+    | {
+        /** Watch subdirectories. Default: true. */
+        readonly recursive?: boolean | undefined;
+        /** Only ingest these formats. Default: all supported. */
+        readonly fileTypeFilter?: readonly DataSourceFormat[] | undefined;
+        /** Glob patterns to exclude. */
+        readonly excludePatterns?: readonly string[] | undefined;
+        /** Automatically re-ingest modified files. Default: false. */
+        readonly autoReingest?: boolean | undefined;
+        /** Stability threshold in ms before ingestion. Default: 2000. */
+        readonly stabilityThresholdMs?: number | undefined;
+      }
+    | undefined;
+}
+
+/** Response payload for `watch:addDirectory` IPC channel */
+export interface AddWatchDirectoryResponse {
+  readonly type: 'watch:addDirectory:response';
+  /** The newly created watch directory record */
+  readonly watchDirectory: WatchDirectory;
+}
+
+/**
+ * Request payload for `watch:removeDirectory` IPC channel.
+ * Stops watching a directory and optionally removes associated sources.
+ */
+export interface RemoveWatchDirectoryRequest {
+  readonly type: 'watch:removeDirectory';
+  /** The watch directory to remove */
+  readonly watchDirectoryId: string;
+  /** Whether to remove data sources discovered from this directory. Default: false. */
+  readonly removeAssociatedSources?: boolean | undefined;
+}
+
+/** Response payload for `watch:removeDirectory` IPC channel */
+export interface RemoveWatchDirectoryResponse {
+  readonly type: 'watch:removeDirectory:response';
+  /** The watch directory that was removed */
+  readonly watchDirectoryId: string;
+  /** Number of associated sources removed (0 if removeAssociatedSources was false) */
+  readonly sourcesRemoved: number;
+}
+
+/** Response payload for `watch:listDirectories` IPC channel */
+export interface ListWatchDirectoriesResponse {
+  readonly type: 'watch:listDirectories:response';
+  /** All configured watch directories */
+  readonly directories: readonly WatchDirectory[];
+}
+
+// ============================================================
+// 3e. Push Event Types (webContents.send)
+// ============================================================
+
+/** Real-time progress update for an active ingestion job (Main -\> Renderer) */
+export interface IngestionProgressEvent {
+  readonly type: 'ingestion:progress';
+  /** The ingestion job being tracked */
+  readonly jobId: string;
+  /** The data source being imported */
+  readonly dataSourceId: string;
+  /** Current job status */
+  readonly status: IngestionJobStatus;
+  /** Cumulative rows imported so far */
+  readonly rowsProcessed: number;
+  /** Cumulative bytes of Arrow IPC data received */
+  readonly bytesProcessed: number;
+  /** Estimated total rows (extrapolated from first batch) */
+  readonly estimatedTotalRows: number | undefined;
+  /** Elapsed time in milliseconds */
+  readonly durationMs: number;
+}
+
+/** Notification when an ingestion job completes, fails, or is cancelled (Main -\> Renderer) */
+export interface IngestionCompleteEvent {
+  readonly type: 'ingestion:complete';
+  /** The ingestion job that finished */
+  readonly jobId: string;
+  /** The data source that was imported */
+  readonly dataSourceId: string;
+  /** Terminal status */
+  readonly status: 'completed' | 'failed' | 'cancelled';
+  /** Total rows in the imported table (undefined on failure) */
+  readonly rowCount: number | undefined;
+  /** Number of columns (undefined on failure) */
+  readonly columnCount: number | undefined;
+  /** Total elapsed time in milliseconds */
+  readonly durationMs: number;
+  /** Error detail on failure */
+  readonly errorMessage: string | undefined;
+  /** Error code (E2xxx) on failure */
+  readonly errorCode: string | undefined;
+}
+
+/** Notification when a watched file is added, modified, or deleted (Main -\> Renderer) */
+export interface WatchFileEvent {
+  readonly type: 'watch:fileEvent';
+  /** The watch directory that detected the event */
+  readonly watchDirectoryId: string;
+  /** Type of file system event */
+  readonly eventType: 'add' | 'change' | 'unlink';
+  /** Absolute path of the affected file */
+  readonly filePath: string;
+  /** Detected format (undefined for unlink events) */
+  readonly format: DataSourceFormat | undefined;
+}
+
+/** Notification when a data source status changes (Main -\> Renderer) */
+export interface CatalogSourceUpdatedEvent {
+  readonly type: 'catalog:sourceUpdated';
+  /** The data source whose status changed */
+  readonly dataSourceId: string;
+  /** New status */
+  readonly status: DataSourceStatus;
+  /** Previous status (unavailable when emitted by file watcher) */
+  readonly previousStatus?: DataSourceStatus | undefined;
+}
+
+// ============================================================
 // 4. Entity Types (Dexie.js Collections)
 // ============================================================
 
@@ -345,6 +716,14 @@ export interface CatalogTabState {
 /** Settings tab content state */
 export interface SettingsTabState {
   section?: string | undefined;
+}
+
+/** Data grid tab content state (displays imported data source in Perspective grid) */
+export interface DataGridTabState {
+  /** Reference to data_sources.id */
+  dataSourceId: string;
+  /** DuckDB table name backing this grid */
+  tableName: string;
 }
 
 /** Common fields shared by all tab variants */
@@ -379,8 +758,14 @@ export interface SettingsTab extends BaseTab {
   state: SettingsTabState;
 }
 
+/** Data grid tab for viewing imported data sources */
+export interface DataGridTab extends BaseTab {
+  type: 'data_grid';
+  state: DataGridTabState;
+}
+
 /** Dexie.js `tabs` collection record — discriminated union on `type` */
-export type Tab = QueryTab | CatalogTab | SettingsTab;
+export type Tab = QueryTab | CatalogTab | SettingsTab | DataGridTab;
 
 // --- Query Execution ---
 
@@ -453,7 +838,7 @@ export interface ColumnSchema {
 
 /** Dexie.js `column_schemas` collection record (extends ColumnSchema for storage) */
 export interface ColumnSchemaRecord {
-  /** Composite key: {catalogEntryId}_{columnName} */
+  /** Composite key: `{catalogEntryId}_{columnName}` */
   id: string;
   /** Reference to catalog_entries.id */
   catalogEntryId: string;
@@ -493,7 +878,7 @@ export interface QueryHistoryRecord {
   errorMessage?: string | undefined;
 }
 
-/** Lightweight query history record pushed from DuckDB Worker -> Main -> Renderer */
+/** Lightweight query history record pushed from DuckDB Worker -\> Main -\> Renderer */
 export interface QueryHistoryPushRecord {
   /** Matches _query_history.query_id in DuckDB */
   queryId: string;
@@ -571,6 +956,174 @@ export interface AppStateEntry {
   value: unknown;
   /** ISO timestamp of last update */
   updatedAt: string;
+}
+
+// --- Data Sources (Ingestion) ---
+
+/**
+ * Dexie.js `data_sources` collection record.
+ * Represents a registered data file with its metadata and lifecycle status.
+ */
+export interface DataSource {
+  /** UUID v4 primary key */
+  readonly id: string;
+  /** Display name (defaults to filename without extension, user-renamable) */
+  readonly name: string;
+  /** Absolute path to the source file on disk */
+  readonly filePath: string;
+  /** Detected file format */
+  readonly format: DataSourceFormat;
+  /** Lifecycle status */
+  readonly status: DataSourceStatus;
+  /** Name of the materialized DuckDB table (set after import) */
+  readonly duckdbTableName?: string | undefined;
+  /** Name of the preview DuckDB view (set during preview) */
+  readonly duckdbViewName?: string | undefined;
+  /** Total rows after import */
+  readonly rowCount?: number | undefined;
+  /** Number of columns */
+  readonly columnCount?: number | undefined;
+  /** File size at time of import in bytes */
+  readonly fileSizeBytes?: number | undefined;
+  /** ISO 8601 timestamp of file's last modification at import time */
+  readonly fileModifiedAt?: string | undefined;
+  /** FK to WatchDirectory if auto-discovered */
+  readonly watchDirectoryId?: string | undefined;
+  /** User-assigned tags for filtering */
+  readonly tags: readonly string[];
+  /** Error description when status is 'error' */
+  readonly errorMessage?: string | undefined;
+  /** Error code (E2xxx) when status is 'error' */
+  readonly errorCode?: string | undefined;
+  /** XLSX: name of the imported sheet (defaults to first sheet) */
+  readonly sheetName?: string | undefined;
+  /** ISO 8601 timestamp of creation */
+  readonly createdAt: string;
+  /** ISO 8601 timestamp of last update */
+  readonly updatedAt: string;
+}
+
+/**
+ * Dexie.js `ingestion_jobs` collection record.
+ * Tracks a single file import operation with progress, cancellation support, and error reporting.
+ */
+export interface IngestionJob {
+  /** UUID v4 primary key */
+  readonly id: string;
+  /** FK to DataSource */
+  readonly dataSourceId: string;
+  /** Job lifecycle status */
+  readonly status: IngestionJobStatus;
+  /** Absolute path being imported */
+  readonly filePath: string;
+  /** Detected format */
+  readonly format: DataSourceFormat;
+  /** Source file size for progress estimation */
+  readonly fileSizeBytes?: number | undefined;
+  /** Cumulative rows imported so far (defaults to 0) */
+  readonly rowsProcessed: number;
+  /** Arrow IPC batches received (defaults to 0) */
+  readonly batchesReceived: number;
+  /** Cumulative bytes of Arrow IPC data received (defaults to 0) */
+  readonly bytesProcessed: number;
+  /** Estimated total rows (extrapolated from first batch) */
+  readonly estimatedTotalRows?: number | undefined;
+  /** Error detail on failure */
+  readonly errorMessage?: string | undefined;
+  /** Error code (E2xxx) on failure */
+  readonly errorCode?: string | undefined;
+  /** ISO 8601 timestamp of job start */
+  readonly startedAt: string;
+  /** ISO 8601 timestamp of job completion */
+  readonly completedAt?: string | undefined;
+  /** Total elapsed time in milliseconds */
+  readonly durationMs?: number | undefined;
+  /** How the import was initiated */
+  readonly triggeredBy: IngestionTrigger;
+}
+
+/**
+ * Dexie.js `watch_directories` collection record.
+ * A configured folder path with settings for automatic file discovery and ingestion.
+ */
+export interface WatchDirectory {
+  /** UUID v4 primary key */
+  readonly id: string;
+  /** Absolute directory path (must exist and be readable) */
+  readonly path: string;
+  /** User-friendly label (defaults to directory basename) */
+  readonly displayName: string;
+  /** Whether the watcher is currently running */
+  readonly isActive: boolean;
+  /** Watch subdirectories (defaults to true) */
+  readonly recursive: boolean;
+  /** Only ingest these formats (defaults to all supported formats) */
+  readonly fileTypeFilter: readonly DataSourceFormat[];
+  /** Glob patterns to exclude (defaults to []) */
+  readonly excludePatterns: readonly string[];
+  /** Automatically re-ingest modified files (defaults to false) */
+  readonly autoReingest: boolean;
+  /** How long a file must be unchanged before ingestion in ms (defaults to 2000) */
+  readonly stabilityThresholdMs: number;
+  /** Number of data sources discovered from this directory (defaults to 0) */
+  readonly sourceCount: number;
+  /** ISO 8601 timestamp of last completed scan */
+  readonly lastScanAt?: string | undefined;
+  /** ISO 8601 timestamp of creation */
+  readonly createdAt: string;
+  /** ISO 8601 timestamp of last update */
+  readonly updatedAt: string;
+}
+
+/** A single top-frequent value entry for categorical column statistics */
+export interface TopValue {
+  /** The value (rendered as string for universal display) */
+  readonly value: string;
+  /** Number of occurrences */
+  readonly count: number;
+  /** Percentage of total rows (count / rowCount * 100) */
+  readonly percentage: number;
+}
+
+/**
+ * Dexie.js `column_statistics` collection record.
+ * Per-column statistical summaries computed by DuckDB SUMMARIZE and custom aggregates.
+ */
+export interface ColumnStatisticsRecord {
+  /** Composite key: `{dataSourceId}__{columnName}` */
+  readonly id: string;
+  /** FK to DataSource */
+  readonly dataSourceId: string;
+  /** Column name */
+  readonly columnName: string;
+  /** DuckDB data type (e.g. 'INTEGER', 'VARCHAR', 'DECIMAL(10,2)') */
+  readonly columnType: string;
+  /** Total rows in the table */
+  readonly rowCount: number;
+  /** Number of NULL values */
+  readonly nullCount: number;
+  /** Percentage of NULL values (nullCount / rowCount * 100) */
+  readonly nullPercentage: number;
+  /** Approximate distinct values (HyperLogLog) */
+  readonly distinctCount: number;
+  /** Minimum value (as string for universal display) */
+  readonly min?: string | undefined;
+  /** Maximum value (as string for universal display) */
+  readonly max?: string | undefined;
+  /** Arithmetic mean (numeric columns only) */
+  readonly mean?: number | undefined;
+  /** Median / q50 (numeric columns only) */
+  readonly median?: number | undefined;
+  /** Sample standard deviation (numeric columns only) */
+  readonly stddev?: number | undefined;
+  /** 25th percentile (numeric columns only) */
+  readonly q25?: number | undefined;
+  /** 75th percentile (numeric columns only) */
+  readonly q75?: number | undefined;
+  /** Top-N frequent values (categorical columns only) */
+  readonly topValues?: readonly TopValue[] | undefined;
+  /** ISO 8601 timestamp when stats were computed */
+  readonly computedAt: string;
 }
 
 // ============================================================
@@ -703,7 +1256,8 @@ export interface QueryNamespace {
 }
 
 /**
- * Catalog namespace for browsing DuckDB tables and schemas.
+ * Catalog namespace for browsing DuckDB tables and schemas,
+ * and managing data sources from local file ingestion.
  */
 export interface CatalogNamespace {
   /**
@@ -725,10 +1279,58 @@ export interface CatalogNamespace {
    * Preview sample rows from a table, returned as Arrow IPC batches.
    *
    * @param tableName - Name of the table to preview.
-   * @param limit - Maximum number of rows to return (default: 100).
-   * @returns A QueryHandle for the preview query.
+   * @param limit - Maximum number of rows to return (default: 10,000).
+   * @returns A PreviewHandle with the query ID and effective limit info.
    */
-  previewTable(tableName: string, limit?: number): Promise<QueryHandle>;
+  previewTable(tableName: string, limit?: number): Promise<PreviewHandle>;
+
+  /**
+   * List all data sources with optional filters.
+   *
+   * @param filters - Optional filters by status, format, or tags.
+   * @returns Array of DataSource objects matching the filters.
+   */
+  getSources(filters?: GetSourcesRequest['filters']): Promise<DataSource[]>;
+
+  /**
+   * Remove a data source and drop its DuckDB table.
+   *
+   * @param dataSourceId - The data source to remove.
+   * @returns Removal result with the dropped table name.
+   * @throws E2010 - Source not found
+   * @throws E2011 - Table drop failed
+   */
+  removeSource(dataSourceId: string): Promise<RemoveSourceResponse>;
+
+  /**
+   * Update data source metadata (name, tags).
+   *
+   * @param dataSourceId - The data source to update.
+   * @param updates - Fields to update.
+   * @returns The updated data source record.
+   */
+  updateSource(dataSourceId: string, updates: UpdateSourceRequest['updates']): Promise<DataSource>;
+
+  /**
+   * Compute or retrieve column statistics for a data source.
+   *
+   * @param dataSourceId - The data source to compute statistics for.
+   * @param forceRecompute - Ignore cached stats and recompute. Default: false.
+   * @returns Column statistics with computation metadata.
+   */
+  getColumnStats(
+    dataSourceId: string,
+    forceRecompute?: boolean,
+    tableName?: string,
+  ): Promise<GetColumnStatsResponse>;
+
+  /**
+   * Subscribe to data source status change events.
+   *
+   * @param callback - Invoked when a data source status changes.
+   * @returns An unsubscribe function.
+   */
+  onSourceUpdated(callback: (event: CatalogSourceUpdatedEvent) => void): () => void;
 }
 
 /**
@@ -780,16 +1382,142 @@ export interface LifecycleNamespace {
 }
 
 /**
+ * Ingestion namespace for importing local files into DuckDB.
+ * Methods delegate to IPC channels for file import, cancellation, and progress tracking.
+ */
+export interface IngestionNamespace {
+  /**
+   * Import one or more local files into DuckDB and register in the catalog.
+   *
+   * @param filePaths - Absolute paths to the files to import.
+   * @param trigger - How this import was initiated.
+   * @returns One job entry per requested file path.
+   * @throws E2001 - File not found
+   * @throws E2002 - Unsupported format
+   * @throws E2003 - Permission denied
+   */
+  importFiles(
+    filePaths: readonly string[],
+    trigger: IngestionTrigger,
+    dataSourceId?: string,
+  ): Promise<ImportFilesResponse>;
+
+  /**
+   * Cancel an in-progress ingestion job.
+   *
+   * @param jobId - The ingestion job to cancel.
+   * @returns Whether the job was successfully cancelled.
+   */
+  cancelJob(jobId: string): Promise<CancelJobResponse>;
+
+  /**
+   * Get current progress for an active ingestion job.
+   *
+   * @param jobId - The ingestion job to query.
+   * @returns Current progress snapshot.
+   */
+  getProgress(jobId: string): Promise<GetProgressResponse>;
+
+  /**
+   * Subscribe to real-time ingestion progress events.
+   *
+   * @param callback - Invoked with progress updates for active jobs.
+   * @returns An unsubscribe function.
+   */
+  onProgress(callback: (event: IngestionProgressEvent) => void): () => void;
+
+  /**
+   * Subscribe to ingestion completion events (success, failure, or cancellation).
+   *
+   * @param callback - Invoked when an ingestion job reaches a terminal state.
+   * @returns An unsubscribe function.
+   */
+  onComplete(callback: (event: IngestionCompleteEvent) => void): () => void;
+}
+
+/**
+ * Watch namespace for configuring and managing directory watchers.
+ * Methods delegate to IPC channels for adding, removing, and listing watch directories.
+ */
+export interface WatchNamespace {
+  /**
+   * Configure a new watch directory for automatic file ingestion.
+   *
+   * @param path - Absolute directory path to watch.
+   * @param options - Watch configuration options.
+   * @returns The newly created watch directory record.
+   * @throws E2020 - Directory not found
+   * @throws E2021 - Not a directory
+   * @throws E2022 - Permission denied
+   * @throws E2023 - Already watching
+   */
+  addDirectory(
+    path: string,
+    options?: AddWatchDirectoryRequest['options'],
+  ): Promise<WatchDirectory>;
+
+  /**
+   * Stop watching a directory and optionally remove associated sources.
+   *
+   * @param watchDirectoryId - The watch directory to remove.
+   * @param removeAssociatedSources - Whether to also remove discovered sources. Default: false.
+   * @returns Removal result with count of sources removed.
+   */
+  removeDirectory(
+    watchDirectoryId: string,
+    removeAssociatedSources?: boolean,
+  ): Promise<RemoveWatchDirectoryResponse>;
+
+  /**
+   * List all configured watch directories.
+   *
+   * @returns Array of WatchDirectory objects.
+   */
+  listDirectories(): Promise<WatchDirectory[]>;
+
+  /**
+   * Restore previously configured watch directories on app restart.
+   * The Main process re-creates chokidar watchers for each provided config.
+   *
+   * @param directories - Watch directory configs to restore.
+   * @returns Count of successfully restored directories.
+   */
+  restoreDirectories(directories: readonly WatchDirectory[]): Promise<number>;
+
+  /**
+   * Subscribe to file system events from watched directories.
+   *
+   * @param callback - Invoked when a watched file is added, modified, or deleted.
+   * @returns An unsubscribe function.
+   */
+  onFileEvent(callback: (event: WatchFileEvent) => void): () => void;
+}
+
+/**
  * Root API interface exposed to the Renderer as `window.datspace`.
- * Provides namespaced access to query execution, catalog browsing, and lifecycle management.
+ * Provides namespaced access to query execution, catalog browsing,
+ * file ingestion, directory watching, and lifecycle management.
  */
 export interface DatspaceAPI {
   /** Query execution and data streaming. */
   query: QueryNamespace;
-  /** Table catalog browsing and schema inspection. */
+  /** Table catalog browsing, schema inspection, and data source management. */
   catalog: CatalogNamespace;
   /** Application lifecycle, health monitoring, and shutdown. */
   lifecycle: LifecycleNamespace;
+  /** Local file ingestion, progress tracking, and cancellation. */
+  ingestion: IngestionNamespace;
+  /** Directory watching for automatic file discovery. */
+  watch: WatchNamespace;
+}
+
+/**
+ * Exhaustiveness guard for discriminated union switches.
+ * @param x - The value that should be `never` if all variants are handled.
+ * @throws Always throws at runtime if reached.
+ */
+export function assertNever(x: never): never {
+  throw new Error(`Unexpected value: ${String(x)}`);
 }
 
 // ============================================================

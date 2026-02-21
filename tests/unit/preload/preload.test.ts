@@ -339,7 +339,7 @@ describe('preload/index', () => {
   });
 
   describe('catalog.previewTable', () => {
-    it('calls ipcRenderer.invoke with CATALOG_PREVIEW, default limit 100', async () => {
+    it('calls ipcRenderer.invoke with CATALOG_PREVIEW, no limit by default', async () => {
       const electron = await loadPreload();
       const { api } = getExposedApi(electron);
 
@@ -347,7 +347,7 @@ describe('preload/index', () => {
 
       expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.CATALOG_PREVIEW, {
         tableName: 'products',
-        limit: 100,
+        limit: undefined,
       });
     });
 

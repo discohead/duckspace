@@ -1,0 +1,7 @@
+id,name,price,note
+1,Good Row,10.99,normal
+2,,15.50,missing name
+3,Bad Price,,missing price
+4,Café Item,25.00,latin-1 char
+5,Extra,\"has ""quotes""\",tricky
+6,,,all missing

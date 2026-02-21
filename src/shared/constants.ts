@@ -27,7 +27,24 @@ export const IPC_CHANNELS = {
   CONFIG_GET: 'config:get',
   CONFIG_SET: 'config:set',
   CONFIG_GET_ALL: 'config:getAll',
-} as const;
+
+  // Ingestion
+  INGESTION_IMPORT_FILES: 'ingestion:importFiles',
+  INGESTION_CANCEL_JOB: 'ingestion:cancelJob',
+  INGESTION_GET_PROGRESS: 'ingestion:getProgress',
+
+  // Catalog (extended)
+  CATALOG_GET_SOURCES: 'catalog:getSources',
+  CATALOG_REMOVE_SOURCE: 'catalog:removeSource',
+  CATALOG_UPDATE_SOURCE: 'catalog:updateSource',
+  CATALOG_GET_COLUMN_STATS: 'catalog:getColumnStats',
+
+  // Watch directories
+  WATCH_ADD_DIRECTORY: 'watch:addDirectory',
+  WATCH_REMOVE_DIRECTORY: 'watch:removeDirectory',
+  WATCH_LIST_DIRECTORIES: 'watch:listDirectories',
+  WATCH_RESTORE_DIRECTORIES: 'watch:restoreDirectories',
+} as const satisfies Record<string, string>;
 
 // ---------------------------------------------------------------------------
 // 2. Push Event Names (webContents.send / ipcRenderer.on)
@@ -44,7 +61,11 @@ export const PUSH_EVENTS = {
   SHUTDOWN_PREPARE: 'shutdown-prepare',
   WINDOW_BOUNDS_CHANGED: 'window:bounds-changed',
   PORT: 'port',
-} as const;
+  INGESTION_PROGRESS: 'ingestion:progress',
+  INGESTION_COMPLETE: 'ingestion:complete',
+  WATCH_FILE_EVENT: 'watch:fileEvent',
+  CATALOG_SOURCE_UPDATED: 'catalog:sourceUpdated',
+} as const satisfies Record<string, string>;
 
 // ---------------------------------------------------------------------------
 // 3. Data Plane Channel Names
@@ -179,4 +200,4 @@ export const APP_NAME = 'Datspace';
 export const DEXIE_DB_NAME = 'Datspace';
 
 /** Current Dexie.js schema version; increment when adding/modifying tables. */
-export const DEXIE_SCHEMA_VERSION = 1;
+export const DEXIE_SCHEMA_VERSION = 3;

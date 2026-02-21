@@ -12,6 +12,8 @@ vi.mock('@renderer/stores/hooks', () => ({
   usePreference: vi.fn(() => undefined),
   useCatalogEntries: vi.fn(() => undefined),
   useColumnSchemas: vi.fn(() => undefined),
+  useCatalogSources: vi.fn(() => undefined),
+  useIngestionJobs: vi.fn(() => undefined),
 }));
 
 vi.mock('@renderer/stores/db', () => ({
@@ -26,6 +28,25 @@ vi.mock('@renderer/stores/db', () => ({
     },
     transaction: vi.fn((_m: string, _t: unknown, fn: () => unknown) => fn()),
     app_state: { put: vi.fn() },
+    data_sources: {
+      where: vi.fn().mockReturnValue({
+        equals: vi.fn().mockReturnValue({ modify: vi.fn().mockResolvedValue(0) }),
+      }),
+      filter: vi.fn().mockReturnValue({ count: vi.fn().mockResolvedValue(0) }),
+      put: vi.fn(),
+      update: vi.fn(),
+    },
+    ingestion_jobs: {
+      where: vi.fn().mockReturnValue({
+        anyOf: vi.fn().mockReturnValue({ modify: vi.fn().mockResolvedValue(0) }),
+      }),
+      put: vi.fn(),
+      update: vi.fn(),
+    },
+    watch_directories: {
+      filter: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) }),
+      update: vi.fn().mockResolvedValue(1),
+    },
   },
 }));
 
@@ -47,12 +68,38 @@ vi.mock('@renderer/components/ResultGrid', () => ({
 vi.mock('@renderer/components/CatalogBrowser', () => ({
   CatalogBrowser: () => <div data-testid="catalog-browser">CatalogBrowser</div>,
 }));
+vi.mock('@renderer/components/CatalogSidebar', () => ({
+  CatalogSidebar: () => <div data-testid="catalog-sidebar">CatalogSidebar</div>,
+}));
+vi.mock('@renderer/components/IngestionProgress', () => ({
+  IngestionProgress: () => null,
+}));
 
 import { App } from '@renderer/App';
+
+const noop = () => () => {};
 
 describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock ingestion/catalog/watch push event listeners
+    window.datspace = {
+      ...window.datspace,
+      ingestion: {
+        ...(window.datspace?.ingestion ?? {}),
+        onProgress: noop,
+        onComplete: noop,
+      },
+      catalog: {
+        ...(window.datspace?.catalog ?? {}),
+        onSourceUpdated: noop,
+      },
+      watch: {
+        ...(window.datspace?.watch ?? {}),
+        onFileEvent: noop,
+        restoreDirectories: vi.fn().mockResolvedValue(0),
+      },
+    } as any;
   });
 
   it('renders TabBar always', () => {
@@ -153,7 +200,19 @@ describe('App', () => {
     expect(screen.getByText('Settings')).toBeDefined();
   });
 
-  it('renders WelcomeView for unknown tab type', async () => {
+  it('renders TabBar inside a header landmark', () => {
+    render(<App />);
+    const tabBar = screen.getByTestId('tab-bar');
+    expect(tabBar.closest('header')).not.toBeNull();
+  });
+
+  it('renders StatusBar inside a footer landmark', () => {
+    render(<App />);
+    const statusBar = screen.getByTestId('status-bar');
+    expect(statusBar.closest('footer')).not.toBeNull();
+  });
+
+  it('throws assertNever for unknown tab type', async () => {
     const hooks = await import('@renderer/stores/hooks');
     const unknownTab = {
       id: 'tab-x',
@@ -167,7 +226,7 @@ describe('App', () => {
     (hooks.useTabs as ReturnType<typeof vi.fn>).mockReturnValue([unknownTab]);
     (hooks.useActiveTab as ReturnType<typeof vi.fn>).mockReturnValue(unknownTab);
 
-    render(<App />);
-    expect(screen.getByTestId('welcome-view')).toBeDefined();
+    // assertNever throws for unhandled tab types — ErrorBoundary catches it
+    expect(() => render(<App />)).toThrow('Unexpected value');
   });
 });

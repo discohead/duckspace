@@ -2,9 +2,13 @@ import type {
   AppStateEntry,
   CatalogEntry,
   ColumnSchemaRecord,
+  ColumnStatisticsRecord,
+  DataSource,
+  IngestionJob,
   Preference,
   Query,
   Tab,
+  WatchDirectory,
   WorkerHealthRecord,
 } from '@shared/types';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -121,4 +125,92 @@ export function useColumnSchemas(catalogEntryId: string): ColumnSchemaRecord[] |
       db.column_schemas.where('catalogEntryId').equals(catalogEntryId).sortBy('ordinalPosition'),
     [catalogEntryId],
   );
+}
+
+/**
+ * Returns data sources from the catalog with optional filters.
+ * Reactively updates when data sources change in Dexie.js.
+ *
+ * @param filters - Optional filters for status, format, or tags.
+ * @returns An array of DataSource records, or undefined while loading.
+ */
+export function useCatalogSources(filters?: {
+  readonly status?: DataSource['status'];
+  readonly format?: DataSource['format'];
+}): DataSource[] | undefined {
+  return useLiveQuery(async () => {
+    let collection = db.data_sources.toCollection();
+    if (filters?.status) {
+      collection = db.data_sources.where('status').equals(filters.status);
+    }
+    const results = await collection.sortBy('createdAt');
+    if (filters?.format) {
+      return results.filter((s: DataSource) => s.format === filters.format);
+    }
+    return results;
+  }, [filters?.status, filters?.format]);
+}
+
+/**
+ * Returns ingestion jobs with optional status filter.
+ * Reactively updates when jobs change in Dexie.js.
+ *
+ * @param statusFilter - Optional filter for job status.
+ * @returns An array of IngestionJob records, or undefined while loading.
+ */
+export function useIngestionJobs(
+  statusFilter?: IngestionJob['status'],
+): IngestionJob[] | undefined {
+  return useLiveQuery(async () => {
+    if (statusFilter) {
+      return db.ingestion_jobs.where('status').equals(statusFilter).reverse().sortBy('startedAt');
+    }
+    return db.ingestion_jobs.orderBy('startedAt').reverse().toArray();
+  }, [statusFilter]);
+}
+
+/**
+ * Returns column statistics for a data source, sorted by column name.
+ * Reactively updates when statistics are computed or updated in Dexie.js.
+ *
+ * @param dataSourceId - The data source to fetch statistics for.
+ * @returns An array of ColumnStatisticsRecord, or undefined while loading.
+ */
+export function useColumnStats(
+  dataSourceId: string | undefined,
+): ColumnStatisticsRecord[] | undefined {
+  return useLiveQuery(async () => {
+    if (!dataSourceId) return [];
+    return db.column_statistics.where('dataSourceId').equals(dataSourceId).toArray();
+  }, [dataSourceId]);
+}
+
+/**
+ * Returns a single data source by ID.
+ * Reactively updates when the data source changes in Dexie.js.
+ *
+ * @param dataSourceId - The data source ID to look up.
+ * @returns The DataSource record, or undefined if not found or still loading.
+ */
+export function useDataSource(dataSourceId: string | undefined): DataSource | undefined {
+  return useLiveQuery(async () => {
+    if (!dataSourceId) return undefined;
+    return db.data_sources.get(dataSourceId);
+  }, [dataSourceId]);
+}
+
+/**
+ * Returns watch directories from the Dexie store with optional active-only filter.
+ * Reactively updates when watch directories change in Dexie.js.
+ *
+ * @param activeOnly - If true, only returns directories with isActive === true.
+ * @returns An array of WatchDirectory records, or undefined while loading.
+ */
+export function useWatchDirectories(activeOnly?: boolean): WatchDirectory[] | undefined {
+  return useLiveQuery(async () => {
+    if (activeOnly) {
+      return db.watch_directories.filter((d) => d.isActive).sortBy('createdAt');
+    }
+    return db.watch_directories.orderBy('createdAt').toArray();
+  }, [activeOnly]);
 }

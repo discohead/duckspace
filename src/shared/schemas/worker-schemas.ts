@@ -7,6 +7,7 @@
  */
 
 import { z } from 'zod';
+import { DataSourceFormatSchema, IngestFileOptionsSchema } from './ingestion-schemas';
 
 // ============================================================
 // Shared field schemas
@@ -68,7 +69,10 @@ export const WorkerCancelRequestSchema = z
 export const WorkerGetTableInfoRequestSchema = z
   .object({
     type: z.literal('get_table_info'),
-    tableName: z.string(),
+    tableName: z
+      .string()
+      .min(1)
+      .regex(/^[\w$.]+$/u, 'Invalid table name'),
   })
   .strict()
   .describe('Main -> Worker: Get table information');
@@ -256,6 +260,7 @@ export const WorkerErrorMessageSchema = z
   .object({
     type: z.literal('error'),
     message: z.string(),
+    jobId: z.string().optional(),
   })
   .strict()
   .describe('Worker -> Main: Unhandled error');
@@ -314,6 +319,197 @@ export const QueryHistoryRecordMessageSchema = z
   .describe('Worker -> Main: Query history record for renderer');
 
 // ============================================================
+// Ingestion: Main -> Worker messages
+// ============================================================
+
+/** Schema for file ingestion requests. */
+export const WorkerIngestFileRequestSchema = z
+  .object({
+    type: z.literal('ingest_file'),
+    jobId: z.string(),
+    filePath: z.string(),
+    format: DataSourceFormatSchema,
+    tableName: z.string(),
+    options: IngestFileOptionsSchema,
+  })
+  .strict()
+  .describe('Main -> Worker: Ingest a file into DuckDB');
+
+/** Schema for file preview requests. */
+export const WorkerPreviewFileRequestSchema = z
+  .object({
+    type: z.literal('preview_file'),
+    filePath: z.string(),
+    format: DataSourceFormatSchema,
+    viewName: z.string(),
+    options: IngestFileOptionsSchema,
+  })
+  .strict()
+  .describe('Main -> Worker: Create a preview view over a file');
+
+/** Schema for column statistics computation requests. */
+export const WorkerComputeStatsRequestSchema = z
+  .object({
+    type: z.literal('compute_stats'),
+    tableName: z
+      .string()
+      .min(1)
+      .regex(/^[\w$.]+$/u, 'Invalid table name'),
+    columns: z.array(z.string()).optional(),
+    topN: z.number().int().positive().optional(),
+  })
+  .strict()
+  .describe('Main -> Worker: Compute column statistics');
+
+/** Schema for table/view drop requests. */
+export const WorkerDropTableRequestSchema = z
+  .object({
+    type: z.literal('drop_table'),
+    tableName: z
+      .string()
+      .min(1)
+      .regex(/^[\w$.]+$/u, 'Invalid table name'),
+    isView: z.boolean(),
+  })
+  .strict()
+  .describe('Main -> Worker: Drop a table or view');
+
+/** Schema for extension installation requests. */
+export const WorkerInstallExtensionRequestSchema = z
+  .object({
+    type: z.literal('install_extension'),
+    extensionName: z.string().regex(/^[\w]+$/u, 'Extension name must contain only word characters'),
+    source: z.enum(['core', 'community']).optional(),
+  })
+  .strict()
+  .describe('Main -> Worker: Install a DuckDB extension');
+
+/** Schema for CSV sniffer requests. */
+export const WorkerSniffCsvRequestSchema = z
+  .object({
+    type: z.literal('sniff_csv'),
+    filePath: z.string(),
+  })
+  .strict()
+  .describe('Main -> Worker: Sniff CSV dialect');
+
+// ============================================================
+// Ingestion: Worker -> Main messages
+// ============================================================
+
+/** Schema for ingestion progress updates. */
+export const WorkerIngestFileProgressSchema = z
+  .object({
+    type: z.literal('ingest_file_progress'),
+    jobId: z.string(),
+    rowsProcessed: z.number().int().nonnegative(),
+    bytesProcessed: z.number().int().nonnegative(),
+    batchIndex: z.number().int().nonnegative(),
+    durationMs: z.number().nonnegative(),
+  })
+  .strict()
+  .describe('Worker -> Main: Ingestion progress update');
+
+const WORKER_COLUMN_INFO_Z = z.object({
+  name: z.string(),
+  type: z.string(),
+  nullable: z.boolean(),
+});
+
+/** Schema for ingestion completion messages. */
+export const WorkerIngestFileCompleteSchema = z
+  .object({
+    type: z.literal('ingest_file_complete'),
+    jobId: z.string(),
+    tableName: z.string(),
+    rowCount: z.number().int().nonnegative(),
+    columnCount: z.number().int().nonnegative(),
+    columns: z.array(WORKER_COLUMN_INFO_Z),
+    durationMs: z.number().nonnegative(),
+    skippedRows: z.number().int().nonnegative(),
+  })
+  .strict()
+  .describe('Worker -> Main: Ingestion complete');
+
+/** Schema for preview completion messages. */
+export const WorkerPreviewFileCompleteSchema = z
+  .object({
+    type: z.literal('preview_file_complete'),
+    viewName: z.string(),
+    columns: z.array(WORKER_COLUMN_INFO_Z),
+    estimatedRowCount: z.number().int().nonnegative(),
+  })
+  .strict()
+  .describe('Worker -> Main: Preview complete');
+
+const WORKER_COLUMN_STATS_Z = z.object({
+  columnName: z.string(),
+  columnType: z.string(),
+  rowCount: z.number().int().nonnegative(),
+  nullCount: z.number().int().nonnegative(),
+  nullPercentage: z.number().nonnegative(),
+  distinctCount: z.number().int().nonnegative(),
+  min: z.string().optional(),
+  max: z.string().optional(),
+  mean: z.number().optional(),
+  median: z.number().optional(),
+  stddev: z.number().optional(),
+  q25: z.number().optional(),
+  q75: z.number().optional(),
+  topValues: z
+    .array(z.object({ value: z.string(), count: z.number().int().nonnegative() }))
+    .optional(),
+});
+
+/** Schema for column statistics completion messages. */
+export const WorkerComputeStatsCompleteSchema = z
+  .object({
+    type: z.literal('compute_stats_complete'),
+    tableName: z.string(),
+    columns: z.array(WORKER_COLUMN_STATS_Z),
+    durationMs: z.number().nonnegative(),
+  })
+  .strict()
+  .describe('Worker -> Main: Column statistics complete');
+
+/** Schema for table drop completion messages. */
+export const WorkerDropTableCompleteSchema = z
+  .object({
+    type: z.literal('drop_table_complete'),
+    tableName: z.string(),
+  })
+  .strict()
+  .describe('Worker -> Main: Table dropped');
+
+/** Schema for extension installation completion messages. */
+export const WorkerInstallExtensionCompleteSchema = z
+  .object({
+    type: z.literal('install_extension_complete'),
+    extensionName: z.string(),
+    loaded: z.boolean(),
+    errorMessage: z.string().optional(),
+  })
+  .strict()
+  .describe('Worker -> Main: Extension installed');
+
+/** Schema for CSV sniffer completion messages. */
+export const WorkerSniffCsvCompleteSchema = z
+  .object({
+    type: z.literal('sniff_csv_complete'),
+    filePath: z.string(),
+    delimiter: z.string(),
+    quoteChar: z.string(),
+    escapeChar: z.string(),
+    hasHeader: z.boolean(),
+    newlineDelimiter: z.string(),
+    columns: z.array(z.object({ name: z.string(), type: z.string() })),
+    dateFormat: z.string().optional(),
+    timestampFormat: z.string().optional(),
+  })
+  .strict()
+  .describe('Worker -> Main: CSV sniff results');
+
+// ============================================================
 // Discriminated unions
 // ============================================================
 
@@ -331,6 +527,12 @@ export const WorkerInboundMessageSchema = z
     WorkerConfigUpdateSchema,
     WorkerHealthCheckSchema,
     HeartbeatRequestSchema,
+    WorkerIngestFileRequestSchema,
+    WorkerPreviewFileRequestSchema,
+    WorkerComputeStatsRequestSchema,
+    WorkerDropTableRequestSchema,
+    WorkerInstallExtensionRequestSchema,
+    WorkerSniffCsvRequestSchema,
   ])
   .describe('Union of all messages the DuckDB Worker receives from Main');
 
@@ -350,6 +552,13 @@ export const WorkerOutboundMessageSchema = z
     PortReadyMessageSchema,
     WorkerTableListResponseSchema,
     QueryHistoryRecordMessageSchema,
+    WorkerIngestFileProgressSchema,
+    WorkerIngestFileCompleteSchema,
+    WorkerPreviewFileCompleteSchema,
+    WorkerComputeStatsCompleteSchema,
+    WorkerDropTableCompleteSchema,
+    WorkerInstallExtensionCompleteSchema,
+    WorkerSniffCsvCompleteSchema,
   ])
   .describe('Union of all messages the DuckDB Worker sends to Main');
 

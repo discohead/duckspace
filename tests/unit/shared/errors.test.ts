@@ -370,9 +370,9 @@ describe('classifyDuckDBError', () => {
     expect(err.code).toBe(ERROR_CODES.TYPE_MISMATCH);
   });
 
-  it('falls back to syntax error for unknown messages', () => {
+  it('falls back to unknown database error for unrecognized messages', () => {
     const err = classifyDuckDBError(new Error('something completely unexpected'));
-    expect(err.code).toBe(ERROR_CODES.QUERY_SYNTAX_ERROR);
+    expect(err.code).toBe(ERROR_CODES.UNKNOWN_DATABASE_ERROR);
     expect(err.message).toBe('something completely unexpected');
   });
 
@@ -403,5 +403,25 @@ describe('classifyDuckDBError', () => {
     expect(err.code).not.toBe(ERROR_CODES.COLUMN_NOT_FOUND);
     // Should also not be TABLE_NOT_FOUND since there's no "table" keyword
     expect(err.code).not.toBe(ERROR_CODES.TABLE_NOT_FOUND);
+  });
+
+  it('classifies file-not-found errors and extracts file path', () => {
+    const err = classifyDuckDBError(
+      new Error("IO Error: No such file or directory: '/tmp/data.csv'"),
+    );
+    expect(err.code).toBe(ERROR_CODES.FILE_NOT_FOUND);
+    expect(err.message).toBe('File not found: /tmp/data.csv');
+  });
+
+  it('classifies permission-denied errors and extracts file path', () => {
+    const err = classifyDuckDBError(new Error("IO Error: Permission denied: '/tmp/secret.csv'"));
+    expect(err.code).toBe(ERROR_CODES.PERMISSION_DENIED);
+    expect(err.message).toBe('Permission denied reading file: /tmp/secret.csv');
+  });
+
+  it('falls back to full message when path extraction fails for file errors', () => {
+    const err = classifyDuckDBError(new Error('no such file anywhere'));
+    expect(err.code).toBe(ERROR_CODES.FILE_NOT_FOUND);
+    expect(err.message).toBe('File not found: no such file anywhere');
   });
 });

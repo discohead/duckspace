@@ -22,6 +22,12 @@ export function QueryEditor(): ReactElement {
   // Sync SQL from active tab state when tab changes
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-sync on tab id/state change, not type
   useEffect(() => {
+    // Reset transient execution state on tab switch (BUG-001)
+    setError(null);
+    setStatus(null);
+    setIsExecuting(false);
+    setQueryId(null);
+
     if (activeTab?.type === 'query') {
       const tabState = activeTab.state;
       setSql(tabState.sql);
@@ -139,11 +145,12 @@ export function QueryEditor(): ReactElement {
       });
     } catch (err: unknown) {
       setIsExecuting(false);
-      const ipcError = err as { code?: string; message?: string };
-      setError({
-        code: ipcError.code ?? 'E9999',
-        message: ipcError.message ?? 'Unknown error executing query',
-      });
+      const errObj =
+        typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : {};
+      const code = typeof errObj['code'] === 'string' ? errObj['code'] : 'E9999';
+      const message =
+        typeof errObj['message'] === 'string' ? errObj['message'] : 'Unknown error executing query';
+      setError({ code, message });
     }
   }, [activeTab, sql]);
 
@@ -170,11 +177,12 @@ export function QueryEditor(): ReactElement {
       });
       setQueryId(null);
     } catch (err: unknown) {
-      const ipcError = err as { code?: string; message?: string };
-      setError({
-        code: ipcError.code ?? 'E9999',
-        message: ipcError.message ?? 'Failed to cancel query',
-      });
+      const errObj =
+        typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : {};
+      const code = typeof errObj['code'] === 'string' ? errObj['code'] : 'E9999';
+      const message =
+        typeof errObj['message'] === 'string' ? errObj['message'] : 'Failed to cancel query';
+      setError({ code, message });
     }
   }, [queryId]);
 
@@ -268,6 +276,7 @@ export function QueryEditor(): ReactElement {
       {/* Error panel */}
       {error && (
         <div
+          role="alert"
           style={{
             padding: 12,
             backgroundColor: '#fef2f2',

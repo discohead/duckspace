@@ -11,4 +11,15 @@ export default defineConfig({
       '@shared': path.resolve(__dirname, 'src/shared'),
     },
   },
+  optimizeDeps: {
+    exclude: [
+      '@finos/perspective',
+      '@finos/perspective-viewer',
+      '@finos/perspective-viewer-datagrid',
+      '@finos/perspective-react',
+    ],
+    // CJS transitive deps of excluded perspective packages must be
+    // explicitly included so Vite pre-bundles them into ESM.
+    include: ['chroma-js', 'regular-table'],
+  },
 });

@@ -17,15 +17,16 @@ const {
   const mockToArray = vi.fn();
   const mockFirst = vi.fn();
   const mockSortBy = vi.fn();
-  const mockReverse = vi.fn().mockReturnValue({ sortBy: mockSortBy });
+  const mockReverse = vi.fn().mockReturnValue({ sortBy: mockSortBy, toArray: mockToArray });
   const mockEquals = vi.fn().mockReturnValue({
     toArray: mockToArray,
     reverse: mockReverse,
     sortBy: mockSortBy,
+    delete: vi.fn(),
   });
   const mockWhere = vi.fn().mockReturnValue({ equals: mockEquals });
-  const mockFilter = vi.fn().mockReturnValue({ first: mockFirst });
-  const mockOrderBy = vi.fn().mockReturnValue({ toArray: mockToArray });
+  const mockFilter = vi.fn().mockReturnValue({ first: mockFirst, sortBy: mockSortBy });
+  const mockOrderBy = vi.fn().mockReturnValue({ toArray: mockToArray, reverse: mockReverse });
   const mockGet = vi.fn();
   const mockUseLiveQuery = vi.fn();
 
@@ -48,6 +49,20 @@ const {
       queries: { where: mockWhere },
       catalog_entries: { where: mockWhere },
       column_schemas: { where: mockWhere },
+      data_sources: {
+        toCollection: vi.fn().mockReturnValue({ sortBy: mockSortBy }),
+        where: mockWhere,
+        get: mockGet,
+      },
+      ingestion_jobs: {
+        where: mockWhere,
+        orderBy: mockOrderBy,
+      },
+      column_statistics: { where: mockWhere },
+      watch_directories: {
+        filter: mockFilter,
+        orderBy: mockOrderBy,
+      },
     },
   };
 });
@@ -64,11 +79,16 @@ import {
   useActiveTab,
   useAppState,
   useCatalogEntries,
+  useCatalogSources,
   useColumnSchemas,
+  useColumnStats,
   useCurrentQuery,
+  useDataSource,
+  useIngestionJobs,
   usePreference,
   useRunningQueries,
   useTabs,
+  useWatchDirectories,
   useWorkerHealth,
 } from '@renderer/stores/hooks';
 
@@ -221,5 +241,121 @@ describe('useColumnSchemas', () => {
     expect(mockWhere).toHaveBeenCalledWith('catalogEntryId');
     expect(mockEquals).toHaveBeenCalledWith('cat-1');
     expect(mockSortBy).toHaveBeenCalledWith('ordinalPosition');
+  });
+});
+
+describe('useCatalogSources', () => {
+  it('calls useLiveQuery with deps containing status and format', () => {
+    useCatalogSources({ status: 'active', format: 'csv' });
+    expect(mockUseLiveQuery).toHaveBeenCalledWith(expect.any(Function), ['active', 'csv']);
+  });
+
+  it('without filters, queries entire collection sorted by createdAt', () => {
+    useCatalogSources();
+    expect(mockDb.data_sources.toCollection).toHaveBeenCalled();
+    expect(mockSortBy).toHaveBeenCalledWith('createdAt');
+  });
+
+  it('with status filter, uses where/equals instead of toCollection', () => {
+    useCatalogSources({ status: 'active' });
+    expect(mockWhere).toHaveBeenCalledWith('status');
+    expect(mockEquals).toHaveBeenCalledWith('active');
+  });
+
+  it('with format filter, filters results after sorting', async () => {
+    const mockResults = [
+      { format: 'csv', name: 'a.csv' },
+      { format: 'parquet', name: 'b.parquet' },
+    ];
+    mockSortBy.mockResolvedValue(mockResults);
+    mockUseLiveQuery.mockImplementation((fn: () => unknown) => fn());
+    const result = await useCatalogSources({ format: 'csv' });
+    expect(result).toEqual([{ format: 'csv', name: 'a.csv' }]);
+  });
+});
+
+describe('useIngestionJobs', () => {
+  it('without filter, calls orderBy("startedAt").reverse().toArray()', () => {
+    useIngestionJobs();
+    expect(mockOrderBy).toHaveBeenCalledWith('startedAt');
+    expect(mockReverse).toHaveBeenCalled();
+    expect(mockToArray).toHaveBeenCalled();
+  });
+
+  it('with status filter, uses where/equals', () => {
+    useIngestionJobs('running');
+    expect(mockWhere).toHaveBeenCalledWith('status');
+    expect(mockEquals).toHaveBeenCalledWith('running');
+    expect(mockReverse).toHaveBeenCalled();
+    expect(mockSortBy).toHaveBeenCalledWith('startedAt');
+  });
+
+  it('passes statusFilter as deps', () => {
+    useIngestionJobs('failed');
+    expect(mockUseLiveQuery).toHaveBeenCalledWith(expect.any(Function), ['failed']);
+  });
+});
+
+describe('useColumnStats', () => {
+  it('with dataSourceId, queries column_statistics by dataSourceId', () => {
+    useColumnStats('ds-1');
+    expect(mockWhere).toHaveBeenCalledWith('dataSourceId');
+    expect(mockEquals).toHaveBeenCalledWith('ds-1');
+    expect(mockToArray).toHaveBeenCalled();
+  });
+
+  it('with undefined dataSourceId, returns empty array', async () => {
+    mockUseLiveQuery.mockImplementation((fn: () => unknown) => fn());
+    const result = await useColumnStats(undefined);
+    expect(result).toEqual([]);
+  });
+
+  it('passes dataSourceId as deps', () => {
+    useColumnStats('ds-1');
+    expect(mockUseLiveQuery).toHaveBeenCalledWith(expect.any(Function), ['ds-1']);
+  });
+});
+
+describe('useDataSource', () => {
+  it('with dataSourceId, calls db.data_sources.get', () => {
+    useDataSource('ds-1');
+    expect(mockGet).toHaveBeenCalledWith('ds-1');
+  });
+
+  it('with undefined dataSourceId, returns undefined', async () => {
+    mockUseLiveQuery.mockImplementation((fn: () => unknown) => fn());
+    const result = await useDataSource(undefined);
+    expect(result).toBeUndefined();
+  });
+
+  it('passes dataSourceId as deps', () => {
+    useDataSource('ds-1');
+    expect(mockUseLiveQuery).toHaveBeenCalledWith(expect.any(Function), ['ds-1']);
+  });
+});
+
+describe('useWatchDirectories', () => {
+  it('without activeOnly, calls orderBy("createdAt").toArray()', () => {
+    useWatchDirectories();
+    expect(mockOrderBy).toHaveBeenCalledWith('createdAt');
+    expect(mockToArray).toHaveBeenCalled();
+  });
+
+  it('with activeOnly=true, filters by isActive and sorts by createdAt', () => {
+    useWatchDirectories(true);
+    expect(mockFilter).toHaveBeenCalledWith(expect.any(Function));
+    expect(mockSortBy).toHaveBeenCalledWith('createdAt');
+  });
+
+  it('filter function checks isActive property', () => {
+    useWatchDirectories(true);
+    const filterFn = mockFilter.mock.calls[0]![0];
+    expect(filterFn({ isActive: true })).toBe(true);
+    expect(filterFn({ isActive: false })).toBe(false);
+  });
+
+  it('passes activeOnly as deps', () => {
+    useWatchDirectories(true);
+    expect(mockUseLiveQuery).toHaveBeenCalledWith(expect.any(Function), [true]);
   });
 });

@@ -273,12 +273,12 @@ describe('errors property-based tests', () => {
       );
     });
 
-    it('messages without known patterns default to E1001', () => {
+    it('messages without known patterns default to E1099', () => {
       fc.assert(
         fc.property(arbSafeMessage, (msg) => {
           const err = new Error(msg);
           const classified = classifyDuckDBError(err);
-          expect(classified.code).toBe(ERROR_CODES.QUERY_SYNTAX_ERROR);
+          expect(classified.code).toBe(ERROR_CODES.UNKNOWN_DATABASE_ERROR);
           expect(classified.message).toBe(msg);
         }),
         { numRuns: 100 },

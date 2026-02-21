@@ -1,19 +1,42 @@
 import os from 'node:os';
+import path from 'node:path';
 import { MessageChannel as NodeMessageChannel, type Worker } from 'node:worker_threads';
 import { IPC_CHANNELS, PUSH_EVENTS, TIMEOUTS } from '@shared/constants';
 import { DatspaceConfigSchema } from '@shared/schemas/config-schema';
-import type { AppState } from '@shared/types';
-import { app, type BrowserWindow, ipcMain, MessageChannelMain } from 'electron';
+import type {
+  AddWatchDirectoryRequest,
+  AppState,
+  DataSource,
+  DataSourceFormat,
+  RemoveSourceResponse,
+  RemoveWatchDirectoryResponse,
+  WatchDirectory,
+} from '@shared/types';
+import { app, type BrowserWindow, dialog, ipcMain, MessageChannelMain } from 'electron';
 import { computeMemoryLimit, getConfig, setConfigValue } from './config';
+import type { FileWatcher } from './ingestion/file-watcher';
 import type { QueryRouter } from './query-router';
 import type { WorkerManager } from './worker-manager';
+
+/** All supported formats used as the default fileTypeFilter. */
+const ALL_FORMATS: readonly DataSourceFormat[] = [
+  'csv',
+  'tsv',
+  'parquet',
+  'json',
+  'jsonl',
+  'xlsx',
+  'arrow_ipc',
+];
 
 let queryRouter: QueryRouter | null = null;
 let workerManager: WorkerManager | null = null;
 let mainWindow: BrowserWindow | null = null;
+let fileWatcher: FileWatcher | null = null;
 let shutdownAckResolve: (() => void) | null = null;
 let rendererReadyResolve: (() => void) | null = null;
 let handlersRegistered = false;
+let ingestionRouterReady = false;
 
 /**
  * Sets the QueryRouter reference used by IPC handlers.
@@ -31,6 +54,22 @@ export function setQueryRouter(router: QueryRouter): void {
  */
 export function setWorkerManager(manager: WorkerManager): void {
   workerManager = manager;
+}
+
+/**
+ * Signals that the ingestion router is initialized and ready for IPC requests.
+ */
+export function setIngestionReady(): void {
+  ingestionRouterReady = true;
+}
+
+/**
+ * Sets the FileWatcher reference used by watch IPC handlers.
+ *
+ * @param watcher - The FileWatcher instance managing directory watchers.
+ */
+export function setFileWatcher(watcher: FileWatcher): void {
+  fileWatcher = watcher;
 }
 
 /**
@@ -259,6 +298,309 @@ export function registerIPCHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CONFIG_GET_ALL, async () => {
     return getConfig();
   });
+
+  // === Ingestion Channels ===
+  ipcMain.handle(
+    IPC_CHANNELS.INGESTION_IMPORT_FILES,
+    wrapIPCHandler(
+      IPC_CHANNELS.INGESTION_IMPORT_FILES,
+      async (
+        _event: unknown,
+        args: {
+          filePaths: readonly string[];
+          trigger: string;
+          dataSourceId?: string;
+        },
+      ) => {
+        if (!ingestionRouterReady) throw new Error('Ingestion router not initialized');
+        // Lazy import to avoid circular dependency
+        const mod = await import('./ingestion/ingestion-router');
+
+        const trigger = args.trigger as
+          | 'file_picker'
+          | 'drag_and_drop'
+          | 'watch_directory'
+          | 'retry';
+
+        // T043: Retry flow — if trigger is 'retry' and dataSourceId is provided,
+        // use retryImport which cleans up old table name before re-importing.
+        if (
+          trigger === 'retry' &&
+          args.dataSourceId !== undefined &&
+          args.filePaths.length === 1 &&
+          args.filePaths[0] !== undefined
+        ) {
+          return mod.retryImport(args.dataSourceId, args.filePaths[0]);
+        }
+
+        let filePaths = [...args.filePaths];
+
+        // If no paths provided, show native file dialog (file_picker trigger)
+        if (filePaths.length === 0) {
+          const result = await dialog.showOpenDialog({
+            properties: ['openFile', 'multiSelections'],
+            filters: [
+              {
+                name: 'Data Files',
+                extensions: [
+                  'csv',
+                  'tsv',
+                  'parquet',
+                  'json',
+                  'jsonl',
+                  'ndjson',
+                  'xlsx',
+                  'xls',
+                  'arrow',
+                  'ipc',
+                  'feather',
+                ],
+              },
+            ],
+          });
+          if (result.canceled || result.filePaths.length === 0) {
+            return { jobs: [] };
+          }
+          filePaths = result.filePaths;
+        }
+
+        return mod.importFiles(filePaths, trigger);
+      },
+    ),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.INGESTION_CANCEL_JOB,
+    wrapIPCHandler(
+      IPC_CHANNELS.INGESTION_CANCEL_JOB,
+
+      async (_event: unknown, args: { jobId: string }) => {
+        const { cancelJob } = await import('./ingestion/ingestion-router');
+        const cancelled = cancelJob(args.jobId);
+        return { jobId: args.jobId, cancelled };
+      },
+    ),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.INGESTION_GET_PROGRESS,
+    wrapIPCHandler(
+      IPC_CHANNELS.INGESTION_GET_PROGRESS,
+
+      async (_event: unknown, args: { jobId: string }) => {
+        const { getProgressTracker } = await import('./ingestion/ingestion-router');
+        const tracker = getProgressTracker();
+        const state = tracker.getJobState(args.jobId);
+        if (!state) {
+          return { jobId: args.jobId, status: 'not_found' };
+        }
+        const estimate = tracker.estimateCompletion(args.jobId);
+        return {
+          jobId: args.jobId,
+          status: state.status,
+          rowsProcessed: state.rowsProcessed,
+          bytesProcessed: state.bytesProcessed,
+          percentage: estimate?.percentage,
+          estimatedTotalRows: estimate?.estimatedTotalRows,
+          elapsedMs: estimate?.elapsedMs,
+        };
+      },
+    ),
+  );
+
+  // === Catalog Extended Channels ===
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  ipcMain.handle(IPC_CHANNELS.CATALOG_GET_SOURCES, async () => {
+    // Data sources are stored in Dexie (renderer). Main does not maintain
+    // full DataSource records. Return empty — the renderer uses useCatalogSources()
+    // hook for reactive queries against Dexie directly.
+    return { sources: [] as DataSource[] };
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.CATALOG_REMOVE_SOURCE,
+    wrapIPCHandler(
+      IPC_CHANNELS.CATALOG_REMOVE_SOURCE,
+      async (_event: unknown, args: { dataSourceId: string }): Promise<RemoveSourceResponse> => {
+        const { removeSource, getTableNameForSource } = await import(
+          './ingestion/ingestion-router'
+        );
+        const tableName = getTableNameForSource(args.dataSourceId);
+        const result = await removeSource(args.dataSourceId, tableName);
+        return {
+          type: 'catalog:removeSource:response',
+          dataSourceId: args.dataSourceId,
+          tableName: result.tableName,
+          success: result.success,
+        };
+      },
+    ),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CATALOG_UPDATE_SOURCE,
+    wrapIPCHandler(
+      IPC_CHANNELS.CATALOG_UPDATE_SOURCE,
+      (
+        _event: unknown,
+        args: { dataSourceId: string; updates: { name?: string; tags?: readonly string[] } },
+      ) => {
+        // Metadata (name, tags) lives in Dexie (renderer only). Main acknowledges
+        // the request and returns the updates. The renderer updates Dexie directly.
+        return Promise.resolve({
+          type: 'catalog:updateSource:response' as const,
+          dataSourceId: args.dataSourceId,
+          source: { id: args.dataSourceId, ...args.updates },
+        });
+      },
+    ),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CATALOG_GET_COLUMN_STATS,
+    wrapIPCHandler(
+      IPC_CHANNELS.CATALOG_GET_COLUMN_STATS,
+      async (
+        _event: unknown,
+        args: { dataSourceId: string; tableName?: string; forceRecompute?: boolean },
+      ) => {
+        const { getTableNameForSource, computeStats, registerDataSourceTable } = await import(
+          './ingestion/ingestion-router'
+        );
+
+        // Resolve tableName: first check the in-memory map, then fall back to
+        // a tableName provided by the renderer (for restart recovery).
+        let tableName = getTableNameForSource(args.dataSourceId);
+        if (!tableName && args.tableName) {
+          tableName = args.tableName;
+          registerDataSourceTable(args.dataSourceId, tableName);
+        }
+        if (!tableName) {
+          throw new Error(`No table name found for data source: ${args.dataSourceId}`);
+        }
+
+        const startMs = Date.now();
+        const result = await computeStats(tableName);
+
+        const columns = result.columns.map((col) => ({
+          id: `${args.dataSourceId}__${col.columnName}`,
+          dataSourceId: args.dataSourceId,
+          columnName: col.columnName,
+          columnType: col.columnType,
+          rowCount: col.rowCount,
+          nullCount: col.nullCount,
+          nullPercentage: col.nullPercentage,
+          distinctCount: col.distinctCount,
+          min: col.min,
+          max: col.max,
+          mean: col.mean,
+          median: col.median,
+          stddev: col.stddev,
+          q25: col.q25,
+          q75: col.q75,
+          topValues: col.topValues?.map((tv) => ({
+            value: tv.value,
+            count: tv.count,
+            percentage: col.rowCount > 0 ? (tv.count / col.rowCount) * 100 : 0,
+          })),
+          computedAt: new Date().toISOString(),
+        }));
+
+        return {
+          type: 'catalog:getColumnStats:response' as const,
+          dataSourceId: args.dataSourceId,
+          columns,
+          computedAt: new Date().toISOString(),
+          durationMs: Date.now() - startMs,
+        };
+      },
+    ),
+  );
+
+  // === Watch Channels ===
+
+  ipcMain.handle(
+    IPC_CHANNELS.WATCH_ADD_DIRECTORY,
+    wrapIPCHandler(
+      IPC_CHANNELS.WATCH_ADD_DIRECTORY,
+      async (
+        _event: unknown,
+        args: AddWatchDirectoryRequest,
+      ): Promise<{ watchDirectory: WatchDirectory }> => {
+        if (!fileWatcher) throw new Error('FileWatcher not initialized');
+
+        const now = new Date().toISOString();
+        const opts = args.options;
+
+        const watchDir: WatchDirectory = {
+          id: crypto.randomUUID(),
+          path: args.path,
+          displayName: path.basename(args.path),
+          isActive: true,
+          recursive: opts?.recursive ?? true,
+          fileTypeFilter: opts?.fileTypeFilter ?? ALL_FORMATS,
+          excludePatterns: opts?.excludePatterns ?? [],
+          autoReingest: opts?.autoReingest ?? false,
+          stabilityThresholdMs: opts?.stabilityThresholdMs ?? 2000,
+          sourceCount: 0,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        await fileWatcher.addDirectory(watchDir);
+
+        return { watchDirectory: watchDir };
+      },
+    ),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.WATCH_REMOVE_DIRECTORY,
+    wrapIPCHandler(
+      IPC_CHANNELS.WATCH_REMOVE_DIRECTORY,
+      async (
+        _event: unknown,
+        args: { watchDirectoryId: string; removeAssociatedSources?: boolean },
+      ): Promise<RemoveWatchDirectoryResponse> => {
+        if (!fileWatcher) throw new Error('FileWatcher not initialized');
+
+        await fileWatcher.removeDirectory(args.watchDirectoryId);
+
+        return {
+          type: 'watch:removeDirectory:response',
+          watchDirectoryId: args.watchDirectoryId,
+          sourcesRemoved: 0,
+        };
+      },
+    ),
+  );
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  ipcMain.handle(IPC_CHANNELS.WATCH_LIST_DIRECTORIES, async () => {
+    if (!fileWatcher) {
+      return { directories: [] as WatchDirectory[] };
+    }
+    const activeIds = fileWatcher.getActiveWatchers();
+    // Return the IDs — full WatchDirectory records are in Dexie (renderer).
+    // The renderer uses useWatchDirectories() for the full records.
+    return { directories: activeIds };
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.WATCH_RESTORE_DIRECTORIES,
+    wrapIPCHandler(
+      IPC_CHANNELS.WATCH_RESTORE_DIRECTORIES,
+      async (
+        _event: unknown,
+        args: { directories: readonly WatchDirectory[] },
+      ): Promise<{ restored: number }> => {
+        if (!fileWatcher) throw new Error('FileWatcher not initialized');
+        const restored = await fileWatcher.restoreDirectories(args.directories);
+        return { restored };
+      },
+    ),
+  );
 
   handlersRegistered = true;
 }

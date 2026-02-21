@@ -1,0 +1,11 @@
+id,name,age,salary,department,start_date,active
+1,Alice Johnson,32,85000.50,Engineering,2020-01-15,true
+2,Bob Smith,45,92000.00,Marketing,2018-06-20,true
+3,Carol Williams,28,78000.25,Engineering,2021-03-10,true
+4,David Brown,38,95000.00,Sales,2019-09-01,false
+5,Eve Davis,31,88000.75,Engineering,2020-11-05,true
+6,Frank Miller,42,102000.00,Marketing,2017-02-28,true
+7,Grace Wilson,35,91000.50,Sales,2019-04-15,true
+8,Henry Moore,29,76000.00,Engineering,2022-01-20,true
+9,Ivy Taylor,36,89000.25,Marketing,2018-08-12,false
+10,Jack Anderson,44,98000.00,Sales,2016-12-01,true

@@ -1,3 +1,4 @@
+import os from 'node:os';
 import { type DuckDBConnection, DuckDBInstance } from '@duckdb/node-api';
 
 /** Configuration for initializing a DuckDB instance within the worker thread. */
@@ -44,6 +45,25 @@ export async function initDuckDB(config: DuckDBConfig): Promise<void> {
     await connection.run(`LOAD ${ext}`);
   }
 
+  // T055: Enforce constitution constraint of ≤ 50% RAM via explicit SET statement
+  const memoryLimitMB = Math.floor((os.totalmem() * 0.5) / 1024 / 1024);
+  await connection.run(`SET memory_limit = '${String(memoryLimitMB)}MB'`);
+  console.log(
+    `DuckDB memory limit set to ${String(memoryLimitMB)}MB (50% of ${String(Math.floor(os.totalmem() / 1024 / 1024))}MB system RAM)`,
+  );
+
+  // T010: Install and load the Excel extension for XLSX file support.
+  // Core extension — auto-loads after first install.
+  try {
+    await connection.run('INSTALL excel');
+    await connection.run('LOAD excel');
+  } catch (err) {
+    console.warn(
+      'Failed to load Excel extension (XLSX import will not work):',
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
   // Install and load the Arrow community extension for to_arrow_ipc() support.
   // Required by the data-plane pipeline to stream Arrow IPC buffers to the renderer.
   // The extension is cached locally after first install (~/.duckdb/extensions/).
@@ -51,9 +71,9 @@ export async function initDuckDB(config: DuckDBConfig): Promise<void> {
     await connection.run('INSTALL arrow FROM community');
     await connection.run('LOAD arrow');
   } catch (err) {
-    console.warn(
-      'Failed to load Arrow extension (query streaming will not work):',
-      err instanceof Error ? err.message : String(err),
+    const errMsg = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Arrow extension is required for query streaming but failed to load: ${errMsg}`,
     );
   }
 
@@ -74,7 +94,7 @@ async function createSystemTables(): Promise<void> {
       row_count         INTEGER NOT NULL DEFAULT 0,
       timestamp         TIMESTAMP NOT NULL DEFAULT current_timestamp,
       source            VARCHAR NOT NULL DEFAULT 'user',
-      tags              VARCHAR[] DEFAULT '{}',
+      tags              VARCHAR[] DEFAULT [],
       status            VARCHAR NOT NULL DEFAULT 'success',
       error_message     VARCHAR
     )

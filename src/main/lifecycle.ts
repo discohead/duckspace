@@ -10,9 +10,16 @@ import {
   getTempDirectory,
   loadConfig,
 } from './config';
+import { FileWatcher } from './ingestion/file-watcher';
+import {
+  setMainWindow as setIngestionMainWindow,
+  setWorker as setIngestionWorker,
+} from './ingestion/ingestion-router';
 import {
   registerIPCHandlers,
   sendShutdownPrepare,
+  setFileWatcher,
+  setIngestionReady,
   setMainWindowRef,
   setQueryRouter,
   setupDataChannel,
@@ -29,6 +36,7 @@ declare const MAIN_WINDOW_VITE_NAME: string;
 let mainWindow: BrowserWindow | null = null;
 let workerManager: WorkerManager | null = null;
 let queryRouter: QueryRouter | null = null;
+let fileWatcherInstance: FileWatcher | null = null;
 
 /**
  * Returns the current main BrowserWindow instance.
@@ -81,6 +89,10 @@ export async function reactivateWindow(): Promise<void> {
   setMainWindowRef(mainWindow);
   workerManager.setMainWindow(mainWindow);
   queryRouter.setMainWindow(mainWindow);
+  setIngestionMainWindow(mainWindow);
+  if (fileWatcherInstance) {
+    fileWatcherInstance.setMainWindow(mainWindow);
+  }
   setupDataChannel(mainWindow, worker);
   await waitForRendererReady();
   workerManager.pushCurrentHealth();
@@ -191,11 +203,23 @@ export async function startupSequence(): Promise<void> {
   queryRouter = new QueryRouter(worker);
   setQueryRouter(queryRouter);
 
+  // Step 4b: Initialize ingestion router with worker reference
+  setIngestionWorker(worker);
+
   // Step 5: Create BrowserWindow
   mainWindow = await createWindow();
   setMainWindowRef(mainWindow);
   workerManager.setMainWindow(mainWindow);
   queryRouter.setMainWindow(mainWindow);
+  setIngestionMainWindow(mainWindow);
+
+  // Step 5b: Mark ingestion router as ready for IPC requests
+  setIngestionReady();
+
+  // Step 5c: Initialize FileWatcher and wire to IPC handlers
+  fileWatcherInstance = new FileWatcher();
+  fileWatcherInstance.setMainWindow(mainWindow);
+  setFileWatcher(fileWatcherInstance);
 
   // Step 6: Setup MessagePort data channel
   setupDataChannel(mainWindow, worker);
@@ -232,6 +256,12 @@ export async function shutdownSequence(): Promise<void> {
 
   // Step 3: Wait for shutdown acknowledgment (5s timeout)
   await waitForShutdownAck(TIMEOUTS.SHUTDOWN_ACK);
+
+  // Step 3b: Close all file watchers
+  if (fileWatcherInstance) {
+    await fileWatcherInstance.closeAll();
+    fileWatcherInstance = null;
+  }
 
   // Step 4: Shutdown DuckDB worker
   if (workerManager) {

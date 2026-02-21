@@ -269,7 +269,6 @@ export class WorkerManager {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private handleHealthCheckResult(_result: WorkerHealthResponse): void {
     // No-op: health checks are superseded by heartbeat monitoring.
     // Messages intentionally discarded — status is derived from heartbeat ACKs.

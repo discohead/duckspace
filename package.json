@@ -39,7 +39,12 @@
   "license": "MIT",
   "dependencies": {
     "@duckdb/node-api": "1.4.4-r.1",
+    "@finos/perspective": "^3.8.0",
+    "@finos/perspective-react": "^3.8.0",
+    "@finos/perspective-viewer": "^3.8.0",
+    "@finos/perspective-viewer-datagrid": "^3.8.0",
     "@uwdata/flechette": "^2.3.0",
+    "chokidar": "^4.0.3",
     "dexie": "^4.3.0",
     "dexie-react-hooks": "^1.1.7",
     "react": "^18.3.0",
@@ -82,7 +87,11 @@
     "vitest": "^3.0.0"
   },
   "lint-staged": {
-    "*.{ts,tsx}": ["biome check --write --no-errors-on-unmatched"],
-    "*.{json,md,yaml,yml}": ["biome format --write --no-errors-on-unmatched"]
+    "*.{ts,tsx}": [
+      "biome check --write --no-errors-on-unmatched"
+    ],
+    "*.{json,md,yaml,yml}": [
+      "biome format --write --no-errors-on-unmatched"
+    ]
   }
 }

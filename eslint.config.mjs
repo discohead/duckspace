@@ -5,7 +5,7 @@ import tsdoc from 'eslint-plugin-tsdoc';
 
 export default tseslint.config(
   // Global ignores
-  { ignores: ['node_modules', 'dist', '.vite', 'coverage', '*.config.*', 'forge.config.ts', '.claude'] },
+  { ignores: ['node_modules', 'dist', '.vite', 'coverage', '*.config.*', 'forge.config.ts', '.claude', 'scripts'] },
 
   // Base JS rules
   js.configs.recommended,
@@ -57,6 +57,9 @@ export default tseslint.config(
         { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
       ],
       '@typescript-eslint/consistent-type-exports': 'error',
+
+      // Unused variables: allow _-prefixed args (intentionally unused parameters)
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
 
       // Exhaustiveness and safety
       '@typescript-eslint/switch-exhaustiveness-check': 'error',
@@ -126,6 +129,7 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'off',
       '@typescript-eslint/no-misused-spread': 'off',
       '@typescript-eslint/no-deprecated': 'off',
+      '@typescript-eslint/await-thenable': 'off',
       'tsdoc/syntax': 'off',
     },
   },

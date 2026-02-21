@@ -27,6 +27,7 @@ function buildWorkerPlugin() {
             external: [
               '@duckdb/node-api',
               'worker_threads',
+              /^node:/,
             ],
           },
         },
@@ -51,6 +52,8 @@ export default defineConfig({
       external: [
         '@duckdb/node-api',
         'worker_threads',
+        'chokidar',
+        /^node:/,
       ],
     },
   },

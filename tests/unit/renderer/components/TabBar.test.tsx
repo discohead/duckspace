@@ -124,4 +124,30 @@ describe('TabBar', () => {
     fireEvent.click(closeButtons[0]!);
     expect(db.tabs.delete).toHaveBeenCalledWith('tab-1');
   });
+
+  it('opens new tab dropdown menu when + button is clicked', () => {
+    render(<TabBar />);
+    fireEvent.click(screen.getByLabelText('New tab'));
+    expect(screen.getByRole('menu')).toBeDefined();
+    expect(screen.getByText('New Query')).toBeDefined();
+    expect(screen.getByText('Catalog Browser')).toBeDefined();
+    expect(screen.getByText('Settings')).toBeDefined();
+  });
+
+  it('creates new tab via dropdown menu item', async () => {
+    render(<TabBar />);
+    fireEvent.click(screen.getByLabelText('New tab'));
+    fireEvent.click(screen.getByText('New Query'));
+    await waitFor(() => {
+      expect(db.tabs.add).toHaveBeenCalled();
+    });
+  });
+
+  it('closes dropdown when clicking outside', () => {
+    render(<TabBar />);
+    fireEvent.click(screen.getByLabelText('New tab'));
+    expect(screen.getByRole('menu')).toBeDefined();
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
 });

@@ -219,21 +219,12 @@ describe('duckdb-worker', () => {
 
       // Set up connection that returns IPC buffer as DuckDBBlobValue
       const blobValue = { bytes: new Uint8Array([1, 2, 3, 4]) };
-      const run = vi
-        .fn()
-        // to_arrow_ipc query — returns DuckDBBlobValue with .bytes property
-        .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([[blobValue, false]]),
-        })
-        // query history insert (best effort)
-        .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([]),
-        });
+      const run = createMockRun([[blobValue, false]]);
       mockGetConnection.mockReturnValue({ run });
 
       await handler({ type: 'execute_query', queryId: 'q1', sql: 'SELECT 1' });
 
-      // Check SQL wrapping
+      // Check SQL wrapping — uses conn.run()
       expect(run).toHaveBeenCalledWith('SELECT * FROM to_arrow_ipc((SELECT 1))');
 
       // Check arrow-batch was sent on data port
@@ -330,11 +321,7 @@ describe('duckdb-worker', () => {
       const mockPort = { postMessage: vi.fn(), onmessage: null };
       await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
 
-      const failRun = vi
-        .fn()
-        .mockRejectedValueOnce(new Error('syntax error in SQL'))
-        // For query history insert (getConnection is called again)
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      const failRun = vi.fn().mockRejectedValueOnce(new Error('syntax error in SQL'));
       mockGetConnection.mockReturnValue({ run: failRun });
 
       mockParentPort.postMessage.mockClear();
@@ -376,7 +363,9 @@ describe('duckdb-worker', () => {
       const slowRun = vi.fn().mockImplementation(async () => {
         // Cancel while query is "running"
         await handler({ type: 'cancel_query', queryId: 'q-cancel' });
-        return { getRows: vi.fn().mockResolvedValue([[new Uint8Array([1, 2])]]) };
+        return {
+          getRows: vi.fn().mockResolvedValue([[{ bytes: new Uint8Array([1, 2]) }, false]]),
+        };
       });
       mockGetConnection.mockReturnValue({ run: slowRun });
 
@@ -532,21 +521,17 @@ describe('duckdb-worker', () => {
       });
     });
 
-    it('escapes table names with single quotes', async () => {
+    it('rejects table names with invalid characters via schema validation', async () => {
       await loadWorker();
       const handler = getMessageHandler();
 
-      const run = vi
-        .fn()
-        .mockResolvedValueOnce({ getRows: vi.fn().mockResolvedValue([]) })
-        .mockResolvedValueOnce({ getRows: vi.fn().mockResolvedValue([[0]]) });
-
-      mockGetConnection.mockReturnValue({ run });
-
       await handler({ type: 'get_table_info', tableName: "table'name" });
 
-      const firstSql = run.mock.calls[0]![0] as string;
-      expect(firstSql).toContain("table''name");
+      const errorCall = mockParentPort.postMessage.mock.calls.find(
+        (call: any[]) => call[0]?.type === 'error',
+      );
+      expect(errorCall).toBeDefined();
+      expect(errorCall?.[0]?.message).toContain('Invalid');
     });
   });
 
@@ -803,12 +788,8 @@ describe('duckdb-worker', () => {
       await loadWorker();
       const handler = getMessageHandler();
       // Do NOT set up data port — leave dataPort null
-      const run = vi
-        .fn()
-        .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([[new Uint8Array([1, 2, 3])]]),
-        })
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      const blobValue = { bytes: new Uint8Array([1, 2, 3]) };
+      const run = createMockRun([[blobValue, false]]);
       mockGetConnection.mockReturnValue({ run });
       mockParentPort.postMessage.mockClear();
 
@@ -823,13 +804,8 @@ describe('duckdb-worker', () => {
     it('posts error when dataPort is null during arrow-end send', async () => {
       await loadWorker();
       const handler = getMessageHandler();
-      // Do NOT set up data port
-      const run = vi
-        .fn()
-        .mockResolvedValueOnce({
-          getRows: vi.fn().mockResolvedValue([]),
-        })
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
+      // Do NOT set up data port — run returns no data rows
+      const run = createMockRun([]);
       mockGetConnection.mockReturnValue({ run });
       mockParentPort.postMessage.mockClear();
 
@@ -844,12 +820,9 @@ describe('duckdb-worker', () => {
     it('posts error when dataPort is null during arrow-error send', async () => {
       await loadWorker();
       const handler = getMessageHandler();
-      // Do NOT set up data port
-      const run = vi
-        .fn()
-        .mockRejectedValueOnce(new Error('test error'))
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
-      mockGetConnection.mockReturnValue({ run });
+      // Do NOT set up data port — run rejects
+      const failRun = vi.fn().mockRejectedValueOnce(new Error('test error'));
+      mockGetConnection.mockReturnValue({ run: failRun });
       mockParentPort.postMessage.mockClear();
 
       await handler({ type: 'execute_query', queryId: 'q-no-port-err', sql: 'BAD SQL' });
@@ -875,11 +848,8 @@ describe('duckdb-worker', () => {
       const mockPort = { postMessage: vi.fn(), onmessage: null };
       await handler({ type: 'port', channel: 'duckdb-data', port: mockPort });
 
-      const run = vi
-        .fn()
-        .mockRejectedValueOnce(new Error(errorMessage))
-        .mockResolvedValue({ getRows: vi.fn().mockResolvedValue([]) });
-      mockGetConnection.mockReturnValue({ run });
+      const failRun = vi.fn().mockRejectedValueOnce(new Error(errorMessage));
+      mockGetConnection.mockReturnValue({ run: failRun });
 
       await handler({ type: 'execute_query', queryId: 'q-classify', sql: 'BAD' });
 
@@ -925,9 +895,9 @@ describe('duckdb-worker', () => {
       expect(code).toBe('E1007');
     });
 
-    it('defaults unknown errors to E1001', async () => {
+    it('defaults unknown errors to E1099', async () => {
       const code = await setupAndGetErrorCode('some unknown error occurred');
-      expect(code).toBe('E1001');
+      expect(code).toBe('E1099');
     });
   });
 
@@ -1064,6 +1034,260 @@ describe('duckdb-worker', () => {
       );
       expect(errorCall).toBeDefined();
       expect(errorCall?.[0].message).toBe('string error');
+    });
+  });
+
+  // ========================================================================
+  // handleIngestFile
+  // ========================================================================
+
+  describe('handleIngestFile', () => {
+    beforeEach(async () => {
+      vi.resetModules();
+      vi.clearAllMocks();
+
+      mockInitDuckDb.mockResolvedValue(undefined);
+      mockRunIntegrityCheck.mockResolvedValue(true);
+      mockCloseDuckDb.mockResolvedValue(undefined);
+    });
+
+    it('successfully ingests a CSV file', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      const mockRun = vi.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes('CREATE OR REPLACE TABLE')) {
+          return { getRows: vi.fn().mockResolvedValue([]) };
+        }
+        if (sql.includes('information_schema.columns')) {
+          return {
+            getRows: vi.fn().mockResolvedValue([
+              ['col1', 'VARCHAR', 'YES'],
+              ['col2', 'INTEGER', 'NO'],
+            ]),
+          };
+        }
+        if (sql.includes('COUNT(*)')) {
+          return { getRows: vi.fn().mockResolvedValue([[100]]) };
+        }
+        return { getRows: vi.fn().mockResolvedValue([]) };
+      });
+      mockGetConnection.mockReturnValue({ run: mockRun });
+      mockParentPort.postMessage.mockClear();
+
+      await handler({
+        type: 'ingest_file',
+        jobId: 'j1',
+        filePath: '/tmp/test.csv',
+        format: 'csv',
+        tableName: 'test_table',
+        options: {},
+      });
+
+      const completeCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'ingest_file_complete',
+      );
+      expect(completeCall).toBeDefined();
+      expect(completeCall?.[0]).toEqual(
+        expect.objectContaining({
+          type: 'ingest_file_complete',
+          jobId: 'j1',
+          tableName: 'test_table',
+          rowCount: 100,
+          columnCount: 2,
+          durationMs: expect.any(Number),
+          skippedRows: 0,
+        }),
+      );
+      expect(completeCall?.[0].columns).toHaveLength(2);
+      expect(completeCall?.[0].columns[0].name).toBe('col1');
+      expect(completeCall?.[0].columns[1].name).toBe('col2');
+    });
+
+    it('retries CSV ingest with latin-1 encoding on UTF-8 failure', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      let callCount = 0;
+      const mockRun = vi.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes('CREATE OR REPLACE TABLE')) {
+          callCount++;
+          if (callCount === 1) {
+            throw new Error('Data is not valid UTF8');
+          }
+          // Second call (retry) should succeed
+          return { getRows: vi.fn().mockResolvedValue([]) };
+        }
+        if (sql.includes('information_schema.columns')) {
+          return {
+            getRows: vi.fn().mockResolvedValue([['col1', 'VARCHAR', 'YES']]),
+          };
+        }
+        if (sql.includes('COUNT(*)')) {
+          return { getRows: vi.fn().mockResolvedValue([[50]]) };
+        }
+        return { getRows: vi.fn().mockResolvedValue([]) };
+      });
+      mockGetConnection.mockReturnValue({ run: mockRun });
+      mockParentPort.postMessage.mockClear();
+
+      await handler({
+        type: 'ingest_file',
+        jobId: 'j1',
+        filePath: '/tmp/test.csv',
+        format: 'csv',
+        tableName: 'test_table',
+        options: {},
+      });
+
+      // Verify the retry call includes encoding='latin-1'
+      const createCalls = mockRun.mock.calls.filter((c: any[]) =>
+        (c[0] as string).includes('CREATE OR REPLACE TABLE'),
+      );
+      expect(createCalls).toHaveLength(2);
+      expect(createCalls[1]?.[0]).toContain("encoding='latin-1'");
+
+      // Should still complete successfully
+      const completeCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'ingest_file_complete',
+      );
+      expect(completeCall).toBeDefined();
+      expect(completeCall?.[0].jobId).toBe('j1');
+    });
+
+    it('posts error for non-UTF8 ingest failures', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      const mockRun = vi.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes('CREATE OR REPLACE TABLE')) {
+          throw new Error('File not found: /tmp/missing.csv');
+        }
+        return { getRows: vi.fn().mockResolvedValue([]) };
+      });
+      mockGetConnection.mockReturnValue({ run: mockRun });
+      mockParentPort.postMessage.mockClear();
+
+      await handler({
+        type: 'ingest_file',
+        jobId: 'j1',
+        filePath: '/tmp/missing.csv',
+        format: 'csv',
+        tableName: 'test_table',
+        options: {},
+      });
+
+      const errorCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'error',
+      );
+      expect(errorCall).toBeDefined();
+      expect(errorCall?.[0]).toEqual(
+        expect.objectContaining({
+          type: 'error',
+          message: expect.stringContaining('File not found'),
+          jobId: 'j1',
+        }),
+      );
+    });
+  });
+
+  // ========================================================================
+  // handleComputeStats
+  // ========================================================================
+
+  describe('handleComputeStats', () => {
+    beforeEach(async () => {
+      vi.resetModules();
+      vi.clearAllMocks();
+
+      mockInitDuckDb.mockResolvedValue(undefined);
+      mockRunIntegrityCheck.mockResolvedValue(true);
+      mockCloseDuckDb.mockResolvedValue(undefined);
+    });
+
+    it('computes and returns column statistics', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      const mockRun = vi.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes('SUMMARIZE')) {
+          // SUMMARIZE returns: column_name, column_type, min, max, approx_unique, avg, std, q25, q50, q75, count, null_percentage
+          return {
+            getRows: vi
+              .fn()
+              .mockResolvedValue([
+                ['col1', 'VARCHAR', 'a', 'z', 50, null, null, null, null, null, 100, '0.00'],
+              ]),
+          };
+        }
+        if (sql.includes('COUNT(*)')) {
+          return { getRows: vi.fn().mockResolvedValue([[100]]) };
+        }
+        // Top values query for categorical VARCHAR columns
+        if (sql.includes('GROUP BY')) {
+          return {
+            getRows: vi.fn().mockResolvedValue([
+              ['alpha', 30],
+              ['beta', 25],
+            ]),
+          };
+        }
+        return { getRows: vi.fn().mockResolvedValue([]) };
+      });
+      mockGetConnection.mockReturnValue({ run: mockRun });
+      mockParentPort.postMessage.mockClear();
+
+      await handler({
+        type: 'compute_stats',
+        tableName: 'test_table',
+      });
+
+      const statsCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'compute_stats_complete',
+      );
+      expect(statsCall).toBeDefined();
+      expect(statsCall?.[0]).toEqual(
+        expect.objectContaining({
+          type: 'compute_stats_complete',
+          tableName: 'test_table',
+          durationMs: expect.any(Number),
+        }),
+      );
+      expect(statsCall?.[0].columns).toHaveLength(1);
+
+      const col = statsCall?.[0].columns[0];
+      expect(col.columnName).toBe('col1');
+      expect(col.columnType).toBe('VARCHAR');
+      expect(col.min).toBe('a');
+      expect(col.max).toBe('z');
+      expect(col.distinctCount).toBe(50);
+      expect(col.rowCount).toBe(100);
+      expect(col.nullPercentage).toBe(0);
+    });
+
+    it('posts error when SUMMARIZE fails', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      const mockRun = vi.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes('SUMMARIZE')) {
+          throw new Error('Table "test_table" does not exist');
+        }
+        return { getRows: vi.fn().mockResolvedValue([]) };
+      });
+      mockGetConnection.mockReturnValue({ run: mockRun });
+      mockParentPort.postMessage.mockClear();
+
+      await handler({
+        type: 'compute_stats',
+        tableName: 'test_table',
+      });
+
+      const errorCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'error',
+      );
+      expect(errorCall).toBeDefined();
+      expect(errorCall?.[0].message).toContain('Statistics computation failed');
     });
   });
 });

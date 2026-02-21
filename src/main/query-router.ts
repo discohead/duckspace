@@ -2,8 +2,26 @@ import { randomUUID } from 'node:crypto';
 import type { Worker } from 'node:worker_threads';
 import { PUSH_EVENTS, TIMEOUTS } from '@shared/constants';
 import { shuttingDownError } from '@shared/errors';
-import type { CatalogEntry, ColumnSchema, QueryHandle, QueryStatusEvent } from '@shared/types';
+import type {
+  CatalogEntry,
+  ColumnSchema,
+  PreviewHandle,
+  QueryHandle,
+  QueryStatusEvent,
+} from '@shared/types';
 import type { BrowserWindow } from 'electron';
+
+/**
+ * Default row limit for preview queries.
+ *
+ * DuckDB's nanoarrow extension crashes (SIGTRAP in `ArrowScalarData::Initialize`)
+ * when `to_arrow_ipc()` processes ~200,000+ rows inside Electron's runtime.
+ * With synthetic data the boundary is exactly 200,000; with real data
+ * (variable-length VARCHARs) the threshold is lower. 100k is confirmed safe
+ * with 58-column CSV data in Electron.
+ * Standalone Node.js is unaffected. See: https://github.com/paleolimbot/duckdb-nanoarrow/issues/43
+ */
+const DEFAULT_PREVIEW_LIMIT = 10_000;
 
 interface ActiveQuery {
   queryId: string;
@@ -188,18 +206,26 @@ export class QueryRouter {
    * Executes a SELECT * preview query for a table with a row limit.
    *
    * @param tableName - The name of the table to preview.
-   * @param limit - Maximum rows (defaults to 100, capped at 10,000).
+   * @param limit - Maximum rows to return. Defaults to {@link DEFAULT_PREVIEW_LIMIT}.
+   *   DuckDB's nanoarrow `to_arrow_ipc()` can crash (SIGTRAP) on very large unbounded
+   *   result sets due to Arrow batch allocation sizing. A default limit prevents this
+   *   while still being generous enough for most analytical workflows.
    * @returns A query handle for the preview query.
    */
-  async previewTable(tableName: string, limit?: number): Promise<QueryHandle> {
+  async previewTable(tableName: string, limit?: number): Promise<PreviewHandle> {
     // I6: Strict identifier validation — reject names with control chars or SQL injection patterns
     if (!/^[\w$.]+$/u.test(tableName)) {
       throw new Error(`Invalid table name: "${tableName}"`);
     }
     const safeTable = tableName.replace(/"/g, '""');
-    const raw = limit ?? 0;
-    const validLimit = Number.isFinite(raw) && raw > 0 ? Math.min(raw, 10000) : 100;
-    return this.executeQuery(`SELECT * FROM "${safeTable}" LIMIT ${validLimit}`);
+    const effectiveLimit =
+      limit !== undefined && Number.isFinite(limit) && limit > 0
+        ? Math.min(limit, DEFAULT_PREVIEW_LIMIT)
+        : DEFAULT_PREVIEW_LIMIT;
+    const wasClamped =
+      limit !== undefined && Number.isFinite(limit) && limit > DEFAULT_PREVIEW_LIMIT;
+    const handle = await this.executeQuery(`SELECT * FROM "${safeTable}" LIMIT ${effectiveLimit}`);
+    return { ...handle, effectiveLimit, wasClamped };
   }
 
   /**

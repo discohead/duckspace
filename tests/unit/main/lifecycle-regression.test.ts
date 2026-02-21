@@ -87,9 +87,24 @@ vi.mock('@main/ipc-handlers', () => ({
   setMainWindowRef: vi.fn(),
   setQueryRouter: vi.fn(),
   setWorkerManager: vi.fn(),
+  setIngestionReady: vi.fn(),
+  setFileWatcher: vi.fn(),
   waitForRendererReady: vi.fn().mockResolvedValue(undefined),
   waitForShutdownAck: vi.fn().mockResolvedValue(true),
   sendShutdownPrepare: vi.fn(),
+}));
+
+vi.mock('@main/ingestion/ingestion-router', () => ({
+  setWorker: vi.fn(),
+  setMainWindow: vi.fn(),
+}));
+
+vi.mock('@main/ingestion/file-watcher', () => ({
+  FileWatcher: vi.fn().mockImplementation(() => ({
+    setMainWindow: vi.fn(),
+    closeAll: vi.fn().mockResolvedValue(undefined),
+    getActiveWatchers: vi.fn().mockReturnValue([]),
+  })),
 }));
 
 // Stub Vite-injected globals

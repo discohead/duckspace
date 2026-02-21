@@ -1,0 +1,21 @@
+id,name,category,price,quantity,date,active
+1,Widget A,Electronics,29.99,100,2024-01-15,true
+2,Widget B,Clothing,49.50,50,2024-02-20,true
+3,Gadget X,Electronics,199.99,25,2024-03-10,false
+4,Tool Y,Hardware,15.75,200,2024-04-05,true
+5,Part Z,Automotive,8.99,500,2024-05-12,true
+6,Device Q,Electronics,349.00,10,2024-06-18,true
+7,Fabric R,Clothing,12.25,300,2024-07-22,false
+8,Nail S,Hardware,0.50,10000,2024-08-30,true
+9,Filter T,Automotive,22.00,75,2024-09-14,true
+10,Cable U,Electronics,7.99,1000,2024-10-01,true
+11,Shirt V,Clothing,34.99,150,2024-11-05,true
+12,Hammer W,Hardware,25.00,80,2024-12-10,true
+13,Spark X,Automotive,4.50,2000,2024-01-20,false
+14,Mouse Y,Electronics,19.99,400,2024-02-25,true
+15,Pants Z,Clothing,59.99,60,2024-03-15,true
+16,Drill A,Hardware,89.99,30,2024-04-22,true
+17,Tire B,Automotive,125.00,40,2024-05-28,true
+18,Speaker C,Electronics,79.50,55,2024-06-30,true
+19,Jacket D,Clothing,120.00,20,2024-07-04,false
+20,Saw E,Hardware,45.99,90,2024-08-15,true

@@ -7,6 +7,7 @@
  *
  * Code ranges:
  *   E1xxx - Database errors (DuckDB query, schema, resource)
+ *   E2xxx - Ingestion errors (file I/O, format, catalog, watch)
  *   E6xxx - System errors (worker lifecycle, IPC, memory)
  */
 
@@ -20,6 +21,7 @@ import type { IPCError } from './types';
  * Enumeration of all structured error codes used across the application.
  *
  * E1xxx codes represent database errors (DuckDB query, schema, resource).
+ * E2xxx codes represent ingestion errors (file I/O, format, catalog, watch).
  * E6xxx codes represent system errors (worker lifecycle, IPC, memory).
  */
 export const ERROR_CODES = {
@@ -34,6 +36,18 @@ export const ERROR_CODES = {
   DISK_FULL: 'E1008',
   DATABASE_CORRUPT: 'E1010',
   MUTATION_REJECTED: 'E1012',
+  UNKNOWN_DATABASE_ERROR: 'E1099',
+
+  // Ingestion errors (E2xxx)
+  FILE_NOT_FOUND: 'E2001',
+  UNSUPPORTED_FORMAT: 'E2002',
+  PERMISSION_DENIED: 'E2003',
+  SOURCE_NOT_FOUND: 'E2010',
+  TABLE_DROP_FAILED: 'E2011',
+  DIRECTORY_NOT_FOUND: 'E2020',
+  NOT_A_DIRECTORY: 'E2021',
+  DIRECTORY_PERMISSION_DENIED: 'E2022',
+  ALREADY_WATCHING: 'E2023',
 
   // System errors (E6xxx)
   WORKER_CRASHED: 'E6001',
@@ -42,7 +56,7 @@ export const ERROR_CODES = {
   PORT_DISCONNECTED: 'E6004',
   MEMORY_PRESSURE: 'E6005',
   SHUTTING_DOWN: 'E6006',
-} as const;
+} as const satisfies Record<string, string>;
 
 /** Union type of all valid error code string literals (e.g., 'E1001', 'E6003'). */
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
@@ -108,6 +122,56 @@ export const ERROR_METADATA: Record<
     name: 'MUTATION_REJECTED',
     retryable: false,
     defaultMessage: 'DDL/DML statement rejected',
+  },
+  E1099: {
+    name: 'UNKNOWN_DATABASE_ERROR',
+    retryable: false,
+    defaultMessage: 'Unclassified database error',
+  },
+  E2001: {
+    name: 'FILE_NOT_FOUND',
+    retryable: false,
+    defaultMessage: 'File not found',
+  },
+  E2002: {
+    name: 'UNSUPPORTED_FORMAT',
+    retryable: false,
+    defaultMessage: 'Unsupported file format',
+  },
+  E2003: {
+    name: 'PERMISSION_DENIED',
+    retryable: false,
+    defaultMessage: 'Permission denied reading file',
+  },
+  E2010: {
+    name: 'SOURCE_NOT_FOUND',
+    retryable: false,
+    defaultMessage: 'Data source not found in catalog',
+  },
+  E2011: {
+    name: 'TABLE_DROP_FAILED',
+    retryable: true,
+    defaultMessage: 'Failed to drop DuckDB table',
+  },
+  E2020: {
+    name: 'DIRECTORY_NOT_FOUND',
+    retryable: false,
+    defaultMessage: 'Directory not found',
+  },
+  E2021: {
+    name: 'NOT_A_DIRECTORY',
+    retryable: false,
+    defaultMessage: 'Path is not a directory',
+  },
+  E2022: {
+    name: 'DIRECTORY_PERMISSION_DENIED',
+    retryable: false,
+    defaultMessage: 'Permission denied reading directory',
+  },
+  E2023: {
+    name: 'ALREADY_WATCHING',
+    retryable: false,
+    defaultMessage: 'Directory is already being watched',
   },
   E6001: {
     name: 'WORKER_CRASHED',
@@ -368,8 +432,100 @@ export function portDisconnectedError(channel: string): DatspaceError {
 }
 
 // ---------------------------------------------------------------------------
+// Ingestion Error Factory Functions
+// ---------------------------------------------------------------------------
+
+/** Create a FILE_NOT_FOUND error (E2001). */
+export function fileNotFoundError(filePath: string): DatspaceError {
+  return new DatspaceError(ERROR_CODES.FILE_NOT_FOUND, `File not found: ${filePath}`, {
+    details: { filePath },
+  });
+}
+
+/** Create an UNSUPPORTED_FORMAT error (E2002). */
+export function unsupportedFormatError(filePath: string, extension: string): DatspaceError {
+  return new DatspaceError(
+    ERROR_CODES.UNSUPPORTED_FORMAT,
+    `Unsupported file format: ${extension}`,
+    { details: { filePath, extension } },
+  );
+}
+
+/** Create a PERMISSION_DENIED error (E2003). */
+export function filePermissionDeniedError(filePath: string): DatspaceError {
+  return new DatspaceError(
+    ERROR_CODES.PERMISSION_DENIED,
+    `Permission denied reading file: ${filePath}`,
+    { details: { filePath } },
+  );
+}
+
+/** Create a SOURCE_NOT_FOUND error (E2010). */
+export function sourceNotFoundError(dataSourceId: string): DatspaceError {
+  return new DatspaceError(ERROR_CODES.SOURCE_NOT_FOUND, `Data source not found: ${dataSourceId}`, {
+    details: { dataSourceId },
+  });
+}
+
+/** Create a TABLE_DROP_FAILED error (E2011). */
+export function tableDropFailedError(tableName: string, reason: string): DatspaceError {
+  return new DatspaceError(
+    ERROR_CODES.TABLE_DROP_FAILED,
+    `Failed to drop table '${tableName}': ${reason}`,
+    { retryAfterMs: 1_000, details: { tableName } },
+  );
+}
+
+/** Create a DIRECTORY_NOT_FOUND error (E2020). */
+export function directoryNotFoundError(dirPath: string): DatspaceError {
+  return new DatspaceError(ERROR_CODES.DIRECTORY_NOT_FOUND, `Directory not found: ${dirPath}`, {
+    details: { dirPath },
+  });
+}
+
+/** Create a NOT_A_DIRECTORY error (E2021). */
+export function notADirectoryError(path: string): DatspaceError {
+  return new DatspaceError(ERROR_CODES.NOT_A_DIRECTORY, `Path is not a directory: ${path}`, {
+    details: { path },
+  });
+}
+
+/** Create a DIRECTORY_PERMISSION_DENIED error (E2022). */
+export function directoryPermissionDeniedError(dirPath: string): DatspaceError {
+  return new DatspaceError(
+    ERROR_CODES.DIRECTORY_PERMISSION_DENIED,
+    `Permission denied reading directory: ${dirPath}`,
+    { details: { dirPath } },
+  );
+}
+
+/** Create an ALREADY_WATCHING error (E2023). */
+export function alreadyWatchingError(dirPath: string): DatspaceError {
+  return new DatspaceError(
+    ERROR_CODES.ALREADY_WATCHING,
+    `Directory is already being watched: ${dirPath}`,
+    { details: { dirPath } },
+  );
+}
+
+/** Create an UNKNOWN_DATABASE_ERROR (E1099). */
+export function unknownDatabaseError(message: string): DatspaceError {
+  return new DatspaceError(ERROR_CODES.UNKNOWN_DATABASE_ERROR, message);
+}
+
+// ---------------------------------------------------------------------------
 // DuckDB Error Classification
 // ---------------------------------------------------------------------------
+
+/**
+ * Extracts a file path from a DuckDB I/O error message.
+ * DuckDB formats these as: "IO Error: No such file or directory: '/path/to/file'"
+ * Falls back to the full message if no path can be extracted.
+ */
+function extractFilePath(errorMessage: string): string {
+  const match = /:\s*['"]([^'"]+)['"]\s*$/.exec(errorMessage);
+  return match?.[1] ?? errorMessage;
+}
 
 /**
  * Classify a raw DuckDB error into the datspace error taxonomy.
@@ -393,8 +549,14 @@ export function classifyDuckDBError(error: Error): DatspaceError {
   if (msg.includes('type mismatch')) {
     return new DatspaceError(ERROR_CODES.TYPE_MISMATCH, error.message);
   }
+  if (msg.includes('no such file')) {
+    return fileNotFoundError(extractFilePath(error.message));
+  }
+  if (msg.includes('permission denied')) {
+    return filePermissionDeniedError(extractFilePath(error.message));
+  }
 
-  // Default fallback: classify as syntax error (lossy — the original error may not
-  // be a true syntax error, but E1001 is the safest generic database error code).
-  return new DatspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR, error.message);
+  // Default fallback: unclassified database error — preserves the original message
+  // without misattributing the cause to a specific error category.
+  return new DatspaceError(ERROR_CODES.UNKNOWN_DATABASE_ERROR, error.message);
 }
