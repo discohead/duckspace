@@ -349,9 +349,7 @@ export class FileWatcher {
 
       // Trigger ingestion (lazy import to avoid circular dependencies)
       void import('./ingestion-router')
-        .then((mod) => {
-          void mod.importFiles([filePath], 'watch_directory');
-        })
+        .then((mod) => mod.importFiles([filePath], 'watch_directory'))
         .catch((err: unknown) => {
           console.error(`[FileWatcher] Failed to import file "${filePath}":`, err);
         });
@@ -384,9 +382,7 @@ export class FileWatcher {
       if (config.autoReingest) {
         // Re-ingest the changed file
         void import('./ingestion-router')
-          .then((mod) => {
-            void mod.importFiles([filePath], 'watch_directory');
-          })
+          .then((mod) => mod.importFiles([filePath], 'watch_directory'))
           .catch((err: unknown) => {
             console.error(`[FileWatcher] Failed to re-ingest file "${filePath}":`, err);
           });
@@ -477,8 +473,11 @@ export class FileWatcher {
     let stats: Awaited<ReturnType<typeof stat>>;
     try {
       stats = await stat(dirPath);
-    } catch {
-      throw directoryNotFoundError(dirPath);
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw directoryNotFoundError(dirPath);
+      }
+      throw err;
     }
 
     if (!stats.isDirectory()) {
@@ -487,8 +486,11 @@ export class FileWatcher {
 
     try {
       await access(dirPath, fsConstants.R_OK);
-    } catch {
-      throw directoryPermissionDeniedError(dirPath);
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === 'EACCES') {
+        throw directoryPermissionDeniedError(dirPath);
+      }
+      throw err;
     }
   }
 }

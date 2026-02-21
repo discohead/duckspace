@@ -20,6 +20,7 @@ import type {
   WorkerHealthResponse,
   WorkerQueryRequest,
 } from '@shared/types';
+import { assertNever } from '@shared/types';
 import { type MessagePort, parentPort, workerData } from 'worker_threads';
 import type { z } from 'zod';
 import {
@@ -173,6 +174,8 @@ port.on('message', async (msg: { type: string; [key: string]: unknown }) => {
       case 'install_extension':
         await serialise(() => handleInstallExtension(validated));
         break;
+      default:
+        assertNever(validated);
     }
   } catch (error) {
     port.postMessage({
@@ -249,7 +252,7 @@ async function handleExecuteQuery(req: WorkerQueryRequest): Promise<void> {
     // when allocating Arrow buffers for wide tables at high row counts in Electron.
     // Both conn.run() and conn.stream() trigger the crash — it's in the nanoarrow
     // extension's ArrowAppender constructor, not the execution mode.
-    // The DEFAULT_PREVIEW_LIMIT (100k) keeps us safely below the crash threshold.
+    // The DEFAULT_PREVIEW_LIMIT (10k) keeps us safely below the crash threshold.
     const wrappedSql = `SELECT * FROM to_arrow_ipc((${sql}))`;
     const result =
       params && params.length > 0
@@ -444,7 +447,8 @@ async function handleGetTableInfo(msg: WorkerGetTableInfoRequest): Promise<void>
   let rowCount = 0;
   const sizeBytes = 0;
   try {
-    const countResult = await conn.run(`SELECT COUNT(*) FROM "${msg.tableName}"`);
+    const escapedTable = msg.tableName.replace(/"/g, '""');
+    const countResult = await conn.run(`SELECT COUNT(*) FROM "${escapedTable}"`);
     const countRows = await countResult.getRows();
     rowCount = Number(countRows[0]?.[0] ?? 0);
 
@@ -905,8 +909,11 @@ async function computeTopValues(
       value: (r[0] as string | null) ?? '',
       count: Number(r[1] ?? 0),
     }));
-  } catch {
-    // Best effort — skip top values on error
+  } catch (err: unknown) {
+    console.warn(
+      `[DuckDB Worker] computeTopValues failed for "${escapedTable}"."${colName}":`,
+      err instanceof Error ? err.message : String(err),
+    );
     return undefined;
   }
 }
@@ -1057,7 +1064,7 @@ function classifyErrorCode(message: string): string {
   if (msg.includes('does not exist') && msg.includes('column')) return 'E1005';
   if (msg.includes('type mismatch')) return 'E1006';
   if (msg.includes('out of memory') || msg.includes('memory limit')) return 'E1007';
-  return 'E1001';
+  return 'E1099';
 }
 
 function mapDuckDbToArrowType(duckdbType: string): string {

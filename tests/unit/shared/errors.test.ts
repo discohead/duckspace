@@ -370,9 +370,9 @@ describe('classifyDuckDBError', () => {
     expect(err.code).toBe(ERROR_CODES.TYPE_MISMATCH);
   });
 
-  it('falls back to syntax error for unknown messages', () => {
+  it('falls back to unknown database error for unrecognized messages', () => {
     const err = classifyDuckDBError(new Error('something completely unexpected'));
-    expect(err.code).toBe(ERROR_CODES.QUERY_SYNTAX_ERROR);
+    expect(err.code).toBe(ERROR_CODES.UNKNOWN_DATABASE_ERROR);
     expect(err.message).toBe('something completely unexpected');
   });
 

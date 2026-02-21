@@ -225,6 +225,10 @@ export class ProgressTracker {
   /**
    * Mark a job as completed and remove it from active tracking.
    *
+   * Note: The job is removed from the internal map immediately, so
+   * `getJobState(jobId)` will return `undefined` after this call —
+   * the 'completed' status is unobservable via the public API.
+   *
    * @param jobId - The job to complete.
    */
   completeJob(jobId: string): void {

@@ -1,6 +1,6 @@
 import type { ColumnStatisticsRecord, DataSource } from '@shared/types';
 import type React from 'react';
-import { type ReactElement, useCallback, useState } from 'react';
+import { type ReactElement, useCallback, useEffect, useState } from 'react';
 import { db } from '../stores/db';
 import { useColumnStats, useDataSource } from '../stores/hooks';
 import { ColumnStats } from './ColumnStats';
@@ -89,10 +89,12 @@ export function SourceDetail({ dataSourceId }: { readonly dataSourceId: string }
 
   // Auto-compute stats on first view when no cached stats exist
   const [autoComputed, setAutoComputed] = useState(false);
-  if (!autoComputed && source?.status === 'active' && columnStats?.length === 0 && !loading) {
-    setAutoComputed(true);
-    void computeStats();
-  }
+  useEffect(() => {
+    if (!autoComputed && source?.status === 'active' && columnStats?.length === 0 && !loading) {
+      setAutoComputed(true);
+      void computeStats();
+    }
+  }, [autoComputed, source?.status, columnStats?.length, loading, computeStats]);
 
   if (!source) {
     return (

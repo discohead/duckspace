@@ -69,7 +69,10 @@ export const WorkerCancelRequestSchema = z
 export const WorkerGetTableInfoRequestSchema = z
   .object({
     type: z.literal('get_table_info'),
-    tableName: z.string(),
+    tableName: z
+      .string()
+      .min(1)
+      .regex(/^[\w$.]+$/u, 'Invalid table name'),
   })
   .strict()
   .describe('Main -> Worker: Get table information');
@@ -348,7 +351,10 @@ export const WorkerPreviewFileRequestSchema = z
 export const WorkerComputeStatsRequestSchema = z
   .object({
     type: z.literal('compute_stats'),
-    tableName: z.string(),
+    tableName: z
+      .string()
+      .min(1)
+      .regex(/^[\w$.]+$/u, 'Invalid table name'),
     columns: z.array(z.string()).optional(),
     topN: z.number().int().positive().optional(),
   })
@@ -359,7 +365,10 @@ export const WorkerComputeStatsRequestSchema = z
 export const WorkerDropTableRequestSchema = z
   .object({
     type: z.literal('drop_table'),
-    tableName: z.string(),
+    tableName: z
+      .string()
+      .min(1)
+      .regex(/^[\w$.]+$/u, 'Invalid table name'),
     isView: z.boolean(),
   })
   .strict()

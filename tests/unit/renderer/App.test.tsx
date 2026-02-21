@@ -212,7 +212,7 @@ describe('App', () => {
     expect(statusBar.closest('footer')).not.toBeNull();
   });
 
-  it('renders WelcomeView for unknown tab type', async () => {
+  it('throws assertNever for unknown tab type', async () => {
     const hooks = await import('@renderer/stores/hooks');
     const unknownTab = {
       id: 'tab-x',
@@ -226,7 +226,7 @@ describe('App', () => {
     (hooks.useTabs as ReturnType<typeof vi.fn>).mockReturnValue([unknownTab]);
     (hooks.useActiveTab as ReturnType<typeof vi.fn>).mockReturnValue(unknownTab);
 
-    render(<App />);
-    expect(screen.getByTestId('welcome-view')).toBeDefined();
+    // assertNever throws for unhandled tab types — ErrorBoundary catches it
+    expect(() => render(<App />)).toThrow('Unexpected value');
   });
 });

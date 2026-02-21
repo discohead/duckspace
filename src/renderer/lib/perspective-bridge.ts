@@ -79,8 +79,11 @@ export async function createTable(
   if (existing) {
     try {
       await existing.delete();
-    } catch {
-      // Table may already be deleted — ignore
+    } catch (err: unknown) {
+      console.warn(
+        '[perspective-bridge] Failed to delete table:',
+        err instanceof Error ? err.message : String(err),
+      );
     }
     tables.delete(tabId);
   }
@@ -126,7 +129,10 @@ export async function deleteTable(tabId: string): Promise<void> {
   tables.delete(tabId);
   try {
     await table.delete();
-  } catch {
-    // Table may already be deleted — ignore
+  } catch (err: unknown) {
+    console.warn(
+      '[perspective-bridge] Failed to delete table:',
+      err instanceof Error ? err.message : String(err),
+    );
   }
 }

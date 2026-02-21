@@ -21,7 +21,7 @@ import type { BrowserWindow } from 'electron';
  * with 58-column CSV data in Electron.
  * Standalone Node.js is unaffected. See: https://github.com/paleolimbot/duckdb-nanoarrow/issues/43
  */
-const DEFAULT_PREVIEW_LIMIT = 100_000;
+const DEFAULT_PREVIEW_LIMIT = 10_000;
 
 interface ActiveQuery {
   queryId: string;

@@ -104,7 +104,7 @@ export interface CatalogDescribeResponse {
 export interface CatalogPreviewRequest {
   /** DuckDB table or view name */
   tableName: string;
-  /** Number of sample rows (default: 100) */
+  /** Number of sample rows (default: 100,000) */
   limit?: number | undefined;
 }
 
@@ -1279,7 +1279,7 @@ export interface CatalogNamespace {
    * Preview sample rows from a table, returned as Arrow IPC batches.
    *
    * @param tableName - Name of the table to preview.
-   * @param limit - Maximum number of rows to return (default: 100,000).
+   * @param limit - Maximum number of rows to return (default: 10,000).
    * @returns A PreviewHandle with the query ID and effective limit info.
    */
   previewTable(tableName: string, limit?: number): Promise<PreviewHandle>;
@@ -1509,6 +1509,15 @@ export interface DatspaceAPI {
   ingestion: IngestionNamespace;
   /** Directory watching for automatic file discovery. */
   watch: WatchNamespace;
+}
+
+/**
+ * Exhaustiveness guard for discriminated union switches.
+ * @param x - The value that should be `never` if all variants are handled.
+ * @throws Always throws at runtime if reached.
+ */
+export function assertNever(x: never): never {
+  throw new Error(`Unexpected value: ${String(x)}`);
 }
 
 // ============================================================

@@ -36,6 +36,7 @@ export const ERROR_CODES = {
   DISK_FULL: 'E1008',
   DATABASE_CORRUPT: 'E1010',
   MUTATION_REJECTED: 'E1012',
+  UNKNOWN_DATABASE_ERROR: 'E1099',
 
   // Ingestion errors (E2xxx)
   FILE_NOT_FOUND: 'E2001',
@@ -121,6 +122,11 @@ export const ERROR_METADATA: Record<
     name: 'MUTATION_REJECTED',
     retryable: false,
     defaultMessage: 'DDL/DML statement rejected',
+  },
+  E1099: {
+    name: 'UNKNOWN_DATABASE_ERROR',
+    retryable: false,
+    defaultMessage: 'Unclassified database error',
   },
   E2001: {
     name: 'FILE_NOT_FOUND',
@@ -502,6 +508,11 @@ export function alreadyWatchingError(dirPath: string): DatspaceError {
   );
 }
 
+/** Create an UNKNOWN_DATABASE_ERROR (E1099). */
+export function unknownDatabaseError(message: string): DatspaceError {
+  return new DatspaceError(ERROR_CODES.UNKNOWN_DATABASE_ERROR, message);
+}
+
 // ---------------------------------------------------------------------------
 // DuckDB Error Classification
 // ---------------------------------------------------------------------------
@@ -545,7 +556,7 @@ export function classifyDuckDBError(error: Error): DatspaceError {
     return filePermissionDeniedError(extractFilePath(error.message));
   }
 
-  // Default fallback: classify as syntax error (lossy — the original error may not
-  // be a true syntax error, but E1001 is the safest generic database error code).
-  return new DatspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR, error.message);
+  // Default fallback: unclassified database error — preserves the original message
+  // without misattributing the cause to a specific error category.
+  return new DatspaceError(ERROR_CODES.UNKNOWN_DATABASE_ERROR, error.message);
 }

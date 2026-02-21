@@ -521,21 +521,17 @@ describe('duckdb-worker', () => {
       });
     });
 
-    it('escapes table names with single quotes', async () => {
+    it('rejects table names with invalid characters via schema validation', async () => {
       await loadWorker();
       const handler = getMessageHandler();
 
-      const run = vi
-        .fn()
-        .mockResolvedValueOnce({ getRows: vi.fn().mockResolvedValue([]) })
-        .mockResolvedValueOnce({ getRows: vi.fn().mockResolvedValue([[0]]) });
-
-      mockGetConnection.mockReturnValue({ run });
-
       await handler({ type: 'get_table_info', tableName: "table'name" });
 
-      const firstSql = run.mock.calls[0]![0] as string;
-      expect(firstSql).toContain("table''name");
+      const errorCall = mockParentPort.postMessage.mock.calls.find(
+        (call: any[]) => call[0]?.type === 'error',
+      );
+      expect(errorCall).toBeDefined();
+      expect(errorCall?.[0]?.message).toContain('Invalid');
     });
   });
 
@@ -899,9 +895,9 @@ describe('duckdb-worker', () => {
       expect(code).toBe('E1007');
     });
 
-    it('defaults unknown errors to E1001', async () => {
+    it('defaults unknown errors to E1099', async () => {
       const code = await setupAndGetErrorCode('some unknown error occurred');
-      expect(code).toBe('E1001');
+      expect(code).toBe('E1099');
     });
   });
 
@@ -1038,6 +1034,260 @@ describe('duckdb-worker', () => {
       );
       expect(errorCall).toBeDefined();
       expect(errorCall?.[0].message).toBe('string error');
+    });
+  });
+
+  // ========================================================================
+  // handleIngestFile
+  // ========================================================================
+
+  describe('handleIngestFile', () => {
+    beforeEach(async () => {
+      vi.resetModules();
+      vi.clearAllMocks();
+
+      mockInitDuckDb.mockResolvedValue(undefined);
+      mockRunIntegrityCheck.mockResolvedValue(true);
+      mockCloseDuckDb.mockResolvedValue(undefined);
+    });
+
+    it('successfully ingests a CSV file', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      const mockRun = vi.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes('CREATE OR REPLACE TABLE')) {
+          return { getRows: vi.fn().mockResolvedValue([]) };
+        }
+        if (sql.includes('information_schema.columns')) {
+          return {
+            getRows: vi.fn().mockResolvedValue([
+              ['col1', 'VARCHAR', 'YES'],
+              ['col2', 'INTEGER', 'NO'],
+            ]),
+          };
+        }
+        if (sql.includes('COUNT(*)')) {
+          return { getRows: vi.fn().mockResolvedValue([[100]]) };
+        }
+        return { getRows: vi.fn().mockResolvedValue([]) };
+      });
+      mockGetConnection.mockReturnValue({ run: mockRun });
+      mockParentPort.postMessage.mockClear();
+
+      await handler({
+        type: 'ingest_file',
+        jobId: 'j1',
+        filePath: '/tmp/test.csv',
+        format: 'csv',
+        tableName: 'test_table',
+        options: {},
+      });
+
+      const completeCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'ingest_file_complete',
+      );
+      expect(completeCall).toBeDefined();
+      expect(completeCall?.[0]).toEqual(
+        expect.objectContaining({
+          type: 'ingest_file_complete',
+          jobId: 'j1',
+          tableName: 'test_table',
+          rowCount: 100,
+          columnCount: 2,
+          durationMs: expect.any(Number),
+          skippedRows: 0,
+        }),
+      );
+      expect(completeCall?.[0].columns).toHaveLength(2);
+      expect(completeCall?.[0].columns[0].name).toBe('col1');
+      expect(completeCall?.[0].columns[1].name).toBe('col2');
+    });
+
+    it('retries CSV ingest with latin-1 encoding on UTF-8 failure', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      let callCount = 0;
+      const mockRun = vi.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes('CREATE OR REPLACE TABLE')) {
+          callCount++;
+          if (callCount === 1) {
+            throw new Error('Data is not valid UTF8');
+          }
+          // Second call (retry) should succeed
+          return { getRows: vi.fn().mockResolvedValue([]) };
+        }
+        if (sql.includes('information_schema.columns')) {
+          return {
+            getRows: vi.fn().mockResolvedValue([['col1', 'VARCHAR', 'YES']]),
+          };
+        }
+        if (sql.includes('COUNT(*)')) {
+          return { getRows: vi.fn().mockResolvedValue([[50]]) };
+        }
+        return { getRows: vi.fn().mockResolvedValue([]) };
+      });
+      mockGetConnection.mockReturnValue({ run: mockRun });
+      mockParentPort.postMessage.mockClear();
+
+      await handler({
+        type: 'ingest_file',
+        jobId: 'j1',
+        filePath: '/tmp/test.csv',
+        format: 'csv',
+        tableName: 'test_table',
+        options: {},
+      });
+
+      // Verify the retry call includes encoding='latin-1'
+      const createCalls = mockRun.mock.calls.filter((c: any[]) =>
+        (c[0] as string).includes('CREATE OR REPLACE TABLE'),
+      );
+      expect(createCalls).toHaveLength(2);
+      expect(createCalls[1]?.[0]).toContain("encoding='latin-1'");
+
+      // Should still complete successfully
+      const completeCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'ingest_file_complete',
+      );
+      expect(completeCall).toBeDefined();
+      expect(completeCall?.[0].jobId).toBe('j1');
+    });
+
+    it('posts error for non-UTF8 ingest failures', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      const mockRun = vi.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes('CREATE OR REPLACE TABLE')) {
+          throw new Error('File not found: /tmp/missing.csv');
+        }
+        return { getRows: vi.fn().mockResolvedValue([]) };
+      });
+      mockGetConnection.mockReturnValue({ run: mockRun });
+      mockParentPort.postMessage.mockClear();
+
+      await handler({
+        type: 'ingest_file',
+        jobId: 'j1',
+        filePath: '/tmp/missing.csv',
+        format: 'csv',
+        tableName: 'test_table',
+        options: {},
+      });
+
+      const errorCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'error',
+      );
+      expect(errorCall).toBeDefined();
+      expect(errorCall?.[0]).toEqual(
+        expect.objectContaining({
+          type: 'error',
+          message: expect.stringContaining('File not found'),
+          jobId: 'j1',
+        }),
+      );
+    });
+  });
+
+  // ========================================================================
+  // handleComputeStats
+  // ========================================================================
+
+  describe('handleComputeStats', () => {
+    beforeEach(async () => {
+      vi.resetModules();
+      vi.clearAllMocks();
+
+      mockInitDuckDb.mockResolvedValue(undefined);
+      mockRunIntegrityCheck.mockResolvedValue(true);
+      mockCloseDuckDb.mockResolvedValue(undefined);
+    });
+
+    it('computes and returns column statistics', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      const mockRun = vi.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes('SUMMARIZE')) {
+          // SUMMARIZE returns: column_name, column_type, min, max, approx_unique, avg, std, q25, q50, q75, count, null_percentage
+          return {
+            getRows: vi
+              .fn()
+              .mockResolvedValue([
+                ['col1', 'VARCHAR', 'a', 'z', 50, null, null, null, null, null, 100, '0.00'],
+              ]),
+          };
+        }
+        if (sql.includes('COUNT(*)')) {
+          return { getRows: vi.fn().mockResolvedValue([[100]]) };
+        }
+        // Top values query for categorical VARCHAR columns
+        if (sql.includes('GROUP BY')) {
+          return {
+            getRows: vi.fn().mockResolvedValue([
+              ['alpha', 30],
+              ['beta', 25],
+            ]),
+          };
+        }
+        return { getRows: vi.fn().mockResolvedValue([]) };
+      });
+      mockGetConnection.mockReturnValue({ run: mockRun });
+      mockParentPort.postMessage.mockClear();
+
+      await handler({
+        type: 'compute_stats',
+        tableName: 'test_table',
+      });
+
+      const statsCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'compute_stats_complete',
+      );
+      expect(statsCall).toBeDefined();
+      expect(statsCall?.[0]).toEqual(
+        expect.objectContaining({
+          type: 'compute_stats_complete',
+          tableName: 'test_table',
+          durationMs: expect.any(Number),
+        }),
+      );
+      expect(statsCall?.[0].columns).toHaveLength(1);
+
+      const col = statsCall?.[0].columns[0];
+      expect(col.columnName).toBe('col1');
+      expect(col.columnType).toBe('VARCHAR');
+      expect(col.min).toBe('a');
+      expect(col.max).toBe('z');
+      expect(col.distinctCount).toBe(50);
+      expect(col.rowCount).toBe(100);
+      expect(col.nullPercentage).toBe(0);
+    });
+
+    it('posts error when SUMMARIZE fails', async () => {
+      await loadWorker();
+      const handler = getMessageHandler();
+
+      const mockRun = vi.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes('SUMMARIZE')) {
+          throw new Error('Table "test_table" does not exist');
+        }
+        return { getRows: vi.fn().mockResolvedValue([]) };
+      });
+      mockGetConnection.mockReturnValue({ run: mockRun });
+      mockParentPort.postMessage.mockClear();
+
+      await handler({
+        type: 'compute_stats',
+        tableName: 'test_table',
+      });
+
+      const errorCall = mockParentPort.postMessage.mock.calls.find(
+        (c: any[]) => c[0]?.type === 'error',
+      );
+      expect(errorCall).toBeDefined();
+      expect(errorCall?.[0].message).toContain('Statistics computation failed');
     });
   });
 });

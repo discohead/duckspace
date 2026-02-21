@@ -71,6 +71,8 @@ export function setWorker(w: Worker): void {
         const parsed = WorkerIngestFileCompleteSchema.safeParse(msg);
         if (parsed.success) {
           handleWorkerComplete(parsed.data);
+        } else {
+          console.error('[IngestionRouter] Invalid ingest_file_complete:', parsed.error.issues);
         }
         break;
       }
@@ -78,6 +80,8 @@ export function setWorker(w: Worker): void {
         const parsed = WorkerIngestFileProgressSchema.safeParse(msg);
         if (parsed.success) {
           handleWorkerProgress(parsed.data);
+        } else {
+          console.error('[IngestionRouter] Invalid ingest_file_progress:', parsed.error.issues);
         }
         break;
       }
@@ -121,6 +125,7 @@ export function getProgressTracker(): ProgressTracker {
  * @param trigger - How the import was initiated.
  * @returns One job entry per file path.
  * @throws DatspaceError E2001 if a file does not exist.
+ * @throws DatspaceError E2002 if the file format is unsupported.
  * @throws DatspaceError E2003 if a file is not readable.
  */
 export async function importFiles(
@@ -281,6 +286,8 @@ export function handleWorkerComplete(msg: {
       errorCode: undefined,
     } satisfies IngestionCompleteEvent);
   }
+
+  jobToDataSourceMap.delete(msg.jobId);
 }
 
 /**
@@ -307,6 +314,8 @@ export function handleWorkerError(jobId: string, errorMessage: string): void {
       errorCode: undefined,
     } satisfies IngestionCompleteEvent);
   }
+
+  jobToDataSourceMap.delete(jobId);
 }
 
 /**

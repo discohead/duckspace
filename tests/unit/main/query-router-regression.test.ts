@@ -57,22 +57,22 @@ describe('QueryRouter — Regression', () => {
       await router.previewTable('users', -1);
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      expect(sql).toBe('SELECT * FROM "users" LIMIT 100000');
+      expect(sql).toBe('SELECT * FROM "users" LIMIT 10000');
     });
 
     it('falls back to default limit for NaN limit', async () => {
       await router.previewTable('users', NaN);
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      expect(sql).toBe('SELECT * FROM "users" LIMIT 100000');
+      expect(sql).toBe('SELECT * FROM "users" LIMIT 10000');
     });
 
     it('clamps large limit to DEFAULT_PREVIEW_LIMIT', async () => {
       const result = await router.previewTable('users', 999999);
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      expect(sql).toBe('SELECT * FROM "users" LIMIT 100000');
-      expect(result.effectiveLimit).toBe(100000);
+      expect(sql).toBe('SELECT * FROM "users" LIMIT 10000');
+      expect(result.effectiveLimit).toBe(10000);
       expect(result.wasClamped).toBe(true);
     });
 
@@ -80,8 +80,8 @@ describe('QueryRouter — Regression', () => {
       const result = await router.previewTable('users', 0);
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      expect(sql).toBe('SELECT * FROM "users" LIMIT 100000');
-      expect(result.effectiveLimit).toBe(100000);
+      expect(sql).toBe('SELECT * FROM "users" LIMIT 10000');
+      expect(result.effectiveLimit).toBe(10000);
       expect(result.wasClamped).toBe(false);
     });
 
@@ -98,8 +98,8 @@ describe('QueryRouter — Regression', () => {
       const result = await router.previewTable('users');
 
       const sql = (worker.postMessage.mock.calls[0]![0] as { sql: string }).sql;
-      expect(sql).toBe('SELECT * FROM "users" LIMIT 100000');
-      expect(result.effectiveLimit).toBe(100000);
+      expect(sql).toBe('SELECT * FROM "users" LIMIT 10000');
+      expect(result.effectiveLimit).toBe(10000);
       expect(result.wasClamped).toBe(false);
     });
   });

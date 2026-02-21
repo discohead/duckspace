@@ -6,6 +6,7 @@ import type {
   IngestionProgressEvent,
   WatchFileEvent,
 } from '@shared/types';
+import { assertNever } from '@shared/types';
 import type React from 'react';
 import type { ReactElement } from 'react';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
@@ -409,7 +410,7 @@ export function App(): ReactElement {
           </div>
         );
       default:
-        return <WelcomeView />;
+        return assertNever(activeTab);
     }
   };
 
