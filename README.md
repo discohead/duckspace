@@ -1,12 +1,12 @@
-# Datspace
+# Duckspace
 
 **A serverless data warehouse on your desktop.**
 
-Datspace gives individual analysts the power of a modern data stack — SQL analytics, vector search, AI-assisted exploration, and interactive dashboards — without deploying servers, managing infrastructure, or paying per-query cloud costs. Everything runs locally on your Mac.
+Duckspace gives individual analysts the power of a modern data stack — SQL analytics, vector search, AI-assisted exploration, and interactive dashboards — without deploying servers, managing infrastructure, or paying per-query cloud costs. Everything runs locally on your Mac.
 
-## Why Datspace?
+## Why Duckspace?
 
-Most analytics tools force you to choose: powerful but complex cloud platforms, or simple but limited desktop apps. Datspace combines the analytical depth of a cloud data warehouse with the simplicity of a native desktop application.
+Most analytics tools force you to choose: powerful but complex cloud platforms, or simple but limited desktop apps. Duckspace combines the analytical depth of a cloud data warehouse with the simplicity of a native desktop application.
 
 - **No servers to manage.** DuckDB runs embedded inside the app. Your data never leaves your machine.
 - **No setup required.** Open a file, start querying. Parquet, CSV, JSON, and Excel files just work.
@@ -31,7 +31,7 @@ Remote data is cached locally so you can keep working when you go offline.
 
 ### Explore with AI
 
-Ask questions about your data in plain English. Datspace integrates Claude AI to translate natural language into SQL, explain results, and generate visualizations — all grounded in your actual schema through built-in RAG retrieval. Embeddings run locally; your data stays private.
+Ask questions about your data in plain English. Duckspace integrates Claude AI to translate natural language into SQL, explain results, and generate visualizations — all grounded in your actual schema through built-in RAG retrieval. Embeddings run locally; your data stays private.
 
 ### Visualize and Share
 
@@ -42,7 +42,7 @@ Build interactive dashboards with drag-and-drop composition:
 - **Dashboard widgets** — time series, gauges, Sankey diagrams, maps (ECharts)
 - **Cross-filtering** — click a chart element and every other panel updates
 
-Export dashboards as self-contained HTML files you can share with anyone — no Datspace installation needed to view them.
+Export dashboards as self-contained HTML files you can share with anyone — no Duckspace installation needed to view them.
 
 ### Browse Your Catalog
 
@@ -54,13 +54,13 @@ Every table and view is indexed in a searchable catalog with column types, row c
 
 ## Installation
 
-> Datspace is in active development. Pre-built binaries are not yet available.
+> Duckspace is in active development. Pre-built binaries are not yet available.
 
 To build from source:
 
 ```bash
-git clone https://github.com/jaredmcfarland/datspace.git
-cd datspace
+git clone https://github.com/jaredmcfarland/duckspace.git
+cd duckspace
 npm install
 npm run make
 ```
@@ -97,7 +97,7 @@ npm run dead-code          # Detect unused exports and dependencies
 
 ## How It Works
 
-Datspace embeds three specialized database engines inside a native macOS app:
+Duckspace embeds three specialized database engines inside a native macOS app:
 
 | Engine | Purpose |
 |--------|---------|
@@ -107,7 +107,7 @@ Datspace embeds three specialized database engines inside a native macOS app:
 
 All analytical data transfers use [Apache Arrow IPC](https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format), a binary columnar format that avoids the overhead of JSON serialization. Results stream directly from the database engine to the UI with zero-copy buffer transfers.
 
-Your data is stored locally at `~/Library/Application Support/Datspace/`. Nothing is sent to external servers unless you explicitly configure a remote connector.
+Your data is stored locally at `~/Library/Application Support/Duckspace/`. Nothing is sent to external servers unless you explicitly configure a remote connector.
 
 ## Keyboard Shortcuts
 
@@ -137,7 +137,7 @@ Your data is stored locally at `~/Library/Application Support/Datspace/`. Nothin
 
 ## Roadmap
 
-Datspace is being built incrementally:
+Duckspace is being built incrementally:
 
 | Phase | Status |
 |-------|--------|

@@ -80,14 +80,14 @@ export function DataGrid({ tabId, tabState }: DataGridProps): ReactElement {
         setError(null);
 
         // Execute SELECT * via existing previewTable which streams Arrow IPC
-        const handle = await window.datspace.catalog.previewTable(tabState.tableName);
+        const handle = await window.duckspace.catalog.previewTable(tabState.tableName);
 
         if (cancelled) return;
 
         activeQueryIdRef.current = handle.queryId;
 
         // Subscribe to Arrow IPC data batches for this query
-        unsubData = window.datspace.query.onData(handle.queryId, (batch: ArrowBatch) => {
+        unsubData = window.duckspace.query.onData(handle.queryId, (batch: ArrowBatch) => {
           if (cancelled) return;
 
           // Handle data-plane errors
@@ -145,7 +145,7 @@ export function DataGrid({ tabId, tabState }: DataGridProps): ReactElement {
       const qid = activeQueryIdRef.current;
       if (qid) {
         activeQueryIdRef.current = null;
-        void window.datspace.query.cancel(qid);
+        void window.duckspace.query.cancel(qid);
       }
 
       void deleteTable(tabId);

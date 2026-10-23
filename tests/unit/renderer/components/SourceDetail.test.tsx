@@ -33,7 +33,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockSource.current = undefined;
   mockColumnStats.current = undefined;
-  Object.defineProperty(window, 'datspace', {
+  Object.defineProperty(window, 'duckspace', {
     value: {
       catalog: { getColumnStats: mockGetColumnStats },
     },

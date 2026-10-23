@@ -9,11 +9,11 @@
 
 Phase 1 uses three data stores, each scoped to its process boundary:
 
-1. **DuckDB** (Worker Thread #1) -- the analytical SQL engine. Stores registered tables, views, and query history in a single database file at `~/Library/Application Support/Datspace/analytics.duckdb`. All query results flow out as Arrow IPC buffers; no analytical data is persisted in the Renderer.
+1. **DuckDB** (Worker Thread #1) -- the analytical SQL engine. Stores registered tables, views, and query history in a single database file at `~/Library/Application Support/Duckspace/analytics.duckdb`. All query results flow out as Arrow IPC buffers; no analytical data is persisted in the Renderer.
 
 2. **Dexie.js** (Renderer Process, IndexedDB) -- reactive UI state. Manages 9 collections covering tab state, query metadata, catalog entries, column schemas, query history (UI mirror), user preferences, worker health status, crash recovery log, and application-level state. All writes are local to the Renderer; the Main Process pushes updates via `webContents.send()` through the CatalogSyncBridge.
 
-3. **JSON Configuration** -- a plain `config.json` file at `~/Library/Application Support/Datspace/config.json`. Stores machine-specific settings (memory limits, thread counts) that must be read before any database initializes.
+3. **JSON Configuration** -- a plain `config.json` file at `~/Library/Application Support/Duckspace/config.json`. Stores machine-specific settings (memory limits, thread counts) that must be read before any database initializes.
 
 Phase 1 does **not** include LanceDB, vector search, embeddings, remote connectors, dashboards, or AI chat. Those entities exist in the full data model spec but are deferred to later phases. The Dexie.js schema is declared at version 1 with all 9 Phase 1 collections; future phases add collections via Dexie.js version increments.
 
@@ -21,7 +21,7 @@ Phase 1 does **not** include LanceDB, vector search, embeddings, remote connecto
 
 ## DuckDB (Worker Thread #1)
 
-**File**: `~/Library/Application Support/Datspace/analytics.duckdb`
+**File**: `~/Library/Application Support/Duckspace/analytics.duckdb`
 **Process**: Main Process, delegated to Worker Thread #1 via `@duckdb/node-api` (Neo client)
 **Architecture Reference**: [04-database-integration.md, Section 2](../../context/artifacts/design/04-database-integration.md)
 
@@ -31,7 +31,7 @@ Phase 1 does **not** include LanceDB, vector search, embeddings, remote connecto
 |-----------|---------|--------|--------|
 | `memory_limit` | 50% of system RAM (e.g., `"8GB"` on 16 GB Mac) | `config.json` | DuckDB spills to disk when limit is reached |
 | `threads` | `os.cpus().length - 2` | `config.json` | DuckDB internal thread pool size |
-| `temp_directory` | `~/Library/Application Support/Datspace/tmp/` | Derived from app data path | Spill-to-disk location for large intermediate results |
+| `temp_directory` | `~/Library/Application Support/Duckspace/tmp/` | Derived from app data path | Spill-to-disk location for large intermediate results |
 | `access_mode` | `READ_WRITE` | Fixed | MVCC: multiple concurrent readers, single writer |
 
 DuckDB extensions loaded at startup: `parquet`, `json`, `icu`. Extensions are bundled in `resources/duckdb-extensions/` and pinned to the DuckDB version. (`httpfs` is deferred to Phase 3 when remote connectors are in scope.)
@@ -132,7 +132,7 @@ VALUES ('1.0.0', 'Phase 1: Electron Foundation - query history and schema versio
 ### Memory and Spill-to-Disk
 
 - DuckDB is configured with `memory_limit` = 50% of system RAM (e.g., 8 GB on a 16 GB Mac, 4 GB on an 8 GB Mac).
-- When intermediate query results exceed the memory limit, DuckDB transparently spills to `~/Library/Application Support/Datspace/tmp/`.
+- When intermediate query results exceed the memory limit, DuckDB transparently spills to `~/Library/Application Support/Duckspace/tmp/`.
 - The `tmp/` directory is cleaned on graceful shutdown.
 - The V8 heap limit for the Worker Thread is set to 512 MB (`resourceLimits.maxOldGenerationSizeMb`), separate from DuckDB's native memory budget.
 
@@ -140,8 +140,8 @@ VALUES ('1.0.0', 'Phase 1: Electron Foundation - query history and schema versio
 
 ## Dexie.js (Renderer Process -- IndexedDB)
 
-**Database Name**: `Datspace`
-**Storage Location**: `~/Library/Application Support/Datspace/IndexedDB/` (managed by Chromium)
+**Database Name**: `Duckspace`
+**Storage Location**: `~/Library/Application Support/Duckspace/IndexedDB/` (managed by Chromium)
 **Schema Version**: 1
 **Architecture Reference**: [04-database-integration.md, Section 4](../../context/artifacts/design/04-database-integration.md), [data-model-spec.md, Section 4](../../context/artifacts/data-model/data-model-spec.md)
 
@@ -152,7 +152,7 @@ Phase 1 declares 9 collections. The naming convention below maps between the pla
 ```typescript
 import Dexie from 'dexie';
 
-class DatspaceDB extends Dexie {
+class DuckspaceDB extends Dexie {
   tabs!: Dexie.Table<Tab, string>;
   queries!: Dexie.Table<Query, string>;
   catalog_entries!: Dexie.Table<CatalogEntry, string>;
@@ -164,7 +164,7 @@ class DatspaceDB extends Dexie {
   app_state!: Dexie.Table<AppStateEntry, string>;
 
   constructor() {
-    super('Datspace');
+    super('Duckspace');
 
     this.version(1).stores({
       tabs:             'id, type, order',
@@ -180,7 +180,7 @@ class DatspaceDB extends Dexie {
   }
 }
 
-const db = new DatspaceDB();
+const db = new DuckspaceDB();
 export default db;
 ```
 
@@ -385,7 +385,7 @@ idle -> running -> completed
 
 ## JSON Configuration
 
-**File**: `~/Library/Application Support/Datspace/config.json`
+**File**: `~/Library/Application Support/Duckspace/config.json`
 **Read by**: Main Process (`ConfigManager`) at startup, before database initialization
 **Written by**: Main Process on settings changes and on first launch (defaults)
 
@@ -444,7 +444,7 @@ On first launch, if `config.json` does not exist, the `ConfigManager` generates 
 The `ConfigManager` validates the config against a TypeScript interface on load:
 
 ```typescript
-interface DatspaceConfig {
+interface DuckspaceConfig {
   duckdb: {
     memoryLimitPercent: number;       // 10-90
     memoryLimitOverrideMB: number | null;
@@ -546,7 +546,7 @@ A **Tab State** (spec entity) maps directly to the `tabs` collection. Each open 
 
 3. Initialize Renderer + Dexie.js
    - BrowserWindow loads renderer HTML
-   - Dexie.js opens IndexedDB database 'Datspace' (runs version migrations if needed)
+   - Dexie.js opens IndexedDB database 'Duckspace' (runs version migrations if needed)
    - liveQuery engine initializes
 
 4. Crash detection

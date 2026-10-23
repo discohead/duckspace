@@ -35,7 +35,7 @@ describe('QueryEditor', () => {
   beforeEach(() => {
     currentMockTab = mockActiveTab;
 
-    window.datspace = {
+    window.duckspace = {
       query: {
         execute: vi.fn().mockResolvedValue({ queryId: 'q-123' }),
         cancel: vi.fn().mockResolvedValue(undefined),
@@ -100,15 +100,15 @@ describe('QueryEditor', () => {
 
   it('subscribes to query status updates on mount', () => {
     render(<QueryEditor />);
-    expect(window.datspace.query.onStatus).toHaveBeenCalled();
+    expect(window.duckspace.query.onStatus).toHaveBeenCalled();
   });
 
-  it('clicking Execute calls window.datspace.query.execute', async () => {
+  it('clicking Execute calls window.duckspace.query.execute', async () => {
     const { fireEvent, waitFor } = await import('@testing-library/react');
     render(<QueryEditor />);
     fireEvent.click(screen.getByText('Execute'));
     await waitFor(() => {
-      expect(window.datspace.query.execute).toHaveBeenCalledWith('SELECT 1');
+      expect(window.duckspace.query.execute).toHaveBeenCalledWith('SELECT 1');
     });
   });
 
@@ -123,7 +123,7 @@ describe('QueryEditor', () => {
 
   it('shows error panel when execute fails', async () => {
     const { fireEvent, waitFor } = await import('@testing-library/react');
-    (window.datspace.query.execute as ReturnType<typeof vi.fn>).mockRejectedValue({
+    (window.duckspace.query.execute as ReturnType<typeof vi.fn>).mockRejectedValue({
       code: 'E1001',
       message: 'Syntax error in SQL',
     });
@@ -143,7 +143,7 @@ describe('QueryEditor', () => {
     expect((textarea as HTMLTextAreaElement).value).toBe('SELECT * FROM products');
   });
 
-  it('clicking Cancel calls window.datspace.query.cancel', async () => {
+  it('clicking Cancel calls window.duckspace.query.cancel', async () => {
     const { fireEvent, waitFor } = await import('@testing-library/react');
     render(<QueryEditor />);
     fireEvent.click(screen.getByText('Execute'));
@@ -152,7 +152,7 @@ describe('QueryEditor', () => {
     });
     fireEvent.click(screen.getByText('Cancel'));
     await waitFor(() => {
-      expect(window.datspace.query.cancel).toHaveBeenCalledWith('q-123');
+      expect(window.duckspace.query.cancel).toHaveBeenCalledWith('q-123');
     });
   });
 
@@ -160,7 +160,7 @@ describe('QueryEditor', () => {
     const { fireEvent, waitFor } = await import('@testing-library/react');
     // Capture the onStatus callback so we can trigger it
     let statusCallback: ((status: any) => void) | null = null;
-    (window.datspace.query.onStatus as ReturnType<typeof vi.fn>).mockImplementation(
+    (window.duckspace.query.onStatus as ReturnType<typeof vi.fn>).mockImplementation(
       (cb: (status: any) => void) => {
         statusCallback = cb;
         return () => {};

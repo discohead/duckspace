@@ -1,4 +1,4 @@
-# QA Report — Datspace (Post-Fix Verification)
+# QA Report — Duckspace (Post-Fix Verification)
 
 **Date**: 2026-02-08
 **Tester**: Claude (Automated QA via Playwright MCP)
@@ -54,9 +54,9 @@ None found (previously identified P2 issues have code fixes applied but require 
 - **Area**: File Watcher / Data Ingestion
 - **Status**: Regression from previous QA report (issue #3)
 - **Reproduction Steps**:
-  1. Launch app (with existing watch directory `/tmp/datspace-qa/test-data` in Dexie)
+  1. Launch app (with existing watch directory `/tmp/duckspace-qa/test-data` in Dexie)
   2. Observe watch directory shows "0 sources" and status "active"
-  3. Create a CSV file in the watched directory: `echo "id,name\n1,test" > /tmp/datspace-qa/test-data/watcher-test.csv`
+  3. Create a CSV file in the watched directory: `echo "id,name\n1,test" > /tmp/duckspace-qa/test-data/watcher-test.csv`
   4. Wait 8+ seconds
   5. Observe sidebar still shows "0 sources" and "No data sources yet."
 - **Expected Behavior**: sourceCount should increment to 1, a data source entry should appear in the sidebar, and the file should be auto-ingested into DuckDB.
@@ -64,7 +64,7 @@ None found (previously identified P2 issues have code fixes applied but require 
 - **Console Output**: No errors or warnings in renderer console. No `[FileWatcher]` diagnostic logs visible.
 - **Screenshot**: `screenshots/01-initial-state.png` (showing 0 sources despite files existing)
 - **Root Cause Analysis**:
-  - The `restoreDirectories` code in `App.tsx` reads from `db.watch_directories` and calls `window.datspace.watch.restoreDirectories()`. However, in the MCP-launched Electron environment, the IndexedDB (Dexie) data lives in `~/Library/Application Support/Electron/` (not `~/Library/Application Support/Datspace/`). The watch directory entry visible in the UI was created in this MCP environment during a previous session.
+  - The `restoreDirectories` code in `App.tsx` reads from `db.watch_directories` and calls `window.duckspace.watch.restoreDirectories()`. However, in the MCP-launched Electron environment, the IndexedDB (Dexie) data lives in `~/Library/Application Support/Electron/` (not `~/Library/Application Support/Duckspace/`). The watch directory entry visible in the UI was created in this MCP environment during a previous session.
   - The `restoreDirectories` IPC handler in `ipc-handlers.ts` calls `fileWatcher.restoreDirectories()` which calls `addDirectory()` for each directory. If this succeeds, chokidar should be watching. The absence of any console warnings suggests the restoration may have succeeded but chokidar isn't detecting file events in this environment.
   - Alternatively, the `build-e2e.mjs` build may not be correctly including the chokidar externalization — though inspection of `main-entry.js` line 10 shows `const chokidar = require("chokidar")` which is correct.
   - **Most likely**: The chokidar watcher IS running but the `handleAdd` method only processes files matching the configured format filters AND that don't already exist. The test file may have been created before the watcher was restored, so chokidar's `add` event for the initial scan was missed. The `awaitWriteFinish` option (if configured) may also delay detection.
@@ -139,7 +139,7 @@ None found (previously identified P2 issues have code fixes applied but require 
 
 1. **14:25** — Verified prerequisites: no stale processes, Vite dev server on :5173, build artifacts present
 2. **14:25** — Rebuilt artifacts with `npm run build:e2e` (after fixing chokidar external)
-3. **14:25** — Launched app via `electron_first_window`. Title "Datspace", URL `http://localhost:5173/`
+3. **14:25** — Launched app via `electron_first_window`. Title "Duckspace", URL `http://localhost:5173/`
 4. **14:25** — Phase 1: Captured initial state screenshot. Watch directory "test-data" visible with "0 sources". Status: "DuckDB: ready"
 5. **14:26** — Phase 2: Resized to 800x600 (OK), 400x300 (sidebar overlap issue), restored to 1280x720
 6. **14:26** — Phase 3: Clicked New tab → dropdown menu with Query/Catalog/Settings. Created "New Query" tab
@@ -149,7 +149,7 @@ None found (previously identified P2 issues have code fixes applied but require 
 10. **14:28** — Created Catalog tab, viewed sales table schema (7 columns with DuckDB/Arrow types)
 11. **14:28** — Switched back to Query 1 tab — query text preserved, results cleared (P4 noted)
 12. **14:28** — Closed both tabs — WelcomeView returned correctly
-13. **14:29** — Phase 4: Created CSV in `/tmp/datspace-qa/test-data/`. Waited 8s. No file events detected (P1 confirmed)
+13. **14:29** — Phase 4: Created CSV in `/tmp/duckspace-qa/test-data/`. Waited 8s. No file events detected (P1 confirmed)
 14. **14:29** — Removed watch directory via × button — removed immediately, empty state shown
 15. **14:29** — Tested Cmd+T (new query tab created), Cmd+W (tab closed, welcome view returned)
 16. **14:30** — Executed `SELECT * FROM sales LIMIT 100` — 100 rows rendered correctly with all 7 columns

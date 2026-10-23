@@ -26,7 +26,7 @@ export async function checkAndRecover(): Promise<boolean> {
 
     // T052: Request integrity verification from Main Process
     try {
-      const appState = await window.datspace.lifecycle.getAppState();
+      const appState = await window.duckspace.lifecycle.getAppState();
       await writeRecoveryLog({
         type: 'integrity_check',
         details: `DuckDB integrity check passed. Worker status: ${appState.workers.duckdb}`,
@@ -83,7 +83,7 @@ async function reconcileCatalog(): Promise<void> {
   try {
     // Fetch current DuckDB tables via preload
     const duckdbTables: DuckDbTableInfo[] =
-      (await window.datspace.catalog.listTables()) as unknown as DuckDbTableInfo[];
+      (await window.duckspace.catalog.listTables()) as unknown as DuckDbTableInfo[];
 
     // Get current Dexie entries
     const dexieEntries = await db.catalog_entries.toArray();
@@ -108,7 +108,7 @@ async function reconcileCatalog(): Promise<void> {
 
         // Fetch and store column schemas
         try {
-          const columns = await window.datspace.catalog.describeTable(name);
+          const columns = await window.duckspace.catalog.describeTable(name);
           for (const col of columns) {
             const record: ColumnSchemaRecord = {
               id: `${entry.id}_${col.name}`,

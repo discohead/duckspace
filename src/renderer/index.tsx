@@ -68,7 +68,7 @@ async function bootstrap(): Promise<void> {
 
   // T034: Wire shutdown handler
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
-  window.datspace.lifecycle.onShutdownPrepare(async () => {
+  window.duckspace.lifecycle.onShutdownPrepare(async () => {
     try {
       // Save window state
       await db.app_state.put({
@@ -88,16 +88,16 @@ async function bootstrap(): Promise<void> {
       }
 
       // Acknowledge shutdown
-      await window.datspace.lifecycle.shutdownAck();
+      await window.duckspace.lifecycle.shutdownAck();
     } catch (err) {
       console.error('Error during shutdown preparation:', err);
       // Still ack even on error so the app can quit
-      await window.datspace.lifecycle.shutdownAck();
+      await window.duckspace.lifecycle.shutdownAck();
     }
   });
 
   // T064: Wire window bounds persistence to Dexie.js
-  window.datspace.lifecycle.onBoundsChanged(
+  window.duckspace.lifecycle.onBoundsChanged(
     (bounds: { x: number; y: number; width: number; height: number }) => {
       void db.app_state.put({
         id: 'window_bounds',
@@ -108,7 +108,7 @@ async function bootstrap(): Promise<void> {
   );
 
   // T067: Wire query history sync from DuckDB Worker to Dexie.js
-  window.datspace.query.onQueryHistory((record: QueryHistoryPushRecord) => {
+  window.duckspace.query.onQueryHistory((record: QueryHistoryPushRecord) => {
     void (async () => {
       try {
         await db.query_history.put({
@@ -129,7 +129,7 @@ async function bootstrap(): Promise<void> {
   });
 
   // Wire worker health updates to Dexie.js
-  window.datspace.lifecycle.onWorkerHealth((health: WorkerHealth) => {
+  window.duckspace.lifecycle.onWorkerHealth((health: WorkerHealth) => {
     void db.worker_health.put({
       id: health.worker,
       status: health.status,
@@ -142,7 +142,7 @@ async function bootstrap(): Promise<void> {
   });
 
   // Signal to Main Process that renderer is ready (all handlers are wired above)
-  await window.datspace.lifecycle.ready();
+  await window.duckspace.lifecycle.ready();
 }
 
 bootstrap().catch((err: unknown) => {

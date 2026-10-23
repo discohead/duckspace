@@ -2,7 +2,7 @@ import type { ErrorCode } from '@shared/errors';
 import {
   classifyDuckDBError,
   columnNotFoundError,
-  DatspaceError,
+  DuckspaceError,
   databaseCorruptError,
   ERROR_CODES,
   ERROR_METADATA,
@@ -32,10 +32,10 @@ describe('errors property-based tests', () => {
   // 1. toIPCError round-trip preserves fields
   // -------------------------------------------------------------------------
   describe('toIPCError round-trip preserves fields', () => {
-    it('code, message, and retryable match the constructed DatspaceError', () => {
+    it('code, message, and retryable match the constructed DuckspaceError', () => {
       fc.assert(
         fc.property(arbErrorCode, fc.string({ minLength: 1 }), (code, msg) => {
-          const err = new DatspaceError(code, msg);
+          const err = new DuckspaceError(code, msg);
           const ipc = err.toIPCError();
 
           expect(ipc.code).toBe(code);
@@ -54,7 +54,7 @@ describe('errors property-based tests', () => {
           fc.nat({ max: 30_000 }),
           (code, msg, retryMs) => {
             const details = { key: msg };
-            const err = new DatspaceError(code, msg, {
+            const err = new DuckspaceError(code, msg, {
               retryAfterMs: retryMs,
               details,
             });
@@ -76,7 +76,7 @@ describe('errors property-based tests', () => {
     it('each factory produces errors where retryable matches ERROR_METADATA', () => {
       fc.assert(
         fc.property(fc.string({ minLength: 1 }), fc.nat({ max: 60_000 }), (str, num) => {
-          const factories: { error: DatspaceError; expectedCode: ErrorCode }[] = [
+          const factories: { error: DuckspaceError; expectedCode: ErrorCode }[] = [
             { error: querySyntaxError(str), expectedCode: ERROR_CODES.QUERY_SYNTAX_ERROR },
             { error: tableNotFoundError(str), expectedCode: ERROR_CODES.TABLE_NOT_FOUND },
             { error: columnNotFoundError(str, str), expectedCode: ERROR_CODES.COLUMN_NOT_FOUND },

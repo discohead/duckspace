@@ -1,8 +1,8 @@
 # Free Reactive NoSQL Database for Electron: Technology Evaluation
 
-**Research Finding** | datspace Project
+**Research Finding** | duckspace Project
 **Date:** 2026-02-04
-**Scope:** Evaluate free, open-source reactive NoSQL database options for use as the reactive state layer in datspace, an Electron-based desktop analytics application.
+**Scope:** Evaluate free, open-source reactive NoSQL database options for use as the reactive state layer in duckspace, an Electron-based desktop analytics application.
 
 **Revision Note:** This document replaces a prior version that recommended RxDB Premium with SQLite adapter (~$100-300/yr). That recommendation is rejected due to cost. This revision evaluates only free/open-source options.
 
@@ -10,11 +10,11 @@
 
 ## Executive Summary
 
-datspace requires a reactive state layer to manage UI state, metadata catalogs, chat history, user preferences, and query history. This layer is separate from the analytical engine (DuckDB) and vector search (LanceDB). The key requirement is **reactive queries** -- push-based live updates that drive the UI without manual cache invalidation.
+duckspace requires a reactive state layer to manage UI state, metadata catalogs, chat history, user preferences, and query history. This layer is separate from the analytical engine (DuckDB) and vector search (LanceDB). The key requirement is **reactive queries** -- push-based live updates that drive the UI without manual cache invalidation.
 
 After evaluating five free/open-source candidates, the recommendation is **Dexie.js** as the primary reactive state layer. Dexie.js provides excellent reactive query support via `liveQuery()`, a mature and widely-used IndexedDB wrapper with MIT license, and strong React integration via `useLiveQuery`. It can run in the Renderer process natively (IndexedDB) and in the Main Process via `fake-indexeddb`, though the recommended architecture is Renderer-side with IPC for cross-process coordination.
 
-For datspace's use cases (small-to-moderate document counts, moderate update frequency, single-user desktop app), Dexie.js provides the best balance of reactive capabilities, developer experience, zero cost, and community health.
+For duckspace's use cases (small-to-moderate document counts, moderate update frequency, single-user desktop app), Dexie.js provides the best balance of reactive capabilities, developer experience, zero cost, and community health.
 
 ---
 
@@ -28,7 +28,7 @@ For datspace's use cases (small-to-moderate document counts, moderate update fre
 
 #### Overview
 
-Dexie.js is a minimalistic wrapper around IndexedDB that provides a dramatically improved developer experience over the raw IndexedDB API. It adds promises, robust error handling, compound indexes, multi-entry indexes, and -- critically for datspace -- reactive live queries.
+Dexie.js is a minimalistic wrapper around IndexedDB that provides a dramatically improved developer experience over the raw IndexedDB API. It adds promises, robust error handling, compound indexes, multi-entry indexes, and -- critically for duckspace -- reactive live queries.
 
 #### Reactive Query Capabilities
 
@@ -85,7 +85,7 @@ function DashboardList() {
 import 'fake-indexeddb/auto'; // Polyfills global indexedDB
 import Dexie from 'dexie';
 
-const db = new Dexie('Datspace');
+const db = new Dexie('Duckspace');
 // Works identically to Renderer usage
 ```
 
@@ -112,7 +112,7 @@ Principle 12 states: "Main Process owns database engines." This was designed for
 Dexie uses version-based schema declarations:
 
 ```typescript
-const db = new Dexie('Datspace');
+const db = new Dexie('Duckspace');
 
 db.version(1).stores({
   user_preferences: 'id',
@@ -172,7 +172,7 @@ IndexedDB performance in Electron (Chromium) for typical app state patterns:
 | LiveQuery re-evaluation | -- | 1-5ms | Per affected query |
 | Table with 100K documents | -- | Usable | IndexedDB handles well in Chromium |
 
-For datspace's use cases (largest collection: column_statistics at up to 100K documents of 0.2-1 KB each), these performance characteristics are adequate. The reactive state layer handles UI state, not analytical workloads -- DuckDB handles those.
+For duckspace's use cases (largest collection: column_statistics at up to 100K documents of 0.2-1 KB each), these performance characteristics are adequate. The reactive state layer handles UI state, not analytical workloads -- DuckDB handles those.
 
 **Performance of fake-indexeddb (if used in Main Process):**
 - `fake-indexeddb` stores data in a JavaScript sorted map (B-tree-like)
@@ -257,7 +257,7 @@ RxDB Community adds a reactive query layer (EventReduce) on top of Dexie.js/Inde
 2. **Dexie.js now has liveQuery:** Since Dexie 3.x, `liveQuery()` provides native reactive queries. This was not available when RxDB's Dexie adapter was designed. With liveQuery, much of RxDB's reactive value proposition is available directly in Dexie.
 3. **Bundle overhead:** RxDB adds ~100 KB + RxJS dependency for reactive capabilities that Dexie now provides natively.
 4. **Same process model limitations:** Without the premium SQLite adapter, RxDB runs in Renderer (IndexedDB) -- same as plain Dexie.js.
-5. **Complexity:** RxDB has a larger API surface, more configuration, and opinions (JSON Schema requirements, primary key constraints) that may be unnecessary for datspace.
+5. **Complexity:** RxDB has a larger API surface, more configuration, and opinions (JSON Schema requirements, primary key constraints) that may be unnecessary for duckspace.
 
 **Verdict:** RxDB Community is a valid option but offers diminishing returns over Dexie.js now that `liveQuery()` exists. The additional bundle size and complexity are not justified when Dexie.js provides reactive queries natively.
 
@@ -302,7 +302,7 @@ db.changes({
 
 - **No schema enforcement:** PouchDB is fully schemaless (CouchDB document model)
 - **No built-in migration:** Schema evolution must be handled manually
-- **Revision tracking:** Every document has a `_rev` field for conflict resolution -- overhead that datspace doesn't need (single-user)
+- **Revision tracking:** Every document has a `_rev` field for conflict resolution -- overhead that duckspace doesn't need (single-user)
 
 #### Bundle Size
 
@@ -317,19 +317,19 @@ db.changes({
 PouchDB has documented performance issues:
 - **Revision tree overhead:** CouchDB's revision model (needed for sync/conflicts) adds storage and processing overhead even in local-only mode
 - **Compaction needed:** Without periodic compaction, document revisions accumulate and degrade performance
-- **Large document counts:** PouchDB performance degrades noticeably with tens of thousands of documents -- relevant for datspace's `chat_messages` (up to 50K) and `column_statistics` (up to 100K) collections
+- **Large document counts:** PouchDB performance degrades noticeably with tens of thousands of documents -- relevant for duckspace's `chat_messages` (up to 50K) and `column_statistics` (up to 100K) collections
 - **allDocs performance:** Bulk reads can be slow compared to indexed queries
 
 #### Assessment
 
-PouchDB was designed for CouchDB sync -- a capability datspace does not need. The sync/conflict resolution machinery adds overhead without benefit:
+PouchDB was designed for CouchDB sync -- a capability duckspace does not need. The sync/conflict resolution machinery adds overhead without benefit:
 
 1. **No native reactive queries:** The biggest gap. Building reactive queries on change feeds requires significant custom engineering.
 2. **Overhead from sync features:** Revision tracking, conflict resolution, and compaction are unnecessary for a single-user local app.
 3. **Scalability concerns:** Known issues with large document counts would affect column_statistics and chat_messages collections.
 4. **Declining maintenance:** While still maintained, PouchDB's development pace has slowed significantly.
 
-**Verdict:** PouchDB is not recommended. It lacks native reactive queries (the primary requirement), carries unnecessary sync overhead, and has performance concerns at datspace's scale.
+**Verdict:** PouchDB is not recommended. It lacks native reactive queries (the primary requirement), carries unnecessary sync overhead, and has performance concerns at duckspace's scale.
 
 ---
 
@@ -483,7 +483,7 @@ This is LokiJS's critical weakness:
 4. **Full serialization:** Each save writes the entire database, not incremental changes. With large collections (100K column_statistics), this could be slow and cause UI jank.
 5. **No transactions:** No ACID guarantees. Operations are immediate in memory but persistence is eventual.
 
-For datspace, losing chat messages or metadata catalog entries on crash is unacceptable.
+For duckspace, losing chat messages or metadata catalog entries on crash is unacceptable.
 
 #### Maintenance Status
 
@@ -654,7 +654,7 @@ All candidates work in local-only mode. PouchDB and RxDB have sync features that
 | **Reactive** | liveQuery() | File-watch (crude) |
 | **Scale** | Millions of documents | < 10 MB practical limit |
 
-**Verdict:** electron-store is insufficient. datspace needs queryable, indexed, reactive collections -- electron-store can only handle simple settings.
+**Verdict:** electron-store is insufficient. duckspace needs queryable, indexed, reactive collections -- electron-store can only handle simple settings.
 
 ---
 
@@ -662,7 +662,7 @@ All candidates work in local-only mode. PouchDB and RxDB have sync features that
 
 ### Primary Recommendation: Dexie.js
 
-**Use Dexie.js as the reactive state layer for datspace, running in the Renderer process with native IndexedDB.**
+**Use Dexie.js as the reactive state layer for duckspace, running in the Renderer process with native IndexedDB.**
 
 ### Rationale
 
@@ -676,11 +676,11 @@ All candidates work in local-only mode. PouchDB and RxDB have sync features that
 
 5. **Massive community.** With ~3.5 million weekly npm downloads and 11K+ GitHub stars, Dexie.js is one of the most widely-used IndexedDB libraries. Issues are well-documented, edge cases are known, and the maintainer is responsive.
 
-6. **Adequate performance for the use case.** datspace's reactive state layer manages UI state, metadata, and chat history -- not analytical data. The largest collection (column_statistics) may reach 100K documents, which IndexedDB handles well in Chromium's implementation.
+6. **Adequate performance for the use case.** duckspace's reactive state layer manages UI state, metadata, and chat history -- not analytical data. The largest collection (column_statistics) may reach 100K documents, which IndexedDB handles well in Chromium's implementation.
 
 7. **IndexedDB is native to Electron.** No additional runtime, no native addon compilation, no WASM. IndexedDB is built into Chromium, which Electron includes. It is the most natural storage API for Electron's Renderer process.
 
-8. **Schema migrations are straightforward.** Dexie's version-based `upgrade()` system handles schema evolution cleanly as datspace progresses through its roadmap phases.
+8. **Schema migrations are straightforward.** Dexie's version-based `upgrade()` system handles schema evolution cleanly as duckspace progresses through its roadmap phases.
 
 ### Architecture: Renderer-Side Placement
 
@@ -725,7 +725,7 @@ Constitution Principle 12 states "Main Process owns database engines." For the r
 
 | Setting | Value | Reason |
 |---------|-------|--------|
-| Database name | `'Datspace'` | Single Dexie database for all app state |
+| Database name | `'Duckspace'` | Single Dexie database for all app state |
 | Storage | Native IndexedDB (Chromium) | No polyfills needed in Renderer |
 | Location | Electron's profile directory (automatic) | Persists across app updates |
 | React hooks | `dexie-react-hooks` | Direct integration with React components |
@@ -734,7 +734,7 @@ Constitution Principle 12 states "Main Process owns database engines." For the r
 ### Collection Schema Design
 
 ```typescript
-const db = new Dexie('Datspace');
+const db = new Dexie('Duckspace');
 
 db.version(1).stores({
   user_preferences: 'id',
@@ -763,7 +763,7 @@ Note: Only indexed properties are declared. All other properties are stored auto
 
 ### Implementation Priority
 
-In the datspace roadmap:
+In the duckspace roadmap:
 
 1. **Phase 1 (Foundation):** Initialize Dexie.js with `user_preferences` and `data_sources` collections. Set up `useLiveQuery` patterns in React.
 2. **Phase 2 (Data Ingestion):** Add `table_metadata` and `column_statistics` collections. Main Process pushes scan results to Renderer via IPC for Dexie storage.

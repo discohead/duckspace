@@ -40,7 +40,7 @@ const ALL_FORMATS: readonly DataSourceFormat[] = [
  * a remove button per directory entry.
  *
  * Uses the `useWatchDirectories()` Dexie reactive hook for live updates, and delegates
- * IPC calls to `window.datspace.watch.addDirectory()` and `window.datspace.watch.removeDirectory()`.
+ * IPC calls to `window.duckspace.watch.addDirectory()` and `window.duckspace.watch.removeDirectory()`.
  *
  * @returns A section element containing the directory list and add-directory form.
  */
@@ -83,7 +83,7 @@ export function WatchDirConfig(): ReactElement {
         fileTypeFilter: selectedFormats.size > 0 ? Array.from(selectedFormats) : undefined,
       };
 
-      const watchDir = await window.datspace.watch.addDirectory(trimmedPath, options);
+      const watchDir = await window.duckspace.watch.addDirectory(trimmedPath, options);
 
       // Sync to Dexie for reactive UI
       await db.watch_directories.put({
@@ -98,9 +98,9 @@ export function WatchDirConfig(): ReactElement {
       setIsAdding(false);
     } catch (err: unknown) {
       let message = err instanceof Error ? err.message : 'Failed to add watch directory.';
-      // Strip Electron IPC wrapper and DatspaceError class prefixes for user-friendly display
+      // Strip Electron IPC wrapper and DuckspaceError class prefixes for user-friendly display
       message = message.replace(/^Error invoking remote method '[^']+': /, '');
-      message = message.replace(/^DatspaceError: /, '');
+      message = message.replace(/^DuckspaceError: /, '');
       setError(message);
     } finally {
       setIsSubmitting(false);
@@ -109,7 +109,7 @@ export function WatchDirConfig(): ReactElement {
 
   const handleRemove = useCallback(async (dir: WatchDirectory): Promise<void> => {
     try {
-      await window.datspace.watch.removeDirectory(dir.id);
+      await window.duckspace.watch.removeDirectory(dir.id);
       await db.watch_directories.delete(dir.id);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to remove watch directory.';

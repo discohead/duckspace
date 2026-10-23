@@ -23,13 +23,13 @@ test('debug: query execution pipeline', async ({ page }) => {
 
   // Capture custom events being dispatched via evaluate
   await page.evaluate(() => {
-    window.addEventListener('datspace:arrow-batch', (event) => {
+    window.addEventListener('duckspace:arrow-batch', (event) => {
       const detail = (event as CustomEvent).detail;
       console.log(
         `[ARROW-BATCH] queryId=${detail.queryId} index=${detail.batch?.index} isLast=${detail.batch?.isLast} byteLength=${detail.batch?.buffer?.byteLength}`,
       );
     });
-    window.addEventListener('datspace:result-reset', (event) => {
+    window.addEventListener('duckspace:result-reset', (event) => {
       const detail = (event as CustomEvent).detail;
       console.log(`[RESULT-RESET] tabId=${detail.tabId}`);
     });

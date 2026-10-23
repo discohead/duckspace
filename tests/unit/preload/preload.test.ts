@@ -68,12 +68,12 @@ describe('preload/index', () => {
   // ========================================================================
 
   describe('contextBridge setup', () => {
-    it('calls exposeInMainWorld with "datspace" and correct API shape', async () => {
+    it('calls exposeInMainWorld with "duckspace" and correct API shape', async () => {
       const electron = await loadPreload();
 
       expect(electron.contextBridge.exposeInMainWorld).toHaveBeenCalledOnce();
       expect(electron.contextBridge.exposeInMainWorld).toHaveBeenCalledWith(
-        'datspace',
+        'duckspace',
         expect.objectContaining({
           query: expect.any(Object),
           catalog: expect.any(Object),

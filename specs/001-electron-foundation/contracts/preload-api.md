@@ -8,7 +8,7 @@
 
 ## Overview
 
-The preload script exposes a typed API via `contextBridge.exposeInMainWorld('datspace', api)`. This is the **sole interface** between the sandboxed Renderer Process and the privileged Main Process. The Renderer never calls `ipcRenderer` directly; all communication flows through `window.datspace`.
+The preload script exposes a typed API via `contextBridge.exposeInMainWorld('duckspace', api)`. This is the **sole interface** between the sandboxed Renderer Process and the privileged Main Process. The Renderer never calls `ipcRenderer` directly; all communication flows through `window.duckspace`.
 
 Phase 1 exposes three namespaces: `query`, `catalog`, and `lifecycle`. Additional namespaces (`search`, `ai`, `ingest`, `publish`, `config`, `on`) are defined in the full IPC API spec and will be added in later phases.
 
@@ -136,7 +136,7 @@ interface IPCError {
 ## Complete API Surface
 
 ```typescript
-interface DatspaceAPI {
+interface DuckspaceAPI {
   query: QueryNamespace;
   catalog: CatalogNamespace;
   lifecycle: LifecycleNamespace;
@@ -144,14 +144,14 @@ interface DatspaceAPI {
 
 declare global {
   interface Window {
-    datspace: DatspaceAPI;
+    duckspace: DuckspaceAPI;
   }
 }
 ```
 
 ---
 
-## `window.datspace.query` Namespace
+## `window.duckspace.query` Namespace
 
 ### `execute(sql, params?)`
 
@@ -194,17 +194,17 @@ Promise<QueryHandle>
 
 ```typescript
 // Simple query
-const { queryId } = await window.datspace.query.execute('SELECT 42 AS answer');
+const { queryId } = await window.duckspace.query.execute('SELECT 42 AS answer');
 
 // Parameterized query
-const { queryId } = await window.datspace.query.execute(
+const { queryId } = await window.duckspace.query.execute(
   'SELECT * FROM sales WHERE region = $1 AND year >= $2 ORDER BY amount DESC LIMIT $3',
   ['West', 2024, 1000]
 );
 
 // Handle errors
 try {
-  const handle = await window.datspace.query.execute('SELECT * FROM nonexistent');
+  const handle = await window.duckspace.query.execute('SELECT * FROM nonexistent');
 } catch (err) {
   const ipcError = err as IPCError;
   if (ipcError.code === 'E1004') {
@@ -248,10 +248,10 @@ Promise<void>
 #### Usage Example
 
 ```typescript
-const { queryId } = await window.datspace.query.execute('SELECT * FROM huge_table');
+const { queryId } = await window.duckspace.query.execute('SELECT * FROM huge_table');
 
 // User clicks cancel button
-await window.datspace.query.cancel(queryId);
+await window.duckspace.query.cancel(queryId);
 // No further Arrow batches arrive for this queryId
 ```
 
@@ -289,7 +289,7 @@ None. This is a subscription; errors in the query are delivered via the data pla
 ```typescript
 // In a React component
 useEffect(() => {
-  const unsub = window.datspace.query.onStatus((status) => {
+  const unsub = window.duckspace.query.onStatus((status) => {
     if (status.queryId === activeQueryId) {
       setQueryProgress({
         phase: status.phase,
@@ -338,11 +338,11 @@ If a query error occurs, the data plane delivers an `arrow-error` message. The p
 #### Usage Example
 
 ```typescript
-const { queryId } = await window.datspace.query.execute('SELECT * FROM sales');
+const { queryId } = await window.duckspace.query.execute('SELECT * FROM sales');
 
 const allBatches: ArrowBatch[] = [];
 
-const unsub = window.datspace.query.onData(queryId, (batch) => {
+const unsub = window.duckspace.query.onData(queryId, (batch) => {
   allBatches.push(batch);
 
   // Decode Arrow IPC using Flechette
@@ -357,10 +357,10 @@ const unsub = window.datspace.query.onData(queryId, (batch) => {
 
 // Full pattern: execute + subscribe
 async function runQuery(sql: string): Promise<void> {
-  const { queryId } = await window.datspace.query.execute(sql);
+  const { queryId } = await window.duckspace.query.execute(sql);
 
   return new Promise((resolve, reject) => {
-    const unsub = window.datspace.query.onData(queryId, (batch) => {
+    const unsub = window.duckspace.query.onData(queryId, (batch) => {
       if (batch.byteSize === 0 && batch.isLast) {
         // Error case -- check status
         unsub();
@@ -382,7 +382,7 @@ async function runQuery(sql: string): Promise<void> {
 
 ---
 
-## `window.datspace.catalog` Namespace
+## `window.duckspace.catalog` Namespace
 
 ### `listTables()`
 
@@ -414,7 +414,7 @@ Promise<CatalogEntry[]>
 #### Usage Example
 
 ```typescript
-const tables = await window.datspace.catalog.listTables();
+const tables = await window.duckspace.catalog.listTables();
 
 // Display in sidebar
 tables.forEach((entry) => {
@@ -460,7 +460,7 @@ Promise<ColumnSchema[]>
 #### Usage Example
 
 ```typescript
-const columns = await window.datspace.catalog.describeTable('sales');
+const columns = await window.duckspace.catalog.describeTable('sales');
 
 columns.forEach((col) => {
   console.log(`${col.name}: ${col.duckdbType} (Arrow: ${col.arrowType})${col.nullable ? ' NULLABLE' : ''}`);
@@ -512,10 +512,10 @@ Promise<QueryHandle>
 
 ```typescript
 // Preview first 50 rows of a table
-const { queryId } = await window.datspace.catalog.previewTable('products', 50);
+const { queryId } = await window.duckspace.catalog.previewTable('products', 50);
 
 // Subscribe to data exactly like a regular query
-const unsub = window.datspace.query.onData(queryId, (batch) => {
+const unsub = window.duckspace.query.onData(queryId, (batch) => {
   const table = tableFromIPC(batch.buffer);
   renderPreviewGrid(table);
 
@@ -525,7 +525,7 @@ const unsub = window.datspace.query.onData(queryId, (batch) => {
 
 ---
 
-## `window.datspace.lifecycle` Namespace
+## `window.duckspace.lifecycle` Namespace
 
 ### `onWorkerHealth(callback)`
 
@@ -559,7 +559,7 @@ None. This is a subscription.
 ```typescript
 // StatusBar component
 useEffect(() => {
-  const unsub = window.datspace.lifecycle.onWorkerHealth((health) => {
+  const unsub = window.duckspace.lifecycle.onWorkerHealth((health) => {
     setWorkerStatus(health.status);
 
     if (health.status === 'failed') {
@@ -604,9 +604,9 @@ Promise<AppState>
 #### Usage Example
 
 ```typescript
-const state = await window.datspace.lifecycle.getAppState();
+const state = await window.duckspace.lifecycle.getAppState();
 
-console.log(`datspace v${state.version} on ${state.platform} ${state.arch}`);
+console.log(`duckspace v${state.version} on ${state.platform} ${state.arch}`);
 console.log(`System RAM: ${state.memory.totalSystemMB} MB`);
 console.log(`DuckDB limit: ${state.memory.duckdbLimitMB} MB`);
 console.log(`DuckDB worker: ${state.workers.duckdb}`);
@@ -634,7 +634,7 @@ Signal to Main Process that the Renderer is fully initialized.
 // 2. Dexie.js database open
 // 3. MessagePort channels connected
 // 4. Initial UI state restored from Dexie.js
-await window.datspace.lifecycle.ready();
+await window.duckspace.lifecycle.ready();
 ```
 
 ### `lifecycle.shutdownAck()`
@@ -643,7 +643,7 @@ Acknowledge that the Renderer has saved all state and is ready for shutdown.
 
 ```typescript
 // Called in response to 'shutdown-prepare' push event
-await window.datspace.lifecycle.shutdownAck();
+await window.duckspace.lifecycle.shutdownAck();
 ```
 
 ### `lifecycle.onShutdownPrepare(callback)`
@@ -651,7 +651,7 @@ await window.datspace.lifecycle.shutdownAck();
 Subscribe to the shutdown preparation signal from Main Process.
 
 ```typescript
-const unsub = window.datspace.lifecycle.onShutdownPrepare(async () => {
+const unsub = window.duckspace.lifecycle.onShutdownPrepare(async () => {
   // Flush all Dexie.js pending writes
   await db.tabs.toArray(); // force any pending transactions
   // Save final UI state
@@ -660,7 +660,7 @@ const unsub = window.datspace.lifecycle.onShutdownPrepare(async () => {
   await db.app_state.put({ id: 'last_active_tab_id', value: getActiveTabId(), updatedAt: new Date().toISOString() });
 
   // Acknowledge
-  await window.datspace.lifecycle.shutdownAck();
+  await window.duckspace.lifecycle.shutdownAck();
 });
 ```
 
@@ -668,7 +668,7 @@ const unsub = window.datspace.lifecycle.onShutdownPrepare(async () => {
 
 ## Preload Implementation Reference
 
-The preload script implements the `DatspaceAPI` by wrapping `ipcRenderer.invoke()` and `ipcRenderer.on()`. This is the reference implementation pattern:
+The preload script implements the `DuckspaceAPI` by wrapping `ipcRenderer.invoke()` and `ipcRenderer.on()`. This is the reference implementation pattern:
 
 ```typescript
 // src/preload/index.ts
@@ -709,7 +709,7 @@ ipcRenderer.on('port', (event: IpcRendererEvent, { channel }: { channel: string 
   }
 });
 
-contextBridge.exposeInMainWorld('datspace', {
+contextBridge.exposeInMainWorld('duckspace', {
   // === Query Namespace ===
   query: {
     execute: (sql: string, params?: unknown[]) =>
@@ -774,7 +774,7 @@ contextBridge.exposeInMainWorld('datspace', {
       return () => ipcRenderer.removeListener('shutdown-prepare', handler);
     },
   },
-} satisfies DatspaceAPI);
+} satisfies DuckspaceAPI);
 ```
 
 ---
@@ -784,7 +784,7 @@ contextBridge.exposeInMainWorld('datspace', {
 For TypeScript consumers in the Renderer, declare the global type:
 
 ```typescript
-// src/renderer/types/datspace.d.ts
+// src/renderer/types/duckspace.d.ts
 
 interface QueryHandle {
   queryId: string;
@@ -881,7 +881,7 @@ interface LifecycleNamespace {
   onShutdownPrepare(callback: () => void): () => void;
 }
 
-interface DatspaceAPI {
+interface DuckspaceAPI {
   query: QueryNamespace;
   catalog: CatalogNamespace;
   lifecycle: LifecycleNamespace;
@@ -889,7 +889,7 @@ interface DatspaceAPI {
 
 declare global {
   interface Window {
-    datspace: DatspaceAPI;
+    duckspace: DuckspaceAPI;
   }
 }
 

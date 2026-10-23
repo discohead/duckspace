@@ -1,4 +1,4 @@
-# Research Finding: Claude Agent SDK, MCP, and ACP for datspace
+# Research Finding: Claude Agent SDK, MCP, and ACP for duckspace
 
 **Type:** Research Finding
 **Date:** 2026-02-04
@@ -9,11 +9,11 @@
 
 ## Executive Summary
 
-datspace requires an AI integration layer that enables conversational analytics over local data. The user must be able to chat with their data: ask questions in natural language, receive SQL queries and visualizations, and iterate on analysis. This research evaluates the primary building blocks for that stack within the constraints of a single-user, macOS-first, Electron desktop application with embedded databases (DuckDB, LanceDB, Dexie.js).
+duckspace requires an AI integration layer that enables conversational analytics over local data. The user must be able to chat with their data: ask questions in natural language, receive SQL queries and visualizations, and iterate on analysis. This research evaluates the primary building blocks for that stack within the constraints of a single-user, macOS-first, Electron desktop application with embedded databases (DuckDB, LanceDB, Dexie.js).
 
 Two distinct Anthropic SDK products are evaluated: the **Anthropic Client SDK** (`@anthropic-ai/sdk`), a lightweight typed HTTP client for the Messages API, and the **Claude Agent SDK** (`@anthropic-ai/claude-agent-sdk`), which provides Claude Code as a library with autonomous agent loops, built-in tools, native MCP server connections, hooks, and session management. The correct identity of ACP is also established: the **Agent Client Protocol** is an IDE-to-agent connection protocol (created by Zed and JetBrains), not an agent-to-agent communication protocol.
 
-The recommended architecture uses the **Claude Agent SDK** (`@anthropic-ai/claude-agent-sdk`) as the conversation engine, leveraging the user's locally installed Claude Code instance and Claude Max subscription for authentication. datspace registers its analytics tools as an **in-process MCP server** that the Agent SDK connects to natively. A **LanceDB-powered RAG pipeline** provides context retrieval. **ACP is skipped entirely** as it targets IDE/editor integrations, not desktop analytics applications.
+The recommended architecture uses the **Claude Agent SDK** (`@anthropic-ai/claude-agent-sdk`) as the conversation engine, leveraging the user's locally installed Claude Code instance and Claude Max subscription for authentication. duckspace registers its analytics tools as an **in-process MCP server** that the Agent SDK connects to natively. A **LanceDB-powered RAG pipeline** provides context retrieval. **ACP is skipped entirely** as it targets IDE/editor integrations, not desktop analytics applications.
 
 ---
 
@@ -117,18 +117,18 @@ The Agent SDK packages Claude Code's agentic capabilities as a library. Instead 
 ```typescript
 import { query } from '@anthropic-ai/claude-agent-sdk';
 
-// datspace analytics agent
+// duckspace analytics agent
 for await (const message of query({
   prompt: 'Analyze the sales dataset and find the top revenue drivers',
   options: {
     maxTurns: 20,
     // Restrict to only MCP tools (disable filesystem/bash built-ins)
-    allowedTools: ['mcp__datspace__*'],
-    // Connect to datspace's in-process MCP server
+    allowedTools: ['mcp__duckspace__*'],
+    // Connect to duckspace's in-process MCP server
     mcpServers: {
-      'datspace': {
+      'duckspace': {
         transport: 'memory', // in-process via InMemoryTransport
-        serverInstance: datspaceMcpServer,
+        serverInstance: duckspaceMcpServer,
       },
     },
     // Safety enforcement via hooks
@@ -172,14 +172,14 @@ for await (const message of query({
 - **Auth via locally installed Claude Code**: Uses the user's Claude Max subscription. No BYOK API key required. Authentication is managed by the local Claude Code instance.
 - **No per-token billing**: Claude Max subscription covers usage. No cost tracking or spending limits needed in the application.
 
-### 1.4 Evaluation for datspace
+### 1.4 Evaluation for duckspace
 
-| Criterion | Client SDK | Agent SDK | datspace Requirement |
+| Criterion | Client SDK | Agent SDK | duckspace Requirement |
 |-----------|-----------|-----------|----------------------|
-| **Auth model** | BYOK API key; user must obtain and configure | Local Claude Code + Claude Max subscription; zero configuration | datspace should require minimal setup. Agent SDK's auth-via-subscription eliminates API key management entirely |
-| **Tool control** | Full control -- you implement every tool | Agent decides autonomously; `allowedTools` restricts scope | datspace needs ~10 custom analytics tools. Agent SDK's `allowedTools` can restrict to only MCP tools, giving equivalent control |
+| **Auth model** | BYOK API key; user must obtain and configure | Local Claude Code + Claude Max subscription; zero configuration | duckspace should require minimal setup. Agent SDK's auth-via-subscription eliminates API key management entirely |
+| **Tool control** | Full control -- you implement every tool | Agent decides autonomously; `allowedTools` restricts scope | duckspace needs ~10 custom analytics tools. Agent SDK's `allowedTools` can restrict to only MCP tools, giving equivalent control |
 | **Custom tools** | Define tools via JSON Schema, implement handlers | Connect MCP servers; tools auto-discovered | Both work. Agent SDK's native MCP discovery is simpler -- no manual bridge layer |
-| **Built-in tools** | None | Read, Write, Edit, Bash, Glob, Grep, etc. | Most built-in tools are unnecessary for analytics. `allowedTools: ['mcp__datspace__*']` disables them cleanly |
+| **Built-in tools** | None | Read, Write, Edit, Bash, Glob, Grep, etc. | Most built-in tools are unnecessary for analytics. `allowedTools: ['mcp__duckspace__*']` disables them cleanly |
 | **Safety** | You enforce all safety in custom loop code | PreToolUse hooks intercept every tool call | Hook-based safety is more declarative and centralized. PreToolUse can enforce read-only SQL, timeouts, row limits at framework level |
 | **Streaming** | SSE with event emitters | Async iterables from `query()` | Both work for Electron IPC forwarding. Async iterables are more modern and composable |
 | **Conversation persistence** | Manual (full control over history, pruning) | Built-in session management (resume, fork) | Agent SDK sessions handle resume/fork natively. Metadata (session IDs, timestamps) stored in Dexie.js |
@@ -192,23 +192,23 @@ for await (const message of query({
 
 **Recommendation: Use the Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`)**
 
-The Agent SDK is the correct choice for datspace for the following reasons:
+The Agent SDK is the correct choice for duckspace for the following reasons:
 
-1. **Zero-configuration authentication.** The Agent SDK leverages the user's locally installed Claude Code instance and Claude Max subscription. There is no API key to obtain, configure, store, or rotate. datspace assumes the user has Claude Code installed (a reasonable prerequisite for an AI-powered analytics tool) and the Agent SDK handles authentication transparently. This eliminates an entire category of UX complexity (API key onboarding, secure storage via `safeStorage`, key rotation, invalid key error handling).
+1. **Zero-configuration authentication.** The Agent SDK leverages the user's locally installed Claude Code instance and Claude Max subscription. There is no API key to obtain, configure, store, or rotate. duckspace assumes the user has Claude Code installed (a reasonable prerequisite for an AI-powered analytics tool) and the Agent SDK handles authentication transparently. This eliminates an entire category of UX complexity (API key onboarding, secure storage via `safeStorage`, key rotation, invalid key error handling).
 
-2. **Native MCP integration eliminates the bridge layer.** With the Client SDK, datspace would need a manual bridge: call `mcpClient.listTools()`, convert MCP tool definitions to `Anthropic.Tool[]` format, and dispatch tool calls via `mcpClient.callTool()` in the manual loop. With the Agent SDK, you configure `mcpServers` and the SDK discovers and uses tools automatically. This removes ~50-100 lines of bridge code and a maintenance surface.
+2. **Native MCP integration eliminates the bridge layer.** With the Client SDK, duckspace would need a manual bridge: call `mcpClient.listTools()`, convert MCP tool definitions to `Anthropic.Tool[]` format, and dispatch tool calls via `mcpClient.callTool()` in the manual loop. With the Agent SDK, you configure `mcpServers` and the SDK discovers and uses tools automatically. This removes ~50-100 lines of bridge code and a maintenance surface.
 
-3. **`allowedTools` provides equivalent safety to a custom tool loop.** The prior analysis argued that the Client SDK's explicit loop is safer. In practice, the Agent SDK's `allowedTools` option achieves the same result declaratively: `allowedTools: ['mcp__datspace__*']` restricts the agent to only datspace's MCP tools, disabling all built-in filesystem/bash tools. PreToolUse hooks add a second layer of safety enforcement (read-only SQL check, timeout enforcement, row limits) at the framework level rather than in application loop code.
+3. **`allowedTools` provides equivalent safety to a custom tool loop.** The prior analysis argued that the Client SDK's explicit loop is safer. In practice, the Agent SDK's `allowedTools` option achieves the same result declaratively: `allowedTools: ['mcp__duckspace__*']` restricts the agent to only duckspace's MCP tools, disabling all built-in filesystem/bash tools. PreToolUse hooks add a second layer of safety enforcement (read-only SQL check, timeout enforcement, row limits) at the framework level rather than in application loop code.
 
-4. **Session management aligns with conversation persistence needs.** datspace needs to persist conversations across sessions. The Agent SDK's built-in session management (resume via session ID, fork for exploration) handles this natively. Conversation metadata (session IDs, timestamps, user labels) is stored in Dexie.js, while the Agent SDK manages the actual conversation state. This is simpler than implementing custom message array management, history pruning, and context summarization with the Client SDK.
+4. **Session management aligns with conversation persistence needs.** duckspace needs to persist conversations across sessions. The Agent SDK's built-in session management (resume via session ID, fork for exploration) handles this natively. Conversation metadata (session IDs, timestamps, user labels) is stored in Dexie.js, while the Agent SDK manages the actual conversation state. This is simpler than implementing custom message array management, history pruning, and context summarization with the Client SDK.
 
-5. **Claude Max subscription eliminates cost tracking.** With the Client SDK, datspace would need per-token usage tracking, cumulative cost estimates, configurable spending limits, and a cost display in the UI. With the Agent SDK + Claude Max, the subscription covers usage. This removes an entire feature surface (cost tracking, budget alerts, cost display) that adds complexity without user value.
+5. **Claude Max subscription eliminates cost tracking.** With the Client SDK, duckspace would need per-token usage tracking, cumulative cost estimates, configurable spending limits, and a cost display in the UI. With the Agent SDK + Claude Max, the subscription covers usage. This removes an entire feature surface (cost tracking, budget alerts, cost display) that adds complexity without user value.
 
-6. **Subagent support enables parallel analytics.** The Agent SDK's Task tool can spawn child agents for parallel work. datspace can use this for concurrent dataset analysis, parallel quality checks across tables, or multi-step analytical workflows where independent analyses run simultaneously.
+6. **Subagent support enables parallel analytics.** The Agent SDK's Task tool can spawn child agents for parallel work. duckspace can use this for concurrent dataset analysis, parallel quality checks across tables, or multi-step analytical workflows where independent analyses run simultaneously.
 
 7. **Hook system provides centralized observability.** PostToolUse hooks forward every tool execution to the Renderer Process for real-time UI display. SessionStart/SessionEnd hooks manage lifecycle events. This is more structured than manually instrumenting a custom tool loop.
 
-**When would the Client SDK be the better choice?** If datspace could not assume Claude Code installation or Claude Max subscription (e.g., if targeting users who only have API keys), the Client SDK's BYOK model would be necessary. If datspace needed to support multiple LLM providers (OpenAI, Gemini) behind a unified interface, the Client SDK's lower-level abstraction would be more appropriate as a base layer.
+**When would the Client SDK be the better choice?** If duckspace could not assume Claude Code installation or Claude Max subscription (e.g., if targeting users who only have API keys), the Client SDK's BYOK model would be necessary. If duckspace needed to support multiple LLM providers (OpenAI, Gemini) behind a unified interface, the Client SDK's lower-level abstraction would be more appropriate as a base layer.
 
 **Prerequisite:** The user must have Claude Code installed locally and an active Claude Max subscription. This is documented as an application requirement.
 
@@ -222,12 +222,12 @@ MCP is an open protocol (created by Anthropic) that standardizes how AI models i
 
 Key MCP primitives:
 
-| Primitive | Purpose | datspace Usage |
+| Primitive | Purpose | duckspace Usage |
 |-----------|---------|------------------|
 | **Tools** | Executable functions the model can invoke | SQL query execution, schema exploration, data quality checks, visualization suggestions |
 | **Resources** | Data sources the model can read | Dataset schemas, query results, metadata catalog, saved analyses |
 | **Prompts** | Reusable prompt templates | Analysis templates, report generation prompts, data exploration workflows |
-| **Sampling** | Server-initiated LLM requests | Not needed for datspace (single model) |
+| **Sampling** | Server-initiated LLM requests | Not needed for duckspace (single model) |
 
 ### 2.2 MCP Integration with the Claude Agent SDK
 
@@ -237,17 +237,17 @@ Since the recommended SDK is the Agent SDK, MCP integration is native. The Agent
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
-// 1. Create in-process MCP server with datspace tools
-const mcpServer = new McpServer({ name: 'datspace', version: '1.0.0' });
+// 1. Create in-process MCP server with duckspace tools
+const mcpServer = new McpServer({ name: 'duckspace', version: '1.0.0' });
 registerAnalyticsTools(mcpServer); // registers execute_sql, explore_schema, etc.
 
 // 2. Pass the MCP server to the Agent SDK — tools are discovered automatically
 for await (const message of query({
   prompt: userMessage,
   options: {
-    allowedTools: ['mcp__datspace__*'], // Only datspace MCP tools
+    allowedTools: ['mcp__duckspace__*'], // Only duckspace MCP tools
     mcpServers: {
-      'datspace': {
+      'duckspace': {
         transport: 'memory',
         serverInstance: mcpServer,
       },
@@ -267,13 +267,13 @@ for await (const message of query({
 - No manual tool dispatch bridge code
 - Agent SDK handles tool discovery, invocation, and result processing
 - MCP resources and prompts are accessible to the agent natively
-- Tool namespacing: MCP tools are prefixed (`mcp__datspace__execute_sql`), making `allowedTools` filtering clean
+- Tool namespacing: MCP tools are prefixed (`mcp__duckspace__execute_sql`), making `allowedTools` filtering clean
 
 **Note on in-process transport:** The `InMemoryTransport` approach from `@modelcontextprotocol/sdk` connects the MCP server directly within the Electron Main Process. No subprocess management, no stdio pipes, no serialization overhead for tool calls. The MCP server has direct access to DuckDB, LanceDB, and Dexie.js handles in the same process.
 
 ### 2.3 MCP Server Implementation: Tool Definitions
 
-datspace requires the following MCP tools:
+duckspace requires the following MCP tools:
 
 | Tool | Description | Input | Output |
 |------|-------------|-------|--------|
@@ -321,7 +321,7 @@ mcpServer.tool(
 
 ```typescript
 const sqlSafetyHook = async (tool: string, input: Record<string, unknown>) => {
-  if (tool === 'mcp__datspace__execute_sql') {
+  if (tool === 'mcp__duckspace__execute_sql') {
     const query = (input.query as string).trim().toUpperCase();
     if (/^(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE)\b/.test(query)) {
       return { decision: 'deny', reason: 'Mutation queries are not permitted' };
@@ -402,7 +402,7 @@ Run the MCP server directly in the Electron Main Process using the in-memory tra
 ```typescript
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
-const mcpServer = new McpServer({ name: 'datspace', version: '1.0.0' });
+const mcpServer = new McpServer({ name: 'duckspace', version: '1.0.0' });
 registerAnalyticsTools(mcpServer);
 registerResources(mcpServer);
 registerPrompts(mcpServer);
@@ -425,7 +425,7 @@ Support connecting to external MCP servers for user-installed extensions:
 ```typescript
 // External MCP servers can be configured alongside the in-process server
 mcpServers: {
-  'datspace': {
+  'duckspace': {
     transport: 'memory',
     serverInstance: mcpServer, // in-process
   },
@@ -436,7 +436,7 @@ mcpServers: {
 }
 ```
 
-**Recommendation:** Start with in-process for datspace's own tools. Support connecting to external MCP servers (subprocess or SSE transport) for extensibility in later phases.
+**Recommendation:** Start with in-process for duckspace's own tools. Support connecting to external MCP servers (subprocess or SSE transport) for extensibility in later phases.
 
 ### 2.7 MCP with Agent SDK vs Direct Tool Definitions
 
@@ -450,9 +450,9 @@ The Agent SDK supports both MCP tool discovery and direct tool definitions. The 
 | **Debugging** | Inline tool handlers | MCP Inspector tool available |
 | **Future-proofing** | Locked to Agent SDK format | Works with any MCP-compatible model/client |
 | **Community** | N/A | Growing ecosystem of MCP servers |
-| **External access** | Not possible | External agents (Claude Code, Copilot) can connect to datspace's MCP server |
+| **External access** | Not possible | External agents (Claude Code, Copilot) can connect to duckspace's MCP server |
 
-**Verdict:** Use MCP. The additional setup cost is minimal (especially with in-process transport), and the benefits of standardization, extensibility, and external access are significant. datspace's analytics tools exposed as an MCP server means any MCP-compatible client -- including the user's Claude Code in their terminal -- can connect and query their data.
+**Verdict:** Use MCP. The additional setup cost is minimal (especially with in-process transport), and the benefits of standardization, extensibility, and external access are significant. duckspace's analytics tools exposed as an MCP server means any MCP-compatible client -- including the user's Claude Code in their terminal -- can connect and query their data.
 
 ---
 
@@ -462,7 +462,7 @@ The Agent SDK supports both MCP tool discovery and direct tool definitions. The 
 
 ACP is the **Agent Client Protocol**, an open protocol for connecting code editors and IDEs to AI coding agents. It was created by **Zed** and **JetBrains** and launched in January 2026.
 
-**ACP is NOT an agent-to-agent messaging or orchestration protocol.** A separate IBM project (github.com/i-am-bee/acp) uses a similar acronym for inter-agent messaging, but that is a completely different protocol. datspace should reference the correct ACP.
+**ACP is NOT an agent-to-agent messaging or orchestration protocol.** A separate IBM project (github.com/i-am-bee/acp) uses a similar acronym for inter-agent messaging, but that is a completely different protocol. duckspace should reference the correct ACP.
 
 | Attribute | Agent Client Protocol (ACP) |
 |-----------|----------------------------|
@@ -501,31 +501,31 @@ Key ACP capabilities:
 - **File context:** Editor provides open files, cursor position, selection as context
 - **Agent discovery:** Registry of available agents that editors can connect to
 
-### 3.3 ACP Relevance Assessment for datspace
+### 3.3 ACP Relevance Assessment for duckspace
 
-datspace is a **desktop analytics application**, not a code editor or IDE. The ACP relevance analysis must be evaluated from this perspective.
+duckspace is a **desktop analytics application**, not a code editor or IDE. The ACP relevance analysis must be evaluated from this perspective.
 
 | Question | Answer | Implication |
 |----------|--------|-------------|
-| Is datspace an editor/IDE? | No -- it is an analytics application | ACP client role is not applicable |
-| Does datspace host a coding agent? | No -- it hosts an analytics/data agent | ACP server role does not naturally fit |
-| Does datspace want to appear in editor agent registries? | Unlikely -- users would not invoke "datspace" from their code editor | ACP Agent Registry is not relevant |
-| Does datspace embed an AI agent that manipulates code? | No -- its agent executes SQL, explores schemas, generates visualizations | ACP's file/code context model is irrelevant |
-| Could datspace expose its analytics agent as an ACP server? | Technically possible but architecturally awkward | Would require mapping SQL/analytics tools to ACP's editor-centric interface |
+| Is duckspace an editor/IDE? | No -- it is an analytics application | ACP client role is not applicable |
+| Does duckspace host a coding agent? | No -- it hosts an analytics/data agent | ACP server role does not naturally fit |
+| Does duckspace want to appear in editor agent registries? | Unlikely -- users would not invoke "duckspace" from their code editor | ACP Agent Registry is not relevant |
+| Does duckspace embed an AI agent that manipulates code? | No -- its agent executes SQL, explores schemas, generates visualizations | ACP's file/code context model is irrelevant |
+| Could duckspace expose its analytics agent as an ACP server? | Technically possible but architecturally awkward | Would require mapping SQL/analytics tools to ACP's editor-centric interface |
 
-**Assessment: ACP is not relevant to datspace.**
+**Assessment: ACP is not relevant to duckspace.**
 
-ACP solves the problem of "how does my editor talk to an AI coding agent?" datspace does not have this problem. Its AI integration is embedded within the application, communicating through Electron IPC and the Agent SDK's native MCP integration. There is no editor-to-agent boundary to standardize.
+ACP solves the problem of "how does my editor talk to an AI coding agent?" duckspace does not have this problem. Its AI integration is embedded within the application, communicating through Electron IPC and the Agent SDK's native MCP integration. There is no editor-to-agent boundary to standardize.
 
 ### 3.4 ACP Compliance Recommendation
 
-**Skip ACP entirely.** ACP does not define task lifecycle states for agent workflows. ACP defines the editor-to-agent communication channel. Adopting "ACP-compatible" naming provides no future compatibility benefit because datspace is not in ACP's problem space.
+**Skip ACP entirely.** ACP does not define task lifecycle states for agent workflows. ACP defines the editor-to-agent communication channel. Adopting "ACP-compatible" naming provides no future compatibility benefit because duckspace is not in ACP's problem space.
 
 **Potential future scenario where ACP becomes relevant:**
-If datspace adds a code editor component (e.g., a SQL editor pane with AI-assisted SQL writing), it could act as an ACP client connecting to an external AI agent. However, this is speculative and would be better served by the embedded Agent SDK integration already planned.
+If duckspace adds a code editor component (e.g., a SQL editor pane with AI-assisted SQL writing), it could act as an ACP client connecting to an external AI agent. However, this is speculative and would be better served by the embedded Agent SDK integration already planned.
 
-**Alternative scenario -- exposing datspace as an MCP server:**
-A more useful extensibility path is exposing datspace's analytics tools as an MCP server that external ACP-compatible agents (like Claude Code or Copilot) could connect to. This would let developers query their datspace datasets from their code editor. This is an MCP concern, not an ACP concern, and is already covered by the MCP server design in Section 2.
+**Alternative scenario -- exposing duckspace as an MCP server:**
+A more useful extensibility path is exposing duckspace's analytics tools as an MCP server that external ACP-compatible agents (like Claude Code or Copilot) could connect to. This would let developers query their duckspace datasets from their code editor. This is an MCP concern, not an ACP concern, and is already covered by the MCP server design in Section 2.
 
 ---
 
@@ -533,7 +533,7 @@ A more useful extensibility path is exposing datspace's analytics tools as an MC
 
 ### 4.1 Pipeline Overview
 
-datspace's RAG pipeline retrieves relevant context (schemas, data samples, past analyses) to ground Claude's responses in the user's actual data.
+duckspace's RAG pipeline retrieves relevant context (schemas, data samples, past analyses) to ground Claude's responses in the user's actual data.
 
 ```
 User Query
@@ -654,14 +654,14 @@ async function hybridSearch(query: string, topK: number = 10): Promise<Context[]
 
 ### 5.1 SQL Query Generation and Execution
 
-The core tool pattern for datspace:
+The core tool pattern for duckspace:
 
 ```
 User: "What were our top 10 products by revenue last month?"
     |
     v
 Agent SDK calls MCP tool:
-  mcp__datspace__execute_sql({
+  mcp__duckspace__execute_sql({
     query: "SELECT product_name, SUM(revenue) as total_revenue
             FROM sales
             WHERE sale_date >= '2026-01-01'
@@ -759,7 +759,7 @@ mcpServer.tool(
 
 ### 5.5 Agentic Loop Pattern
 
-With the Agent SDK, the agentic loop is handled by the SDK itself. datspace's role is to:
+With the Agent SDK, the agentic loop is handled by the SDK itself. duckspace's role is to:
 
 1. **Prepare RAG context** before the agent query
 2. **Configure the agent** with MCP servers, allowed tools, and hooks
@@ -780,9 +780,9 @@ async function analyticsChat(userMessage: string, sessionId?: string) {
     options: {
       systemPrompt,
       maxTurns: 20,
-      allowedTools: ['mcp__datspace__*'],
+      allowedTools: ['mcp__duckspace__*'],
       mcpServers: {
-        'datspace': {
+        'duckspace': {
           transport: 'memory',
           serverInstance: mcpServer,
         },
@@ -829,7 +829,7 @@ The Agent SDK autonomously:
 - Manages context window internally
 - Handles streaming and tool result formatting
 
-datspace's code is declarative (configure and stream) rather than imperative (loop and dispatch).
+duckspace's code is declarative (configure and stream) rather than imperative (loop and dispatch).
 
 ---
 
@@ -867,7 +867,7 @@ datspace's code is declarative (configure and stream) rather than imperative (lo
 | MCP support | Native | Community adapters | Community adapters |
 | Auth | Claude Max (zero config) | Per-provider API keys | Per-provider API keys |
 
-**Verdict:** Use Claude Agent SDK directly. datspace is committed to Claude as the AI model. Multi-model abstraction adds complexity without value. The Agent SDK's native MCP integration and Claude Max auth provide a simpler stack than LangChain/LlamaIndex with their heavy dependency trees.
+**Verdict:** Use Claude Agent SDK directly. duckspace is committed to Claude as the AI model. Multi-model abstraction adds complexity without value. The Agent SDK's native MCP integration and Claude Max auth provide a simpler stack than LangChain/LlamaIndex with their heavy dependency trees.
 
 ### 6.3 MCP In-Process vs Subprocess
 
@@ -879,17 +879,17 @@ datspace's code is declarative (configure and stream) rather than imperative (lo
 | DB access | Direct handle sharing | Needs IPC for DB access |
 | Extensibility | Hard to add third-party | Easy third-party servers |
 
-**Verdict:** In-process for datspace's own tools. Support external subprocess MCP servers for user-installed extensions.
+**Verdict:** In-process for duckspace's own tools. Support external subprocess MCP servers for user-installed extensions.
 
 ### 6.4 ACP vs No ACP
 
-| Option | Effort | Value for datspace |
+| Option | Effort | Value for duckspace |
 |--------|--------|---------------------|
-| Full ACP server implementation | High | None -- datspace is not an IDE/editor |
-| ACP client (connect to external agents) | Medium | Minimal -- datspace has its own embedded AI |
-| Skip ACP entirely | None | Correct -- ACP solves editor-to-agent connectivity, which is not datspace's problem |
+| Full ACP server implementation | High | None -- duckspace is not an IDE/editor |
+| ACP client (connect to external agents) | Medium | Minimal -- duckspace has its own embedded AI |
+| Skip ACP entirely | None | Correct -- ACP solves editor-to-agent connectivity, which is not duckspace's problem |
 
-**Verdict:** Skip ACP. It targets a different application category (editors/IDEs). datspace should focus on MCP for tool interoperability instead.
+**Verdict:** Skip ACP. It targets a different application category (editors/IDEs). duckspace should focus on MCP for tool interoperability instead.
 
 ### 6.5 Embedding Models
 
@@ -916,7 +916,7 @@ datspace's code is declarative (configure and stream) rather than imperative (lo
    - Leverages the user's locally installed Claude Code instance for authentication
    - Authentication via Claude Max subscription -- no BYOK API key, no cost tracking
    - `query()` function provides async iterable streaming to Renderer via IPC
-   - `allowedTools: ['mcp__datspace__*']` restricts agent to datspace's MCP tools
+   - `allowedTools: ['mcp__duckspace__*']` restricts agent to duckspace's MCP tools
    - PreToolUse hooks enforce SQL safety (read-only, timeouts, row limits)
    - PostToolUse hooks forward tool events to Renderer for real-time UI display
    - Built-in session management for conversation persistence (resume, fork)
@@ -930,13 +930,13 @@ datspace's code is declarative (configure and stream) rather than imperative (lo
    - Expose datasets, schemas, and metadata as MCP Resources
    - Define analysis prompt templates as MCP Prompts
    - Support external MCP servers for extensibility (Phase 6+)
-   - **Dual benefit:** datspace's MCP server is also accessible to the user's Claude Code in their terminal, enabling "query my data from the command line"
+   - **Dual benefit:** duckspace's MCP server is also accessible to the user's Claude Code in their terminal, enabling "query my data from the command line"
 
 3. **Agent Client Protocol (ACP): Not applicable**
    - ACP is an editor-to-agent connectivity protocol (Zed, JetBrains)
-   - datspace is a desktop analytics application, not an IDE/editor
+   - duckspace is a desktop analytics application, not an IDE/editor
    - No ACP implementation planned for any phase
-   - If datspace wants external agents to access its data, expose an MCP server instead
+   - If duckspace wants external agents to access its data, expose an MCP server instead
 
 4. **RAG Pipeline: LanceDB + DuckDB hybrid search**
    - Embed schemas, queries, and analysis summaries in LanceDB
@@ -948,7 +948,7 @@ datspace's code is declarative (configure and stream) rather than imperative (lo
 5. **Model Selection Strategy**
    - Agent SDK uses the model configured by the user's Claude Code instance
    - Claude Max subscription provides access to all Claude models
-   - datspace can specify preferred model via Agent SDK options if supported
+   - duckspace can specify preferred model via Agent SDK options if supported
    - No per-model cost optimization needed (subscription model)
 
 ### Electron Process Topology for AI
@@ -969,7 +969,7 @@ Renderer Process               Main Process                Worker Thread
 
 - **Stream and Scan applies to AI too:** Never load entire datasets into LLM context. Use MCP tools to query specific data on demand.
 - **Arrow in the loop:** Query results flowing from DuckDB through the tool pipeline should use Arrow format internally, converting to text only for the LLM context.
-- **Zero-config AI:** The user installs Claude Code, signs in with Claude Max, and datspace's AI features work immediately. No API key management, no spending limits, no onboarding wizard for AI.
+- **Zero-config AI:** The user installs Claude Code, signs in with Claude Max, and duckspace's AI features work immediately. No API key management, no spending limits, no onboarding wizard for AI.
 - **Offline-graceful:** Chat features degrade gracefully without network. Schema exploration and cached analyses remain available offline via local embeddings and cached data. A clear offline indicator appears in the UI.
 - **Progressive complexity:** Start with simple schema-aware chat. Add RAG, then multi-tool agentic loops, then visualization generation across roadmap phases.
 - **Declarative safety:** PreToolUse hooks enforce safety rules (read-only SQL, timeouts, row limits) declaratively at the framework level, complemented by defense-in-depth checks in MCP tool handlers.
@@ -980,7 +980,7 @@ Renderer Process               Main Process                Worker Thread
 |-------|-------------|
 | **Phase 4** (MVP AI) | Claude Agent SDK integration, basic chat, `execute_sql` and `explore_schema` tools via MCP, streaming via IPC, session management |
 | **Phase 5** (Full AI) | All MCP tools, RAG pipeline with LanceDB, hybrid search, visualization tools, conversation history in Dexie.js |
-| **Phase 6** (Extensions) | External MCP server support, custom tool registration, prompt template library, expose datspace MCP server to external agents |
+| **Phase 6** (Extensions) | External MCP server support, custom tool registration, prompt template library, expose duckspace MCP server to external agents |
 | **Phase 7** (Advanced) | Subagent-based parallel analytics, multi-step analytical workflows, advanced RAG with re-ranking |
 
 ### Risk Mitigations
@@ -1000,5 +1000,5 @@ Renderer Process               Main Process                Worker Thread
 
 *Research conducted: 2026-02-04*
 *Revision: 3 (corrected SDK recommendation: Claude Agent SDK chosen over Client SDK; auth via local Claude Code + Claude Max subscription)*
-*Applicable to: datspace System Design, Phases 4-7*
+*Applicable to: duckspace System Design, Phases 4-7*
 *Constraints applied: Single-user, macOS-first, Electron, embedded databases, Arrow-first data flow*

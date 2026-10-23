@@ -70,7 +70,7 @@ export function QueryEditor(): ReactElement {
 
   // Subscribe to query status updates
   useEffect(() => {
-    const unsubscribe = window.datspace.query.onStatus((statusEvent: QueryStatusEvent) => {
+    const unsubscribe = window.duckspace.query.onStatus((statusEvent: QueryStatusEvent) => {
       if (queryId && statusEvent.queryId === queryId) {
         setStatus(statusEvent);
       }
@@ -83,7 +83,7 @@ export function QueryEditor(): ReactElement {
     if (!queryId || !isExecuting) return;
 
     const tabId = activeTab?.id;
-    const unsubscribe = window.datspace.query.onData(queryId, (batch: ArrowBatch) => {
+    const unsubscribe = window.duckspace.query.onData(queryId, (batch: ArrowBatch) => {
       // Handle data-plane errors (e.g., SQL syntax errors)
       if (batch.error) {
         setError({ code: batch.error.code, message: batch.error.message });
@@ -98,7 +98,7 @@ export function QueryEditor(): ReactElement {
 
       // Fire custom event so ResultGrid can listen (uses tab ID for matching)
       window.dispatchEvent(
-        new CustomEvent('datspace:arrow-batch', {
+        new CustomEvent('duckspace:arrow-batch', {
           detail: { queryId: tabId, batch },
         }),
       );
@@ -126,13 +126,13 @@ export function QueryEditor(): ReactElement {
 
     // Signal ResultGrid to clear previous results for this tab
     window.dispatchEvent(
-      new CustomEvent('datspace:result-reset', {
+      new CustomEvent('duckspace:result-reset', {
         detail: { tabId: activeTab.id },
       }),
     );
 
     try {
-      const result = await window.datspace.query.execute(sql);
+      const result = await window.duckspace.query.execute(sql);
       setQueryId(result.queryId);
 
       // Create Dexie query record (T044)
@@ -169,7 +169,7 @@ export function QueryEditor(): ReactElement {
     if (!queryId) return;
 
     try {
-      await window.datspace.query.cancel(queryId);
+      await window.duckspace.query.cancel(queryId);
       setIsExecuting(false);
       await db.queries.update(queryId, {
         status: 'cancelled',

@@ -1,4 +1,4 @@
-# datspace: Apache Arrow Data Plane
+# duckspace: Apache Arrow Data Plane
 
 **Document:** 03-arrow-data-plane.md
 **Version:** 1.1
@@ -11,7 +11,7 @@
 
 ## 1. End-to-End Arrow Data Flow
 
-The Arrow data plane is the backbone of datspace's data transfer architecture. Every byte of analytical data flowing between processes uses Apache Arrow IPC stream format. JSON is reserved exclusively for control-plane messages (query descriptors, ACK signals, lifecycle events). This separation enforces Constitution Principle 9 (Arrow-first data flow) without exception.
+The Arrow data plane is the backbone of duckspace's data transfer architecture. Every byte of analytical data flowing between processes uses Apache Arrow IPC stream format. JSON is reserved exclusively for control-plane messages (query descriptors, ACK signals, lifecycle events). This separation enforces Constitution Principle 9 (Arrow-first data flow) without exception.
 
 ### 1.1 Data Flow Overview
 
@@ -94,7 +94,7 @@ The following table documents every process boundary where data crosses and the 
 
 ### 2.1 IPC Format Selection
 
-datspace uses **Arrow IPC Stream Format** (not File Format) for all inter-process data transfer. The distinction matters:
+duckspace uses **Arrow IPC Stream Format** (not File Format) for all inter-process data transfer. The distinction matters:
 
 | Property | Stream Format | File Format |
 |----------|--------------|-------------|
@@ -165,7 +165,7 @@ interface CancelMessage {
 
 ### 2.3 MessagePort Channel Architecture
 
-Per the Electron Process Model (doc 02, Section 4.4), datspace establishes three dedicated `MessageChannelMain` data channels. Each channel carries Arrow IPC payloads for a specific Worker:
+Per the Electron Process Model (doc 02, Section 4.4), duckspace establishes three dedicated `MessageChannelMain` data channels. Each channel carries Arrow IPC payloads for a specific Worker:
 
 ```mermaid
 graph TB
@@ -253,7 +253,7 @@ sequenceDiagram
 
 The predicate pushdown protocol enforces a fundamental architectural principle: **compute where the data lives, transfer only results**. DuckDB executes all filtering, sorting, aggregation, and grouping using its columnar scan engine with SIMD acceleration. The Renderer receives only the rows it will display.
 
-This inverts the traditional web application pattern where a client fetches raw data and filters locally. In datspace, the Renderer sends a declarative description of what it needs, and the database returns exactly that.
+This inverts the traditional web application pattern where a client fetches raw data and filters locally. In duckspace, the Renderer sends a declarative description of what it needs, and the database returns exactly that.
 
 ### 3.2 Query Descriptor Formats
 
@@ -369,7 +369,7 @@ sequenceDiagram
     participant MP as duckdb-data MessagePort
     participant AJ as ArrowJS (Renderer)
 
-    UI->>PB: datspace.query.execute(sql, params)<br/>OR structured query descriptor
+    UI->>PB: duckspace.query.execute(sql, params)<br/>OR structured query descriptor
     PB->>QR: ipcRenderer.invoke('query:execute', descriptor)
 
     QR->>QR: Validate descriptor<br/>Compile structured -> SQL if needed<br/>Generate queryId
@@ -615,7 +615,7 @@ Progress events flow via `webContents.send('query:progress', event)`, not via th
 
 Cancellation propagates from Renderer to DuckDB Worker via two paths:
 
-1. **Control plane:** `datspace.query.cancel(queryId)` -> `ipcMain.handle` -> `worker.postMessage({ type: 'cancel_query', queryId })`
+1. **Control plane:** `duckspace.query.cancel(queryId)` -> `ipcMain.handle` -> `worker.postMessage({ type: 'cancel_query', queryId })`
 2. **Data plane:** Consumer sends `{ type: 'cancel', queryId }` on the MessagePort
 
 The DuckDB Worker uses DuckDB's interrupt mechanism (`duckdb_interrupt`) to cancel the running query. In-flight Arrow batches already transferred are discarded by the consumer.
@@ -629,7 +629,7 @@ sequenceDiagram
     participant MP as duckdb-data MessagePort
     participant AJ as ArrowJS Consumer
 
-    UI->>PB: datspace.query.cancel(queryId)
+    UI->>PB: duckspace.query.cancel(queryId)
     PB->>QR: ipcRenderer.invoke('query:cancel', { queryId })
     QR->>DW: worker.postMessage({ type: 'cancel_query', queryId })
 
@@ -732,7 +732,7 @@ function arrowColumnToArray(column: ArrowVector, nullValue: any = null): any[] {
 
 ### 5.4 Extension Types for Custom Data
 
-datspace defines Arrow extension types for domain-specific data:
+duckspace defines Arrow extension types for domain-specific data:
 
 | Extension Type | Base Type | Metadata Key | Use Case |
 |---------------|-----------|-------------|----------|
@@ -838,7 +838,7 @@ stateDiagram-v2
 
 ### 7.3 Memory Leak Prevention
 
-Arrow buffers in the Renderer can accumulate if not properly released. datspace implements three safeguards:
+Arrow buffers in the Renderer can accumulate if not properly released. duckspace implements three safeguards:
 
 #### 1. Query Result Cache with LRU Eviction
 
@@ -1066,5 +1066,5 @@ Based on Arrow IPC serialization benchmarks and Electron MessagePort transfer ch
 
 ---
 
-*Document 03 of the datspace Architecture Series*
-*Generated: 2026-02-05 | Plan: datspace-system-design-2026-02-04 | Task: design-arrow-data-plane*
+*Document 03 of the duckspace Architecture Series*
+*Generated: 2026-02-05 | Plan: duckspace-system-design-2026-02-04 | Task: design-arrow-data-plane*

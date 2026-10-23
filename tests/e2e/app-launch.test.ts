@@ -2,7 +2,7 @@ import { expect, test } from './fixtures/electron-app';
 
 test.describe('App Launch', () => {
   test('renders WelcomeView with branding on startup', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: 'Datspace' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Duckspace' })).toBeVisible();
     await expect(page.getByText('Embedded Analytics Workbench')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Get Started' })).toBeVisible();
     await expect(page.getByText('Open a new query tab to write and execute SQL')).toBeVisible();
@@ -17,7 +17,7 @@ test.describe('App Launch', () => {
 
   test('window is visible with expected dimensions', async ({ electronApp, page }) => {
     // Wait for the app content to be rendered (ensures ready-to-show has fired)
-    await expect(page.getByRole('heading', { name: 'Datspace' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Duckspace' })).toBeVisible();
 
     const isVisible = await electronApp.evaluate(({ BrowserWindow }) => {
       const win = BrowserWindow.getAllWindows()[0];

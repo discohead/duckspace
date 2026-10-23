@@ -1,4 +1,4 @@
-# datspace: AI Integration Architecture
+# duckspace: AI Integration Architecture
 
 **Document:** 09-ai-integration.md
 **Version:** 1.0
@@ -11,7 +11,7 @@
 
 ## 1. AI Integration Overview
 
-The AI integration layer provides natural language data analytics capabilities to datspace through a Claude Agent SDK-powered conversational interface. The architecture connects the Claude Agent SDK (conversation engine), an in-process MCP server (tool framework), a RAG pipeline (context grounding), and a conversational UI (user interaction) into a cohesive system that runs within Electron's process model.
+The AI integration layer provides natural language data analytics capabilities to duckspace through a Claude Agent SDK-powered conversational interface. The architecture connects the Claude Agent SDK (conversation engine), an in-process MCP server (tool framework), a RAG pipeline (context grounding), and a conversational UI (user interaction) into a cohesive system that runs within Electron's process model.
 
 ### 1.1 Component Diagram
 
@@ -89,7 +89,7 @@ graph TB
 
 ## 2. Claude Agent SDK Integration
 
-The Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) is the conversation engine for datspace. It runs in the Electron Main Process and manages all LLM interactions through its autonomous agent loop. Per [ADR-004 (Revision 3)](../decisions/adr-004-ai-integration.md), the Agent SDK was chosen over the Anthropic Client SDK for zero-configuration authentication, native MCP integration, and elimination of cost tracking.
+The Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) is the conversation engine for duckspace. It runs in the Electron Main Process and manages all LLM interactions through its autonomous agent loop. Per [ADR-004 (Revision 3)](../decisions/adr-004-ai-integration.md), the Agent SDK was chosen over the Anthropic Client SDK for zero-configuration authentication, native MCP integration, and elimination of cost tracking.
 
 ### 2.1 SDK Initialization and Configuration
 
@@ -100,14 +100,14 @@ import { ClaudeAgent } from '@anthropic-ai/claude-agent-sdk';
 interface AgentSDKConfig {
   // MCP server connections
   mcpServers: {
-    'datspace': {
+    'duckspace': {
       transport: 'in-memory';
       server: MCPServerInstance;  // In-process MCP server reference
     };
   };
 
-  // Tool restriction: ONLY datspace MCP tools
-  allowedTools: ['mcp__datspace__*'];
+  // Tool restriction: ONLY duckspace MCP tools
+  allowedTools: ['mcp__duckspace__*'];
 
   // Agent behavior limits
   maxTurns: 25;            // Maximum tool-use iterations per query
@@ -132,12 +132,12 @@ class AgentSDKHost {
   async initialize(mcpServer: MCPServerInstance): Promise<void> {
     this.config = {
       mcpServers: {
-        'datspace': {
+        'duckspace': {
           transport: 'in-memory',
           server: mcpServer,
         },
       },
-      allowedTools: ['mcp__datspace__*'],
+      allowedTools: ['mcp__duckspace__*'],
       maxTurns: 25,
       systemPrompt: buildSystemPrompt(),
       hooks: {
@@ -217,7 +217,7 @@ The Agent SDK manages multi-turn conversations with system prompts, tool usage c
 
 ```typescript
 function buildSystemPrompt(): string {
-  return `You are a data analytics assistant for datspace, a desktop application for exploring and analyzing local datasets.
+  return `You are a data analytics assistant for duckspace, a desktop application for exploring and analyzing local datasets.
 
 ## Your Capabilities
 You can execute SQL queries, explore table schemas, generate visualizations, search across datasets, and assess data quality using the tools available to you.
@@ -247,7 +247,7 @@ When referencing information from search results, cite the source:
 ```typescript
 interface ConversationSession {
   sessionId: string;           // Agent SDK session identifier
-  conversationId: string;      // datspace internal ID (stored in Dexie.js)
+  conversationId: string;      // duckspace internal ID (stored in Dexie.js)
   createdAt: string;           // ISO timestamp
   updatedAt: string;           // ISO timestamp
   label: string;               // User-assigned or auto-generated label
@@ -257,7 +257,7 @@ interface ConversationSession {
 }
 ```
 
-The Agent SDK manages actual conversation state, context window utilization, and history pruning internally. datspace stores only lightweight session metadata in Dexie.js for the conversation list UI.
+The Agent SDK manages actual conversation state, context window utilization, and history pruning internally. duckspace stores only lightweight session metadata in Dexie.js for the conversation list UI.
 
 ### 2.4 Streaming Response Handling
 
@@ -393,13 +393,13 @@ The Claude Agent SDK runs in the **Main Process**, consistent with the process m
 
 ### 2.7 allowedTools Configuration
 
-The `allowedTools` parameter restricts the agent to only datspace's MCP tools, cleanly disabling all built-in Agent SDK tools (Read, Write, Edit, Bash, Glob, Grep, WebSearch):
+The `allowedTools` parameter restricts the agent to only duckspace's MCP tools, cleanly disabling all built-in Agent SDK tools (Read, Write, Edit, Bash, Glob, Grep, WebSearch):
 
 ```typescript
-allowedTools: ['mcp__datspace__*']
+allowedTools: ['mcp__duckspace__*']
 ```
 
-This glob pattern matches all tools registered on the `datspace` MCP server (e.g., `mcp__datspace__execute_sql`, `mcp__datspace__explore_schema`). The agent cannot access the filesystem, run shell commands, or perform web searches -- it can only interact with datspace's analytics tools.
+This glob pattern matches all tools registered on the `duckspace` MCP server (e.g., `mcp__duckspace__execute_sql`, `mcp__duckspace__explore_schema`). The agent cannot access the filesystem, run shell commands, or perform web searches -- it can only interact with duckspace's analytics tools.
 
 ### 2.8 Hook System
 
@@ -442,7 +442,7 @@ sequenceDiagram
 const sqlSafetyHook: PreToolUseHook = {
   name: 'sql-safety',
   async handler(event) {
-    if (event.tool === 'mcp__datspace__execute_sql') {
+    if (event.tool === 'mcp__duckspace__execute_sql') {
       const sql = event.input.sql as string;
       const mutationPattern = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|MERGE|REPLACE)\b/i;
       if (mutationPattern.test(sql)) {
@@ -502,7 +502,7 @@ const sessionLifecycleHook = {
 
 ## 3. MCP Server Design
 
-The MCP server provides the tool framework that enables the Claude Agent SDK to interact with datspace's databases, search indices, and analytics capabilities. Per [ADR-004 (Revision 3)](../decisions/adr-004-ai-integration.md), the MCP server uses `@modelcontextprotocol/sdk` with `InMemoryTransport` for zero-overhead in-process communication.
+The MCP server provides the tool framework that enables the Claude Agent SDK to interact with duckspace's databases, search indices, and analytics capabilities. Per [ADR-004 (Revision 3)](../decisions/adr-004-ai-integration.md), the MCP server uses `@modelcontextprotocol/sdk` with `InMemoryTransport` for zero-overhead in-process communication.
 
 ### 3.1 MCP Server Lifecycle in Electron
 
@@ -526,12 +526,12 @@ sequenceDiagram
     MCPS->>MCPS: Register resources
     MCPS->>MCPS: Register prompt templates
 
-    ALM->>Agent: initialize(mcpServers: { 'datspace': mcpServer })
+    ALM->>Agent: initialize(mcpServers: { 'duckspace': mcpServer })
     Agent->>MCPS: MCP discovery (listTools)
     MCPS-->>Agent: 9 tool definitions with schemas
 
     Note over Agent: Agent now knows all available tools
-    Note over Agent: allowedTools: ['mcp__datspace__*']
+    Note over Agent: allowedTools: ['mcp__duckspace__*']
 ```
 
 **Lifecycle guarantees:**
@@ -1210,7 +1210,7 @@ Conversation session metadata is stored in **Dexie.js** (not RxDB) in the Render
 // chat_messages: 'id, conversationId, timestamp, [conversationId+timestamp]'
 
 interface ChatConversation {
-  id: string;                      // datspace conversation ID
+  id: string;                      // duckspace conversation ID
   sessionId: string;               // Agent SDK session ID (for resume/fork)
   label: string;                   // User-assigned or auto-generated label
   createdAt: string;               // ISO timestamp
@@ -1226,8 +1226,8 @@ interface ChatConversation {
 
 | Aspect | Managed By | Storage |
 |--------|-----------|---------|
-| Conversation list and metadata | datspace (ConversationManager) | Dexie.js `chat_conversations` collection |
-| Recent messages for UI display | datspace (Renderer) | Dexie.js `chat_messages` collection |
+| Conversation list and metadata | duckspace (ConversationManager) | Dexie.js `chat_conversations` collection |
+| Recent messages for UI display | duckspace (Renderer) | Dexie.js `chat_messages` collection |
 | Full conversation context | Claude Agent SDK | Agent SDK session storage (internal) |
 | Context window management | Claude Agent SDK | Automatic pruning (internal) |
 | Session resume/fork tokens | Claude Agent SDK | Session ID references |
@@ -1361,7 +1361,7 @@ const MESSAGE_RENDERERS: Record<MessageRole, React.FC<ChatMessage>> = {
 ```typescript
 // Renderer: Subscribe to AI streaming events
 useEffect(() => {
-  const unsubscribe = window.datspace.on.aiStream((event) => {
+  const unsubscribe = window.duckspace.on.aiStream((event) => {
     switch (event.type) {
       case 'text':
         if (event.done) {
@@ -1424,7 +1424,7 @@ sequenceDiagram
     participant DW as DuckDB Worker
 
     User->>R: Type message + Enter
-    R->>PB: datspace.ai.sendMessage(convId, msg)
+    R->>PB: duckspace.ai.sendMessage(convId, msg)
     PB->>IPC: ipcRenderer.invoke('ai:sendMessage', {convId, msg})
 
     IPC->>Agent: sendMessage(convId, msg, webContents)
@@ -1463,7 +1463,7 @@ sequenceDiagram
 
 ### 6.1 Agent Client Protocol (ACP) -- Not Applicable
 
-The Agent Client Protocol (ACP), created by Zed and JetBrains in January 2026, has been evaluated and determined **not applicable** to datspace, per [ADR-004 (Revision 3)](../decisions/adr-004-ai-integration.md).
+The Agent Client Protocol (ACP), created by Zed and JetBrains in January 2026, has been evaluated and determined **not applicable** to duckspace, per [ADR-004 (Revision 3)](../decisions/adr-004-ai-integration.md).
 
 ### 6.2 What ACP Is
 
@@ -1474,34 +1474,34 @@ ACP is an open protocol analogous to LSP (Language Server Protocol) but for AI a
 - How editors approve/deny tool requests from agents
 - How editors provide file context (open files, cursor position, selection) to agents
 
-### 6.3 Why ACP Is Irrelevant to datspace
+### 6.3 Why ACP Is Irrelevant to duckspace
 
-| ACP Concept | datspace Reality |
+| ACP Concept | duckspace Reality |
 |-------------|-------------------|
-| **Client role (editor)** | datspace is a desktop analytics app, not a code editor |
-| **Server role (coding agent)** | datspace hosts a data analytics agent, not a coding agent |
-| **Context model (files, cursor, selection)** | datspace's context is schemas, tables, and queries -- not source code files |
-| **Agent Registry** | Users would not invoke "datspace" from their code editor for analytics |
-| **Tool approval UX** | datspace's tool approval is handled by PreToolUse hooks, not an editor toolbar |
+| **Client role (editor)** | duckspace is a desktop analytics app, not a code editor |
+| **Server role (coding agent)** | duckspace hosts a data analytics agent, not a coding agent |
+| **Context model (files, cursor, selection)** | duckspace's context is schemas, tables, and queries -- not source code files |
+| **Agent Registry** | Users would not invoke "duckspace" from their code editor for analytics |
+| **Tool approval UX** | duckspace's tool approval is handled by PreToolUse hooks, not an editor toolbar |
 
 **Prior ADR confusion:** The original ADR-004 (revision 1) incorrectly identified ACP as an "Agent Communication Protocol" for multi-agent orchestration (confusion with a separate IBM project at `github.com/i-am-bee/acp`). The actual ACP (`agentclientprotocol.com`) is strictly an editor-to-agent protocol. Revision 2 corrected the identity but retained the incorrect SDK recommendation. Revision 3 corrects both.
 
 ### 6.4 Alternative Extensibility: MCP Server Exposure
 
-If external AI agents (the user's Claude Code in their terminal, Copilot, Gemini CLI) want to access datspace's analytics tools, the correct approach is **exposing datspace's MCP server** for external connections -- not implementing ACP:
+If external AI agents (the user's Claude Code in their terminal, Copilot, Gemini CLI) want to access duckspace's analytics tools, the correct approach is **exposing duckspace's MCP server** for external connections -- not implementing ACP:
 
 - ACP-compatible editors already connect to MCP servers for tool access
-- datspace's 9 analytics tools are registered as standard MCP tools
-- External agents connect to datspace's MCP server via subprocess or network transport
+- duckspace's 9 analytics tools are registered as standard MCP tools
+- External agents connect to duckspace's MCP server via subprocess or network transport
 - This is planned for Phase 6 (Extensions) per ADR-004's implementation phasing
 
-No ACP compliance features, server implementation, or client implementation should be designed or built for datspace.
+No ACP compliance features, server implementation, or client implementation should be designed or built for duckspace.
 
 ---
 
 ## 7. Offline Behavior
 
-datspace follows the Constitution's Principle 14 (Single-User, Local-First) for AI features, with graceful degradation when network connectivity is unavailable.
+duckspace follows the Constitution's Principle 14 (Single-User, Local-First) for AI features, with graceful degradation when network connectivity is unavailable.
 
 ### 7.1 Online vs Offline Feature Matrix
 
@@ -1659,7 +1659,7 @@ The AI status indicator is displayed in the chat panel header and the applicatio
 | Auth via Claude Code + Claude Max | Section 2.2: Authentication flow, startup detection |
 | No cost tracking | Section 2.2: Explicitly no per-token billing, no usage tracking UI |
 | MCP Server (in-process, InMemoryTransport) | Section 3: Complete MCP server design with 9 tools |
-| allowedTools: MCP-only | Section 2.7: Glob pattern restricting to datspace tools |
+| allowedTools: MCP-only | Section 2.7: Glob pattern restricting to duckspace tools |
 | Hook system (Pre/PostToolUse, Session) | Section 2.8: Hook implementations for safety and observability |
 | SQL safety defense-in-depth (3 layers) | Section 3.6: PreToolUse -> MCP handler -> DuckDB read-only |
 | ACP: Not applicable | Section 6: Full ACP assessment and rejection rationale |
@@ -1704,5 +1704,5 @@ The AI status indicator is displayed in the chat panel header and the applicatio
 
 ---
 
-*Document 09 of the datspace Architecture Series*
-*Generated: 2026-02-05 | Plan: datspace-system-design-2026-02-04 | Task: design-ai-integration*
+*Document 09 of the duckspace Architecture Series*
+*Generated: 2026-02-05 | Plan: duckspace-system-design-2026-02-04 | Task: design-ai-integration*

@@ -14,8 +14,8 @@ export {
   TopValueSchema,
   UpdateSourceRequestSchema,
 } from './catalog-schemas';
-export type { DatspaceConfig } from './config-schema';
-export { DatspaceConfigSchema } from './config-schema';
+export type { DuckspaceConfig } from './config-schema';
+export { DuckspaceConfigSchema } from './config-schema';
 
 export {
   AddWatchDirectoryRequestSchema,

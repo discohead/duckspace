@@ -1,4 +1,4 @@
-# datspace: Publishing Engine Architecture
+# duckspace: Publishing Engine Architecture
 
 **Document:** 10-publishing-engine.md
 **Version:** 1.0
@@ -11,13 +11,13 @@
 
 ## 1. Publishing Engine Overview
 
-The Publishing Engine is the Phase 6 system responsible for exporting datspace dashboards, analyses, and AI chat sessions into standalone artifacts that can be shared, hosted, or embedded outside the application. It transforms in-app interactive analytics into portable web applications, static viewers, and deployable packages.
+The Publishing Engine is the Phase 6 system responsible for exporting duckspace dashboards, analyses, and AI chat sessions into standalone artifacts that can be shared, hosted, or embedded outside the application. It transforms in-app interactive analytics into portable web applications, static viewers, and deployable packages.
 
 ### 1.1 Design Goals
 
 | Goal | Description |
 |------|-------------|
-| **Self-contained exports** | Exported artifacts work without datspace installed -- standalone HTML files, static site packages, or deployable bundles |
+| **Self-contained exports** | Exported artifacts work without duckspace installed -- standalone HTML files, static site packages, or deployable bundles |
 | **Data snapshot isolation** | Exported data is a frozen point-in-time copy; no live connection back to the user's local databases |
 | **Privacy by default** | No credentials, API keys, connection strings, or sensitive metadata leak into exports |
 | **Progressive fidelity** | Export options range from lightweight (single HTML file with embedded data) to full-featured (multi-file package with interactive charts) |
@@ -688,7 +688,7 @@ The published chat receives a system prompt that includes the frozen data contex
 
 ```typescript
 function buildPublishedChatSystemPrompt(context: PublishedChatContext): string {
-  return `You are a data analytics assistant for a published datspace analysis.
+  return `You are a data analytics assistant for a published duckspace analysis.
 
 ## Available Data Context
 
@@ -709,7 +709,7 @@ ${context.analysisFindings}
 ## Guidelines
 - Answer questions about the data using the pre-computed context above
 - Be transparent that you cannot run new queries or access raw data
-- Suggest what additional analyses the user could run in datspace
+- Suggest what additional analyses the user could run in duckspace
 - Do not fabricate data points not present in the context
 - If asked about data not in the context, explain that this is a published snapshot`;
 }
@@ -977,7 +977,7 @@ interface ThemeOptions {
 | Theme | Background | Text | Primary | Chart Palette |
 |-------|-----------|------|---------|--------------|
 | **Light** | `#ffffff` | `#1e1e2e` | `#2196F3` | Blue, Teal, Amber, Rose, Violet, Green |
-| **Dark** | `#1e1e2e` | `#cdd6f4` | `#89b4fa` | Catppuccin Mocha palette (matches datspace app) |
+| **Dark** | `#1e1e2e` | `#cdd6f4` | `#89b4fa` | Catppuccin Mocha palette (matches duckspace app) |
 | **Print** | `#ffffff` | `#000000` | `#333333` | Grayscale-safe palette for printing |
 
 ### 7.3 Template Engine
@@ -1084,7 +1084,7 @@ class TemplateEngine {
 <footer class="dc-footer">
   <div class="dc-footer-content">{{{branding.footerText}}}</div>
   <div class="dc-footer-meta">
-    Generated {{generatedAt}} with datspace
+    Generated {{generatedAt}} with duckspace
   </div>
 </footer>
 {{/if}}
@@ -1298,5 +1298,5 @@ async function bundleViewerRuntime(manifest: BundleManifest): Promise<Uint8Array
 
 ---
 
-*Document 10 of the datspace Architecture Series*
-*Generated: 2026-02-05 | Plan: datspace-system-design-2026-02-04 | Task: design-publishing-engine*
+*Document 10 of the duckspace Architecture Series*
+*Generated: 2026-02-05 | Plan: duckspace-system-design-2026-02-04 | Task: design-publishing-engine*

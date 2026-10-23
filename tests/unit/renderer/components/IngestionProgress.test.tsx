@@ -11,15 +11,15 @@ vi.mock('@renderer/stores/hooks', () => ({
   useIngestionJobs: vi.fn(() => mockJobs.current),
 }));
 
-// Mock window.datspace.ingestion.cancelJob
+// Mock window.duckspace.ingestion.cancelJob
 const mockCancelJob = vi.fn().mockResolvedValue(undefined);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubGlobal('datspace', {
+  vi.stubGlobal('duckspace', {
     ingestion: { cancelJob: mockCancelJob },
   });
-  Object.defineProperty(window, 'datspace', {
+  Object.defineProperty(window, 'duckspace', {
     value: { ingestion: { cancelJob: mockCancelJob } },
     writable: true,
     configurable: true,

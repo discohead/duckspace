@@ -39,7 +39,7 @@ export function IngestionProgress(): ReactElement | null {
 
   const handleCancel = (jobId: string): void => {
     setCancellingJobs((prev) => new Set([...prev, jobId]));
-    void window.datspace.ingestion.cancelJob(jobId).catch((err: unknown) => {
+    void window.duckspace.ingestion.cancelJob(jobId).catch((err: unknown) => {
       console.error('[IngestionProgress] Cancel job failed:', err);
     });
   };

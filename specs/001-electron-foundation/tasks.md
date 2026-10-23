@@ -46,25 +46,25 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T013 [P] Define shared TypeScript types (all IPC message interfaces, entity types, QueryHandle, QueryStatus, ArrowBatch, CatalogEntry, ColumnSchema, WorkerHealth, AppState, IPCError, DatspaceConfig) in src/shared/types.ts per contracts/preload-api.md and contracts/ipc-channels.md
+- [X] T013 [P] Define shared TypeScript types (all IPC message interfaces, entity types, QueryHandle, QueryStatus, ArrowBatch, CatalogEntry, ColumnSchema, WorkerHealth, AppState, IPCError, DuckspaceConfig) in src/shared/types.ts per contracts/preload-api.md and contracts/ipc-channels.md
 - [X] T014 [P] Define channel name constants and config defaults (IPC channel names, timeout values, backpressure window size, health check intervals, default preferences) in src/shared/constants.ts
 - [X] T015 [P] Define error taxonomy classes and factory functions (E1001-E1012 database errors, E6001-E6006 system errors) with IPCError structure in src/shared/errors.ts
-- [X] T016 Implement ConfigManager: read/write/validate config.json at ~/Library/Application Support/Datspace/config.json, generate defaults on first launch, merge with hardcoded defaults, validate against DatspaceConfig interface in src/main/config.ts per data-model.md JSON Configuration section
-- [X] T017 [P] Implement DatspaceDB class with Dexie.js version(1) schema declaring 9 collections (tabs, queries, catalog_entries, column_schemas, query_history, preferences, worker_health, recovery_log, app_state) with all indexes in src/renderer/stores/db.ts per contracts/dexie-schema.md
-- [X] T018 [P] Define typed DatspaceAPI interface (QueryNamespace, CatalogNamespace, LifecycleNamespace) in src/preload/api.ts per contracts/preload-api.md
-- [X] T019 Implement preload contextBridge: wrap ipcRenderer.invoke for all control-plane channels, handle MessagePort receipt and routing for duckdb-data channel, implement backpressure ACK sending, expose window.datspace API in src/preload/index.ts per contracts/preload-api.md implementation reference
+- [X] T016 Implement ConfigManager: read/write/validate config.json at ~/Library/Application Support/Duckspace/config.json, generate defaults on first launch, merge with hardcoded defaults, validate against DuckspaceConfig interface in src/main/config.ts per data-model.md JSON Configuration section
+- [X] T017 [P] Implement DuckspaceDB class with Dexie.js version(1) schema declaring 9 collections (tabs, queries, catalog_entries, column_schemas, query_history, preferences, worker_health, recovery_log, app_state) with all indexes in src/renderer/stores/db.ts per contracts/dexie-schema.md
+- [X] T018 [P] Define typed DuckspaceAPI interface (QueryNamespace, CatalogNamespace, LifecycleNamespace) in src/preload/api.ts per contracts/preload-api.md
+- [X] T019 Implement preload contextBridge: wrap ipcRenderer.invoke for all control-plane channels, handle MessagePort receipt and routing for duckdb-data channel, implement backpressure ACK sending, expose window.duckspace API in src/preload/index.ts per contracts/preload-api.md implementation reference
 - [X] T020 [P] Implement DuckDB connection manager: DuckDBInstance.create() with config, connection pooling, extension loading (parquet, json, icu), _query_history and _schema_version table creation in src/workers/duckdb-connection.ts per data-model.md DuckDB section
 - [X] T021 Implement DuckDB Worker Thread entry: parentPort message routing (execute_query, cancel_query, get_table_info, health_check, shutdown, configure), initialization sequence, data port handling in src/workers/duckdb-worker.ts per contracts/ipc-channels.md Worker Control Messages
 - [X] T022 Implement WorkerManager: spawn Worker Thread with resourceLimits (512MB V8 heap), health check interval (60s), heartbeat timeout (5s), consecutive miss tracking, auto-restart logic (up to maxRestartAttempts), status transitions (ready/busy/degraded/restarting/failed) in src/main/worker-manager.ts
 - [X] T023 Implement IPC handler registration: register all ipcMain.handle channels from channel registry (query:execute, query:cancel, query:listTables, query:describeTable, catalog:preview, lifecycle:ready, lifecycle:getAppState, lifecycle:shutdownAck, config:get, config:set, config:getAll), create MessageChannelMain for duckdb-data port and distribute to Worker and Renderer in src/main/ipc-handlers.ts per contracts/ipc-channels.md Channel Registry
 
-**Checkpoint**: Foundation ready -- shared types compile, config loads, DuckDB worker spawns and reports 'ready', preload bridge exposes window.datspace, Dexie.js opens IndexedDB
+**Checkpoint**: Foundation ready -- shared types compile, config loads, DuckDB worker spawns and reports 'ready', preload bridge exposes window.duckspace, Dexie.js opens IndexedDB
 
 ---
 
 ## Phase 3: User Story 1 - Launch and See an Interactive Application (Priority: P1) MVP
 
-**Goal**: An analyst launches datspace and within 2 seconds sees a responsive application window with tab bar, sidebar area, main content region, and macOS-native traffic-light buttons.
+**Goal**: An analyst launches duckspace and within 2 seconds sees a responsive application window with tab bar, sidebar area, main content region, and macOS-native traffic-light buttons.
 
 **Independent Test**: Launch the built application on macOS. Confirm the window appears in <2s, UI is responsive, basic navigation elements (tabs, sidebar) render correctly, Cmd+Q triggers graceful shutdown, and tab state persists across restart.
 
@@ -99,7 +99,7 @@
 - [X] T036 [US2] Implement Arrow IPC batch production: wrap user SQL in to_arrow_ipc(), adaptive batch sizing (~2MB target), window-based backpressure (window=4, pause on full window, resume on ACK), stream-end and error signaling via duckdb-data MessagePort in src/workers/arrow-stream.ts per contracts/ipc-channels.md Data Plane
 - [X] T037 [P] [US2] Implement Flechette Arrow IPC decoder: tableFromIPC() wrapper, extract column names/types/row count, provide column accessor for virtual-scrolling grid in src/renderer/lib/arrow-decode.ts per quickstart.md
 - [X] T038 [P] [US2] Implement Renderer-side backpressure flow control: receive Arrow batches on MessagePort, send ACK messages, accumulate decoded batches, handle stream-end and error messages in src/renderer/lib/backpressure.ts per contracts/ipc-channels.md Backpressure Protocol
-- [X] T039 [US2] Implement QueryEditor component: SQL text input area, execute button (triggers window.datspace.query.execute()), cancel button (triggers window.datspace.query.cancel()), query status display (phase, elapsed time, batches streamed), subscribe to onStatus() in src/renderer/components/QueryEditor.tsx
+- [X] T039 [US2] Implement QueryEditor component: SQL text input area, execute button (triggers window.duckspace.query.execute()), cancel button (triggers window.duckspace.query.cancel()), query status display (phase, elapsed time, batches streamed), subscribe to onStatus() in src/renderer/components/QueryEditor.tsx
 - [X] T040 [US2] Implement ResultGrid component: virtual-scrolling data grid rendering decoded Arrow batches, column headers from schema, handle progressive batch arrival, support scrolling through millions of rows at >30fps in src/renderer/components/ResultGrid.tsx
 - [X] T041 [US2] Wire query execution end-to-end: QueryEditor execute -> preload query.execute() -> IPC query:execute -> QueryRouter -> Worker execute_query -> to_arrow_ipc() -> MessagePort arrow-batch -> preload onData() -> arrow-decode -> ResultGrid render
 - [X] T042 [US2] Implement query cancellation flow: cancel button -> preload query.cancel() -> IPC query:cancel -> QueryRouter -> Worker cancel_query + data-plane cancel message -> confirm no further batches arrive
@@ -176,9 +176,9 @@
 
 - [X] T066 [P] Implement default preference seeding: on first launch, populate Dexie.js preferences collection with Phase 1 defaults (theme:system, fontSize:14, defaultLimit:1000, autoComplete:true, tabSize:2, duckdbLimitPct:50) per data-model.md preferences section
 - [X] T067 [P] Implement query history sync: after query execution, write QueryHistoryRecord to both DuckDB _query_history table and Dexie.js query_history collection via CatalogSyncBridge per data-model.md query_history schema
-- [X] T068 [P] Implement tmp/ directory cleanup on graceful shutdown: delete contents of ~/Library/Application Support/Datspace/tmp/ during shutdown sequence
+- [X] T068 [P] Implement tmp/ directory cleanup on graceful shutdown: delete contents of ~/Library/Application Support/Duckspace/tmp/ during shutdown sequence
 - [X] T069 [P] Implement DuckDB extension bundling: bundle parquet, json, icu extensions in resources/duckdb-extensions/ and load from bundled path at Worker startup (httpfs deferred to Phase 3)
-- [X] T070 Add global type declaration file for window.datspace in src/renderer/types/datspace.d.ts per contracts/preload-api.md Type Declaration File
+- [X] T070 Add global type declaration file for window.duckspace in src/renderer/types/duckspace.d.ts per contracts/preload-api.md Type Declaration File
 - [X] T071 Run quickstart.md verification checklist: confirm all 10 verification items pass (launch <2s, SELECT 42, tab persistence, health monitoring, Arrow IPC confirmed, cancellation, crash recovery, macOS integration, large result streaming, memory budget)
 
 ---
@@ -229,8 +229,8 @@
 Task: "Define shared TypeScript types in src/shared/types.ts"
 Task: "Define channel names and config defaults in src/shared/constants.ts"
 Task: "Define error taxonomy in src/shared/errors.ts"
-Task: "Implement DatspaceDB Dexie.js schema in src/renderer/stores/db.ts"
-Task: "Define typed DatspaceAPI interface in src/preload/api.ts"
+Task: "Implement DuckspaceDB Dexie.js schema in src/renderer/stores/db.ts"
+Task: "Define typed DuckspaceAPI interface in src/preload/api.ts"
 Task: "Implement DuckDB connection manager in src/workers/duckdb-connection.ts"
 
 # Then sequentially (has dependencies on types/constants):

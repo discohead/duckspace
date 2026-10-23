@@ -157,7 +157,7 @@ describe('QueryEditor — Regression', () => {
     currentMockActiveTab = mockTabs[0];
     vi.clearAllMocks();
 
-    window.datspace = {
+    window.duckspace = {
       query: {
         execute: vi.fn().mockResolvedValue({ queryId: 'q-123' }),
         cancel: vi.fn().mockResolvedValue(undefined),
@@ -196,7 +196,7 @@ describe('QueryEditor — Regression', () => {
 
     // Capture onData callback
     let onDataCallback: ((batch: any) => void) | null = null;
-    (window.datspace.query.onData as ReturnType<typeof vi.fn>).mockImplementation(
+    (window.duckspace.query.onData as ReturnType<typeof vi.fn>).mockImplementation(
       (_qId: string, cb: (batch: any) => void) => {
         onDataCallback = cb;
         return () => {};
@@ -207,7 +207,7 @@ describe('QueryEditor — Regression', () => {
     const capturedEvents: CustomEvent[] = [];
     const originalDispatch = window.dispatchEvent.bind(window);
     vi.spyOn(window, 'dispatchEvent').mockImplementation((event: Event) => {
-      if (event instanceof CustomEvent && event.type === 'datspace:arrow-batch') {
+      if (event instanceof CustomEvent && event.type === 'duckspace:arrow-batch') {
         capturedEvents.push(event);
       }
       return originalDispatch(event);
@@ -271,7 +271,7 @@ describe('ResultGrid — Regression', () => {
 
     // Dispatch a batch for q1
     window.dispatchEvent(
-      new CustomEvent('datspace:arrow-batch', {
+      new CustomEvent('duckspace:arrow-batch', {
         detail: { queryId: 'q1', batch: { buffer: new ArrayBuffer(8) } },
       }),
     );
@@ -294,7 +294,7 @@ describe('ResultGrid — Regression', () => {
 
     // Dispatch a terminal batch (isLast=true, empty buffer)
     window.dispatchEvent(
-      new CustomEvent('datspace:arrow-batch', {
+      new CustomEvent('duckspace:arrow-batch', {
         detail: {
           queryId: 'q-terminal',
           batch: { buffer: new ArrayBuffer(0), index: 1, rowCount: 10, byteSize: 0, isLast: true },
@@ -313,7 +313,7 @@ describe('ResultGrid — Regression', () => {
 
     // Dispatch a batch with zero-length buffer but isLast=false
     window.dispatchEvent(
-      new CustomEvent('datspace:arrow-batch', {
+      new CustomEvent('duckspace:arrow-batch', {
         detail: {
           queryId: 'q-empty',
           batch: {
@@ -344,7 +344,7 @@ describe('App — Regression', () => {
     mockMergeBatchesReturn.current = null;
     vi.clearAllMocks();
 
-    window.datspace = {
+    window.duckspace = {
       query: {
         execute: vi.fn().mockResolvedValue({ queryId: 'q-123' }),
         cancel: vi.fn().mockResolvedValue(undefined),
@@ -401,7 +401,7 @@ describe('App — Regression', () => {
     // Dispatch a batch matching the activeTab.id ("tab-1")
     act(() => {
       window.dispatchEvent(
-        new CustomEvent('datspace:arrow-batch', {
+        new CustomEvent('duckspace:arrow-batch', {
           detail: {
             queryId: 'tab-1',
             batch: {
@@ -428,31 +428,31 @@ describe('App — Regression', () => {
 describe('Error message sanitization — Regression', () => {
   it('strips IPC wrapper prefix from error messages', () => {
     const raw =
-      "Error invoking remote method 'watch:addDirectory': DatspaceError: Directory is already being watched: /tmp/foo";
+      "Error invoking remote method 'watch:addDirectory': DuckspaceError: Directory is already being watched: /tmp/foo";
     let cleaned = raw.replace(/^Error invoking remote method '[^']+': /, '');
-    cleaned = cleaned.replace(/^DatspaceError: /, '');
+    cleaned = cleaned.replace(/^DuckspaceError: /, '');
     expect(cleaned).toBe('Directory is already being watched: /tmp/foo');
   });
 
-  it('strips only DatspaceError prefix when IPC wrapper is absent', () => {
-    const raw = 'DatspaceError: File not found: /tmp/missing';
+  it('strips only DuckspaceError prefix when IPC wrapper is absent', () => {
+    const raw = 'DuckspaceError: File not found: /tmp/missing';
     let cleaned = raw.replace(/^Error invoking remote method '[^']+': /, '');
-    cleaned = cleaned.replace(/^DatspaceError: /, '');
+    cleaned = cleaned.replace(/^DuckspaceError: /, '');
     expect(cleaned).toBe('File not found: /tmp/missing');
   });
 
   it('passes through plain messages unchanged', () => {
     const raw = 'Something went wrong.';
     let cleaned = raw.replace(/^Error invoking remote method '[^']+': /, '');
-    cleaned = cleaned.replace(/^DatspaceError: /, '');
+    cleaned = cleaned.replace(/^DuckspaceError: /, '');
     expect(cleaned).toBe('Something went wrong.');
   });
 
   it('handles nested IPC prefix with different channel names', () => {
     const raw =
-      "Error invoking remote method 'catalog:removeSource': DatspaceError: Table drop failed";
+      "Error invoking remote method 'catalog:removeSource': DuckspaceError: Table drop failed";
     let cleaned = raw.replace(/^Error invoking remote method '[^']+': /, '');
-    cleaned = cleaned.replace(/^DatspaceError: /, '');
+    cleaned = cleaned.replace(/^DuckspaceError: /, '');
     expect(cleaned).toBe('Table drop failed');
   });
 });
@@ -468,7 +468,7 @@ describe('App — Watch directory restoration on mount', () => {
     mockMergeBatchesReturn.current = null;
     vi.clearAllMocks();
 
-    window.datspace = {
+    window.duckspace = {
       query: {
         execute: vi.fn().mockResolvedValue({ queryId: 'q-123' }),
         cancel: vi.fn().mockResolvedValue(undefined),
@@ -515,12 +515,12 @@ describe('App — Watch directory restoration on mount', () => {
     render(<App />);
 
     // The useEffect in App calls db.watch_directories.filter().toArray() then
-    // window.datspace.watch.restoreDirectories. Since db.watch_directories is
+    // window.duckspace.watch.restoreDirectories. Since db.watch_directories is
     // mocked from the shared mock setup, we check restoreDirectories was invoked.
     await waitFor(() => {
       // restoreDirectories may or may not have been called depending on
       // watch_directories mock. At minimum, onFileEvent listener is registered.
-      expect(window.datspace.watch.onFileEvent).toHaveBeenCalled();
+      expect(window.duckspace.watch.onFileEvent).toHaveBeenCalled();
     });
   });
 
@@ -631,7 +631,7 @@ describe('App — Watch directory restoration on mount', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(window.datspace.watch.restoreDirectories).toHaveBeenCalled();
+      expect(window.duckspace.watch.restoreDirectories).toHaveBeenCalled();
     });
 
     // Give the recount logic time to run
@@ -658,7 +658,7 @@ describe('App — onFileEvent unlink handler', () => {
     mockMergeBatchesReturn.current = null;
     vi.clearAllMocks();
 
-    window.datspace = {
+    window.duckspace = {
       query: {
         execute: vi.fn().mockResolvedValue({ queryId: 'q-123' }),
         cancel: vi.fn().mockResolvedValue(undefined),
@@ -704,7 +704,7 @@ describe('App — onFileEvent unlink handler', () => {
 
     // Capture the onFileEvent callback
     let fileEventCallback: ((event: any) => void) | null = null;
-    (window.datspace.watch.onFileEvent as ReturnType<typeof vi.fn>).mockImplementation(
+    (window.duckspace.watch.onFileEvent as ReturnType<typeof vi.fn>).mockImplementation(
       (cb: (event: any) => void) => {
         fileEventCallback = cb;
         return () => {};

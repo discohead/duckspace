@@ -166,11 +166,11 @@ describe('DEFAULT_PREFERENCES', () => {
 
 describe('app metadata', () => {
   it('has correct app name', () => {
-    expect(APP_NAME).toBe('Datspace');
+    expect(APP_NAME).toBe('Duckspace');
   });
 
   it('has matching Dexie DB name', () => {
-    expect(DEXIE_DB_NAME).toBe('Datspace');
+    expect(DEXIE_DB_NAME).toBe('Duckspace');
   });
 
   it('has schema version >= 1', () => {

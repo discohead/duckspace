@@ -1,5 +1,5 @@
 /**
- * Zod schema for DatspaceConfig — runtime validation with clamping transforms.
+ * Zod schema for DuckspaceConfig — runtime validation with clamping transforms.
  *
  * Replaces the manual `validateConfig()` in config.ts.
  * The inferred type is re-exported from `src/shared/types.ts`.
@@ -84,13 +84,13 @@ const LIFECYCLE_CONFIG_SCHEMA = z
 // ---------------------------------------------------------------------------
 
 /**
- * Zod schema for the root DatspaceConfig object.
+ * Zod schema for the root DuckspaceConfig object.
  *
  * Validates and transforms the full application configuration with clamping
  * for numeric values. Sub-schemas enforce strict mode (no extra keys) and
  * apply minimum-value transforms to prevent invalid configurations.
  */
-export const DatspaceConfigSchema = z
+export const DuckspaceConfigSchema = z
   .object({
     duckdb: DUCK_DB_CONFIG_SCHEMA.describe('DuckDB memory and threading configuration'),
     paths: PATHS_CONFIG_SCHEMA.describe('Application paths (relative to userData)'),
@@ -100,5 +100,5 @@ export const DatspaceConfigSchema = z
   })
   .strict();
 
-/** Inferred type from the Zod schema — replaces the manual DatspaceConfig interface */
-export type DatspaceConfig = z.infer<typeof DatspaceConfigSchema>;
+/** Inferred type from the Zod schema — replaces the manual DuckspaceConfig interface */
+export type DuckspaceConfig = z.infer<typeof DuckspaceConfigSchema>;

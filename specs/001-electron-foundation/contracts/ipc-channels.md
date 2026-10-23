@@ -24,7 +24,7 @@ Renderer <--------MessagePort (Arrow IPC, zero-copy)--------> DuckDB Worker
 
 ## Control Plane Channels
 
-All control-plane channels use `ipcMain.handle()` / `ipcRenderer.invoke()` for request-response, or `webContents.send()` / `ipcRenderer.on()` for push events. The preload script wraps these in the `window.datspace` API; the Renderer never calls `ipcRenderer` directly.
+All control-plane channels use `ipcMain.handle()` / `ipcRenderer.invoke()` for request-response, or `webContents.send()` / `ipcRenderer.on()` for push events. The preload script wraps these in the `window.duckspace` API; the Renderer never calls `ipcRenderer` directly.
 
 ---
 
@@ -62,7 +62,7 @@ interface QueryExecuteResponse {
 
 ```typescript
 // Renderer
-const { queryId } = await window.datspace.query.execute(
+const { queryId } = await window.duckspace.query.execute(
   'SELECT * FROM sales WHERE region = $1 LIMIT 100',
   ['West']
 );
@@ -115,7 +115,7 @@ interface QueryCancelRequest {
 #### Example
 
 ```typescript
-await window.datspace.query.cancel('a1b2c3d4-e5f6-7890-abcd-ef1234567890');
+await window.duckspace.query.cancel('a1b2c3d4-e5f6-7890-abcd-ef1234567890');
 ```
 
 #### Error Cases
@@ -161,7 +161,7 @@ interface QueryStatusEvent {
 #### Example
 
 ```typescript
-const unsub = window.datspace.query.onStatus((status) => {
+const unsub = window.duckspace.query.onStatus((status) => {
   console.log(`Query ${status.queryId}: ${status.phase}, ${status.batchesStreamed} batches`);
 });
 // Later: unsub() to stop listening
@@ -194,7 +194,7 @@ Renderer signals to Main Process that it has fully initialized: React hydration 
 
 ```typescript
 // Called once during Renderer bootstrap, after all initialization
-await window.datspace.lifecycle.ready();
+await window.duckspace.lifecycle.ready();
 ```
 
 #### Side Effects
@@ -230,7 +230,7 @@ Main Process notifies Renderer that graceful shutdown is beginning. The Renderer
 
 ```typescript
 // Renderer calls after flushing state:
-await window.datspace.lifecycle.shutdownAck();
+await window.duckspace.lifecycle.shutdownAck();
 ```
 
 #### Sequence
@@ -247,10 +247,10 @@ await window.datspace.lifecycle.shutdownAck();
 #### Example
 
 ```typescript
-const unsub = window.datspace.lifecycle.onShutdownPrepare(async () => {
+const unsub = window.duckspace.lifecycle.onShutdownPrepare(async () => {
   await flushDexieWrites();
   await saveUIState();
-  await window.datspace.lifecycle.shutdownAck();
+  await window.duckspace.lifecycle.shutdownAck();
 });
 ```
 
@@ -316,7 +316,7 @@ interface WorkerHealthEvent {
 #### Example
 
 ```typescript
-const unsub = window.datspace.lifecycle.onWorkerHealth((health) => {
+const unsub = window.duckspace.lifecycle.onWorkerHealth((health) => {
   if (health.status === 'degraded') {
     showWarningBanner('Database engine is experiencing issues');
   }
@@ -382,7 +382,7 @@ interface CatalogEntry {
 #### Example
 
 ```typescript
-const entries = await window.datspace.catalog.listTables();
+const entries = await window.duckspace.catalog.listTables();
 // [
 //   {
 //     id: "src-001", name: "sales", schema: "main", type: "table",
@@ -457,7 +457,7 @@ interface ColumnSchema {
 #### Example
 
 ```typescript
-const schema = await window.datspace.catalog.describeTable('sales');
+const schema = await window.duckspace.catalog.describeTable('sales');
 // {
 //   tableName: "sales",
 //   schemaName: "main",
@@ -515,7 +515,7 @@ interface CatalogPreviewResponse {
 #### Example
 
 ```typescript
-const { queryId } = await window.datspace.catalog.previewTable('sales', 50);
+const { queryId } = await window.duckspace.catalog.previewTable('sales', 50);
 // Arrow batches for the first 50 rows arrive on duckdb-data MessagePort
 ```
 

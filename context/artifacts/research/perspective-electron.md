@@ -1,14 +1,14 @@
 # Research Finding: Perspective.js and Visualization Stack in Electron
 
 **Date:** 2026-02-04
-**Domain:** System Design -- datspace
+**Domain:** System Design -- duckspace
 **Scope:** Visualization technology evaluation for Electron-based desktop analytics
 
 ---
 
 ## Executive Summary
 
-datspace requires a visualization stack that operates entirely within the Electron renderer process, handles datasets of millions of rows without loading them fully into JavaScript memory, communicates via Apache Arrow, and composes multiple visualization types into interactive dashboards. After evaluating the ecosystem, the recommended stack is **Perspective.js** for data grids and exploratory analysis, **Observable Plot** for statistical and explanatory visualizations, and **ECharts** for interactive dashboard charts. This combination provides full coverage of analytics visualization needs while respecting the project's Arrow-first, stream-and-scan, and process-isolation principles.
+duckspace requires a visualization stack that operates entirely within the Electron renderer process, handles datasets of millions of rows without loading them fully into JavaScript memory, communicates via Apache Arrow, and composes multiple visualization types into interactive dashboards. After evaluating the ecosystem, the recommended stack is **Perspective.js** for data grids and exploratory analysis, **Observable Plot** for statistical and explanatory visualizations, and **ECharts** for interactive dashboard charts. This combination provides full coverage of analytics visualization needs while respecting the project's Arrow-first, stream-and-scan, and process-isolation principles.
 
 ---
 
@@ -16,7 +16,7 @@ datspace requires a visualization stack that operates entirely within the Electr
 
 ### Architecture Overview
 
-Perspective.js is a high-performance data visualization engine originally built by J.P. Morgan (now FINOS). Its architecture is uniquely suited to datspace:
+Perspective.js is a high-performance data visualization engine originally built by J.P. Morgan (now FINOS). Its architecture is uniquely suited to duckspace:
 
 - **WebAssembly Core**: The data engine runs as a compiled C++ module via WebAssembly within the renderer process. This means data transformations (group-by, pivot, sort, filter) execute at near-native speed without leaving the browser context.
 - **Web Worker Isolation**: By default, Perspective offloads its WASM engine to a Web Worker, keeping the UI thread free. In Electron, this translates to smooth 60fps interaction even during heavy pivots on large datasets.
@@ -24,7 +24,7 @@ Perspective.js is a high-performance data visualization engine originally built 
 
 ### DuckDB as Data Backend
 
-Perspective supports pluggable data backends. The critical integration point for datspace:
+Perspective supports pluggable data backends. The critical integration point for duckspace:
 
 - **DuckDBHandler Pattern**: Rather than loading data into Perspective's internal WASM table, the DuckDBHandler sends queries to DuckDB (running in the main process) and receives Arrow-formatted results. Perspective then renders directly from the Arrow buffer.
 - **Query Pushdown**: Filter, sort, and aggregation operations translate to SQL queries pushed down to DuckDB. This is the "stream-and-scan" principle in action -- Perspective requests only the viewport-relevant data.
@@ -52,7 +52,7 @@ Perspective supports pluggable data backends. The critical integration point for
 
 ### Native Arrow Support
 
-Perspective has first-class Apache Arrow support -- this is its primary differentiator for datspace:
+Perspective has first-class Apache Arrow support -- this is its primary differentiator for duckspace:
 
 - **Arrow IPC as Input**: `table.update(arrowBuffer)` accepts Arrow IPC format directly. No deserialization to JSON or JS objects.
 - **Arrow as Internal Format**: Perspective's internal columnar representation is Arrow-compatible. When data arrives as Arrow, it maps directly into WASM memory with minimal copying.
@@ -60,7 +60,7 @@ Perspective has first-class Apache Arrow support -- this is its primary differen
 
 ### Streaming Updates
 
-For datspace's real-time connector scenarios (streaming from Mixpanel, PostHog, etc.):
+For duckspace's real-time connector scenarios (streaming from Mixpanel, PostHog, etc.):
 
 - **RecordBatch Appending**: New Arrow RecordBatches can be appended via `table.update()` without reloading the full dataset. Perspective incrementally updates its indices.
 - **Partial Updates**: Using a primary key column, `table.update()` can upsert rows -- matching rows are updated, new rows are inserted.
@@ -85,7 +85,7 @@ DuckDB (main process)
 
 ## Observable Plot for Statistical Visualization
 
-### Role in datspace
+### Role in duckspace
 
 Observable Plot fills the "explanatory and statistical" visualization niche that Perspective does not cover:
 
@@ -114,13 +114,13 @@ Observable Plot fills the "explanatory and statistical" visualization niche that
 ### SVG vs. Canvas Trade-offs
 
 - **SVG (default)**: Crisp at any resolution, accessible (DOM elements), supports CSS styling. Performant up to ~10,000 elements. Ideal for explanatory charts.
-- **Canvas**: Better for scatter plots with >10K points. Observable Plot supports Canvas marks. datspace should default to SVG and switch to Canvas only for dense scatter/point plots.
+- **Canvas**: Better for scatter plots with >10K points. Observable Plot supports Canvas marks. duckspace should default to SVG and switch to Canvas only for dense scatter/point plots.
 
 ---
 
 ## ECharts for Interactive Dashboard Charts
 
-### Role in datspace
+### Role in duckspace
 
 ECharts fills the "interactive dashboard" visualization niche:
 
@@ -135,7 +135,7 @@ ECharts has specific features for performance with large datasets:
 
 - **Downsampling**: Built-in `sampling` option ('lttb', 'average', 'max', 'min') for time series. LTTB (Largest Triangle Three Buckets) preserves visual shape while reducing points.
 - **Progressive Rendering**: `progressive` and `progressiveThreshold` options render data incrementally. Charts with >100K points render progressively to avoid frame drops.
-- **Dataset Component**: ECharts' `dataset` abstraction decouples data from chart configuration. datspace can pipe Arrow-derived arrays into `dataset.source` without restructuring.
+- **Dataset Component**: ECharts' `dataset` abstraction decouples data from chart configuration. duckspace can pipe Arrow-derived arrays into `dataset.source` without restructuring.
 - **WebGL Renderer**: ECharts supports a WebGL renderer for scatter plots and lines with millions of points (`echarts-gl`). On macOS/Electron this maps to Metal.
 
 ### Arrow Integration Approach
@@ -171,7 +171,7 @@ This respects the "stream-and-scan" principle: DuckDB does the heavy lifting, EC
 
 ### Component Coexistence Model
 
-datspace dashboards combine Perspective, Observable Plot, and ECharts in a single renderer window:
+duckspace dashboards combine Perspective, Observable Plot, and ECharts in a single renderer window:
 
 ```
 Renderer Process (Single BrowserWindow)
@@ -250,7 +250,7 @@ User clicks bar in ECharts chart
 | Bundle Size | ~500KB (community) / ~2MB (enterprise) | ~10MB (WASM + JS) |
 | License | Community: MIT; Enterprise: commercial | Apache 2.0 |
 
-**Verdict**: AG Grid is excellent for traditional web apps but lacks Arrow integration and WASM performance. Its pivot features require a commercial license. Perspective's native Arrow support and WASM engine align with datspace's architecture.
+**Verdict**: AG Grid is excellent for traditional web apps but lacks Arrow integration and WASM performance. Its pivot features require a commercial license. Perspective's native Arrow support and WASM engine align with duckspace's architecture.
 
 #### Tabulator
 
@@ -276,7 +276,7 @@ User clicks bar in ECharts chart
 | Code Volume | High (50-100 lines per chart) | Low (5-20 lines per chart) |
 | Maintenance | More code to maintain | Concise, readable |
 
-**Verdict**: Observable Plot is built on D3.js and provides a higher-level API. For datspace, development velocity matters -- Plot achieves in 10 lines what D3 does in 50. Custom D3 is available as an escape hatch since Plot is D3-compatible.
+**Verdict**: Observable Plot is built on D3.js and provides a higher-level API. For duckspace, development velocity matters -- Plot achieves in 10 lines what D3 does in 50. Custom D3 is available as an escape hatch since Plot is D3-compatible.
 
 #### Vega-Lite
 
@@ -288,7 +288,7 @@ User clicks bar in ECharts chart
 | Output | Canvas or SVG | SVG or Canvas |
 | Electron Fit | JSON spec requires parsing layer | Direct JS API, natural in renderer |
 
-**Verdict**: Vega-Lite's declarative JSON grammar is powerful but adds a specification-parsing layer. Observable Plot's JS-native API integrates more naturally with Electron's renderer. For datspace, the simpler stack wins.
+**Verdict**: Vega-Lite's declarative JSON grammar is powerful but adds a specification-parsing layer. Observable Plot's JS-native API integrates more naturally with Electron's renderer. For duckspace, the simpler stack wins.
 
 ### Interactive Chart Alternatives
 

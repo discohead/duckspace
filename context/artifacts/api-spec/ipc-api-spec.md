@@ -1,4 +1,4 @@
-# datspace: IPC and API Specification
+# duckspace: IPC and API Specification
 
 **Document:** ipc-api-spec.md
 **Version:** 1.0
@@ -11,14 +11,14 @@
 
 ## 1. IPC Architecture Overview
 
-datspace uses a **dual-plane IPC architecture** that separates control messages from data transfer. The control plane carries JSON-serializable commands and responses via Electron's `ipcMain.handle()` / `ipcRenderer.invoke()`. The data plane carries Apache Arrow IPC buffers via direct `MessagePort` channels between Worker Threads and the Renderer Process. This separation enforces Constitution Principle 9 (Arrow-first data flow) while keeping control messages lightweight.
+duckspace uses a **dual-plane IPC architecture** that separates control messages from data transfer. The control plane carries JSON-serializable commands and responses via Electron's `ipcMain.handle()` / `ipcRenderer.invoke()`. The data plane carries Apache Arrow IPC buffers via direct `MessagePort` channels between Worker Threads and the Renderer Process. This separation enforces Constitution Principle 9 (Arrow-first data flow) while keeping control messages lightweight.
 
 ### 1.1 IPC Channel Map
 
 ```mermaid
 graph TB
     subgraph RendererProcess["Renderer Process (Sandboxed Chromium)"]
-        PreloadBridge["Preload Script<br/>contextBridge.exposeInMainWorld('datspace', api)"]
+        PreloadBridge["Preload Script<br/>contextBridge.exposeInMainWorld('duckspace', api)"]
         MPManager["MessagePortManager<br/>- Receives ports via ipcRenderer.on('port')<br/>- Routes Arrow data to consumers"]
         DexieJS["Dexie.js<br/>- Local IndexedDB state<br/>- No IPC (Renderer-only)"]
     end
@@ -81,7 +81,7 @@ graph TB
 
 | Pattern | Mechanism | Use Case | Example |
 |---------|-----------|----------|---------|
-| **Request-Response** | `ipcRenderer.invoke()` -> `ipcMain.handle()` | Control-plane commands | `datspace.query.execute(sql)` -> `{ queryId }` |
+| **Request-Response** | `ipcRenderer.invoke()` -> `ipcMain.handle()` | Control-plane commands | `duckspace.query.execute(sql)` -> `{ queryId }` |
 | **Event Push** | `webContents.send()` -> `ipcRenderer.on()` | Streaming / notifications | AI response chunks, ingestion progress |
 | **Data Streaming** | MessagePort with Arrow IPC batches | Query results, search results | Arrow `RecordBatch` chunks with backpressure ACKs |
 | **Fire-and-Forget** | `worker.postMessage()` | Heartbeat, non-critical updates | Worker health pings |
@@ -90,19 +90,19 @@ graph TB
 
 ## 2. Preload Bridge API
 
-The preload script exposes a typed API via `contextBridge.exposeInMainWorld('datspace', api)`. This is the **sole interface** between the sandboxed Renderer and the privileged Main Process. All methods use `ipcRenderer.invoke()` internally and return Promises. Push events are subscribed via callback registration that wraps `ipcRenderer.on()`.
+The preload script exposes a typed API via `contextBridge.exposeInMainWorld('duckspace', api)`. This is the **sole interface** between the sandboxed Renderer and the privileged Main Process. All methods use `ipcRenderer.invoke()` internally and return Promises. Push events are subscribed via callback registration that wraps `ipcRenderer.on()`.
 
 ### 2.1 Complete API Surface
 
 ```typescript
 /**
  * The complete contextBridge-exposed API.
- * Accessible in the Renderer as `window.datspace`.
+ * Accessible in the Renderer as `window.duckspace`.
  *
  * All methods return Promises (via ipcRenderer.invoke).
  * Event subscriptions return unsubscribe functions.
  */
-interface DatspaceAPI {
+interface DuckspaceAPI {
   /** Database query operations */
   query: QueryNamespace;
   /** Vector and full-text search */
@@ -592,7 +592,7 @@ interface EventNamespace {
 // preload.ts
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
-contextBridge.exposeInMainWorld('datspace', {
+contextBridge.exposeInMainWorld('duckspace', {
   // === Query Namespace ===
   query: {
     execute: (sql: string, params?: unknown[]) =>
@@ -736,7 +736,7 @@ contextBridge.exposeInMainWorld('datspace', {
       return () => ipcRenderer.removeListener('shutdown-prepare', handler);
     },
   },
-} as DatspaceAPI);
+} as DuckspaceAPI);
 ```
 
 ---
@@ -1029,7 +1029,7 @@ interface RegisterTableRequest {
   type: 'register_table';
   /** Table name in DuckDB */
   tableName: string;
-  /** datspace source ID */
+  /** duckspace source ID */
   sourceId: string;
   /** Registration method */
   method: 'arrow_scan' | 'parquet_view' | 'csv_view';
@@ -1372,7 +1372,7 @@ interface EmbedProgressMessage {
 
 ## 5. Event Bus Messages
 
-Events are pushed from the Main Process to the Renderer via `webContents.send()`. The Renderer subscribes via the `datspace.on.*` event namespace. Events are fire-and-forget (no acknowledgment required from the Renderer).
+Events are pushed from the Main Process to the Renderer via `webContents.send()`. The Renderer subscribes via the `duckspace.on.*` event namespace. Events are fire-and-forget (no acknowledgment required from the Renderer).
 
 ### 5.1 Data Source Events
 
@@ -1731,7 +1731,7 @@ ipcMain.handle('query:execute', async (event, { sql, params }) => {
 
 // Renderer: Error handling in preload bridge consumer
 try {
-  const { queryId } = await window.datspace.query.execute(sql, params);
+  const { queryId } = await window.duckspace.query.execute(sql, params);
 } catch (error) {
   const ipcError = error as IPCError;
   if (ipcError.retryable && ipcError.retryAfterMs) {
@@ -1841,7 +1841,7 @@ interface TableInfo {
   rowCount: number;
   /** Estimated storage size */
   sizeBytes: number;
-  /** datspace source ID (if registered) */
+  /** duckspace source ID (if registered) */
   sourceId?: string;
 }
 ```
@@ -2276,5 +2276,5 @@ Complete listing of all `ipcMain.handle()` channels registered by the Main Proce
 
 ---
 
-*IPC and API Specification for the datspace Architecture Series*
-*Generated: 2026-02-05 | Plan: datspace-system-design-2026-02-04 | Task: spec-ipc-api*
+*IPC and API Specification for the duckspace Architecture Series*
+*Generated: 2026-02-05 | Plan: duckspace-system-design-2026-02-04 | Task: spec-ipc-api*

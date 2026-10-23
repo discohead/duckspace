@@ -109,9 +109,11 @@ export function ImportDialog(): ReactElement {
 
       const paths = extractSupportedPaths(e.dataTransfer.files);
       if (paths.length > 0) {
-        void window.datspace.ingestion.importFiles(paths, 'drag_and_drop').catch((err: unknown) => {
-          console.error('[ImportDialog] Drag-and-drop import failed:', err);
-        });
+        void window.duckspace.ingestion
+          .importFiles(paths, 'drag_and_drop')
+          .catch((err: unknown) => {
+            console.error('[ImportDialog] Drag-and-drop import failed:', err);
+          });
       }
     };
 
@@ -130,7 +132,7 @@ export function ImportDialog(): ReactElement {
 
   const handleFilePickerClick = useCallback((): void => {
     // Empty paths signals the Main process IPC handler to show a native file dialog
-    void window.datspace.ingestion.importFiles([], 'file_picker').catch((err: unknown) => {
+    void window.duckspace.ingestion.importFiles([], 'file_picker').catch((err: unknown) => {
       console.error('[ImportDialog] File picker import failed:', err);
     });
   }, []);

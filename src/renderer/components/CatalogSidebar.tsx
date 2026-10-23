@@ -95,7 +95,7 @@ export function CatalogSidebar(): ReactElement {
     }
     void (async () => {
       try {
-        await window.datspace.catalog.removeSource(sourceId);
+        await window.duckspace.catalog.removeSource(sourceId);
         await db.data_sources.delete(sourceId);
         setRemoveError(null);
       } catch (err: unknown) {
@@ -108,7 +108,7 @@ export function CatalogSidebar(): ReactElement {
   /** Retry import for a failed or stale source. */
   const handleRetryImport = useCallback((source: DataSource): void => {
     setContextMenu(null);
-    void window.datspace.ingestion
+    void window.duckspace.ingestion
       .importFiles([source.filePath], 'retry', source.id)
       .catch((err: unknown) => {
         console.error('[CatalogSidebar] Retry import failed:', err);
@@ -211,7 +211,7 @@ export function CatalogSidebar(): ReactElement {
                 type="button"
                 style={styles.emptyAction}
                 onClick={() => {
-                  void window.datspace.ingestion
+                  void window.duckspace.ingestion
                     .importFiles([], 'file_picker')
                     .catch((err: unknown) => {
                       console.error('[CatalogSidebar] Import files failed:', err);

@@ -51,7 +51,7 @@ describe('CatalogBrowser', () => {
   beforeEach(() => {
     currentEntries = mockEntries;
 
-    window.datspace = {
+    window.duckspace = {
       catalog: {
         previewTable: vi.fn(),
         listTables: vi.fn(),

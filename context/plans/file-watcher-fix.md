@@ -59,11 +59,11 @@ This is the critical disambiguation that determines the fix strategy.
 ### Main process stdout (from crash dump)
 
 ```
-[pid=65508][out] [FileWatcher] Watching "/tmp/datspace-diag-test" (id=d4cae913-...)
+[pid=65508][out] [FileWatcher] Watching "/tmp/duckspace-diag-test" (id=d4cae913-...)
 [pid=65508][out] [FileWatcher] Restored 1/1 watch directories
-[pid=65508][out] [FileWatcher] Watcher ready for "/tmp/datspace-diag-test" (id=d4cae913-...)
-[pid=65508][out] [FileWatcher] Watching "/tmp/datspace-chokidar-probe" (id=dcdc87bf-...)
-[pid=65508][out] [FileWatcher] Watcher ready for "/tmp/datspace-chokidar-probe" (id=dcdc87bf-...)
+[pid=65508][out] [FileWatcher] Watcher ready for "/tmp/duckspace-diag-test" (id=d4cae913-...)
+[pid=65508][out] [FileWatcher] Watching "/tmp/duckspace-chokidar-probe" (id=dcdc87bf-...)
+[pid=65508][out] [FileWatcher] Watcher ready for "/tmp/duckspace-chokidar-probe" (id=dcdc87bf-...)
 ```
 
 Zero `[FileWatcher] add:` entries in the entire process lifetime, despite:
@@ -75,13 +75,13 @@ Zero `[FileWatcher] add:` entries in the entire process lifetime, despite:
 
 ```
 $ timeout 8 node -e "const { watch } = require('chokidar'); ..."
-ADD: /tmp/datspace-diag-test/diag-test-1770590756.csv
-ADD: /tmp/datspace-diag-test/intercepted-test.csv
-ADD: /tmp/datspace-diag-test/live-test.csv
-ADD: /tmp/datspace-diag-test/test-data.csv
+ADD: /tmp/duckspace-diag-test/diag-test-1770590756.csv
+ADD: /tmp/duckspace-diag-test/intercepted-test.csv
+ADD: /tmp/duckspace-diag-test/live-test.csv
+ADD: /tmp/duckspace-diag-test/test-data.csv
 READY
 Created node-test.csv
-ADD: /tmp/datspace-diag-test/node-test.csv
+ADD: /tmp/duckspace-diag-test/node-test.csv
 ```
 
 Works perfectly — both initial scan and real-time detection.
@@ -173,7 +173,7 @@ watcher.on('ready', () => {
 ## Recommended Approach
 
 1. **First**: Run Strategy A to determine scope. This takes 5 minutes and determines everything.
-2. **If Forge works**: Document as Playwright-MCP limitation. Optionally add `usePolling: true` behind a `DATSPACE_FILE_WATCHER_POLLING=1` env var for debugging.
+2. **If Forge works**: Document as Playwright-MCP limitation. Optionally add `usePolling: true` behind a `DUCKSPACE_FILE_WATCHER_POLLING=1` env var for debugging.
 3. **If Forge fails too**: Implement Strategy B (`usePolling: true` in Electron) as the immediate fix, then evaluate Strategy D (`@parcel/watcher`) for a longer-term solution.
 
 ## Files Involved
@@ -258,13 +258,13 @@ const { WebContents } = process._linkedBinding('electron_browser_web_contents');
 
 // Bridge to renderer (IPC, Dexie, preload bridge)
 win.webContents.executeJavaScript(`
-  window.datspace.watch.listDirectories().then(dirs => JSON.stringify(dirs))
+  window.duckspace.watch.listDirectories().then(dirs => JSON.stringify(dirs))
 `);
 
 // Access IndexedDB directly
 win.webContents.executeJavaScript(`
   new Promise((resolve) => {
-    const req = indexedDB.open('Datspace');
+    const req = indexedDB.open('Duckspace');
     req.onsuccess = () => {
       const tx = req.result.transaction('watch_directories', 'readonly');
       const getAll = tx.objectStore('watch_directories').getAll();

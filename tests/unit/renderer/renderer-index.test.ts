@@ -78,8 +78,8 @@ describe('renderer bootstrap', () => {
     mockRootElement.id = 'root';
     vi.spyOn(document, 'getElementById').mockReturnValue(mockRootElement);
 
-    // Mock window.datspace
-    window.datspace = {
+    // Mock window.duckspace
+    window.duckspace = {
       query: {
         execute: vi.fn(),
         cancel: vi.fn(),
@@ -200,38 +200,38 @@ describe('renderer bootstrap', () => {
 
   it('calls lifecycle.ready after rendering', async () => {
     await runBootstrap();
-    expect(window.datspace.lifecycle.ready).toHaveBeenCalled();
+    expect(window.duckspace.lifecycle.ready).toHaveBeenCalled();
   });
 
   it('registers shutdown handler', async () => {
     await runBootstrap();
-    expect(window.datspace.lifecycle.onShutdownPrepare).toHaveBeenCalled();
+    expect(window.duckspace.lifecycle.onShutdownPrepare).toHaveBeenCalled();
   });
 
   it('registers bounds handler', async () => {
     await runBootstrap();
-    expect(window.datspace.lifecycle.onBoundsChanged).toHaveBeenCalled();
+    expect(window.duckspace.lifecycle.onBoundsChanged).toHaveBeenCalled();
   });
 
   it('registers query history handler', async () => {
     await runBootstrap();
-    expect(window.datspace.query.onQueryHistory).toHaveBeenCalled();
+    expect(window.duckspace.query.onQueryHistory).toHaveBeenCalled();
   });
 
   it('registers worker health handler', async () => {
     await runBootstrap();
-    expect(window.datspace.lifecycle.onWorkerHealth).toHaveBeenCalled();
+    expect(window.duckspace.lifecycle.onWorkerHealth).toHaveBeenCalled();
   });
 
   it('shutdown handler saves clean status and acks', async () => {
     let shutdownCallback: (() => Promise<void>) | null = null;
-    (window.datspace.lifecycle.onShutdownPrepare as ReturnType<typeof vi.fn>).mockImplementation(
+    (window.duckspace.lifecycle.onShutdownPrepare as ReturnType<typeof vi.fn>).mockImplementation(
       (cb: () => Promise<void>) => {
         shutdownCallback = cb;
         return () => {};
       },
     );
-    (window.datspace.lifecycle.shutdownAck as ReturnType<typeof vi.fn>).mockResolvedValue(
+    (window.duckspace.lifecycle.shutdownAck as ReturnType<typeof vi.fn>).mockResolvedValue(
       undefined,
     );
 
@@ -243,18 +243,18 @@ describe('renderer bootstrap', () => {
     expect(mockAppStatePut).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'shutdown_status', value: 'clean' }),
     );
-    expect(window.datspace.lifecycle.shutdownAck).toHaveBeenCalled();
+    expect(window.duckspace.lifecycle.shutdownAck).toHaveBeenCalled();
   });
 
   it('shutdown handler acks even on error', async () => {
     let shutdownCallback: (() => Promise<void>) | null = null;
-    (window.datspace.lifecycle.onShutdownPrepare as ReturnType<typeof vi.fn>).mockImplementation(
+    (window.duckspace.lifecycle.onShutdownPrepare as ReturnType<typeof vi.fn>).mockImplementation(
       (cb: () => Promise<void>) => {
         shutdownCallback = cb;
         return () => {};
       },
     );
-    (window.datspace.lifecycle.shutdownAck as ReturnType<typeof vi.fn>).mockResolvedValue(
+    (window.duckspace.lifecycle.shutdownAck as ReturnType<typeof vi.fn>).mockResolvedValue(
       undefined,
     );
 
@@ -263,18 +263,18 @@ describe('renderer bootstrap', () => {
     mockAppStatePut.mockRejectedValue(new Error('db error'));
     await shutdownCallback!();
 
-    expect(window.datspace.lifecycle.shutdownAck).toHaveBeenCalled();
+    expect(window.duckspace.lifecycle.shutdownAck).toHaveBeenCalled();
   });
 
   it('shutdown handler saves last active tab', async () => {
     let shutdownCallback: (() => Promise<void>) | null = null;
-    (window.datspace.lifecycle.onShutdownPrepare as ReturnType<typeof vi.fn>).mockImplementation(
+    (window.duckspace.lifecycle.onShutdownPrepare as ReturnType<typeof vi.fn>).mockImplementation(
       (cb: () => Promise<void>) => {
         shutdownCallback = cb;
         return () => {};
       },
     );
-    (window.datspace.lifecycle.shutdownAck as ReturnType<typeof vi.fn>).mockResolvedValue(
+    (window.duckspace.lifecycle.shutdownAck as ReturnType<typeof vi.fn>).mockResolvedValue(
       undefined,
     );
 
@@ -297,7 +297,7 @@ describe('renderer bootstrap', () => {
     let boundsCallback:
       | ((bounds: { x: number; y: number; width: number; height: number }) => Promise<void>)
       | null = null;
-    (window.datspace.lifecycle.onBoundsChanged as ReturnType<typeof vi.fn>).mockImplementation(
+    (window.duckspace.lifecycle.onBoundsChanged as ReturnType<typeof vi.fn>).mockImplementation(
       (cb: (bounds: { x: number; y: number; width: number; height: number }) => Promise<void>) => {
         boundsCallback = cb;
         return () => {};
@@ -319,7 +319,7 @@ describe('renderer bootstrap', () => {
 
   it('query history handler saves record to db', async () => {
     let queryHistoryCallback: ((record: any) => Promise<void>) | null = null;
-    (window.datspace.query.onQueryHistory as ReturnType<typeof vi.fn>).mockImplementation(
+    (window.duckspace.query.onQueryHistory as ReturnType<typeof vi.fn>).mockImplementation(
       (cb: (record: any) => Promise<void>) => {
         queryHistoryCallback = cb;
         return () => {};
@@ -349,7 +349,7 @@ describe('renderer bootstrap', () => {
 
   it('worker health handler saves health to db', async () => {
     let workerHealthCallback: ((health: any) => Promise<void>) | null = null;
-    (window.datspace.lifecycle.onWorkerHealth as ReturnType<typeof vi.fn>).mockImplementation(
+    (window.duckspace.lifecycle.onWorkerHealth as ReturnType<typeof vi.fn>).mockImplementation(
       (cb: (health: any) => Promise<void>) => {
         workerHealthCallback = cb;
         return () => {};

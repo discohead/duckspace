@@ -38,7 +38,7 @@ C9 (type alignment)
   ├── I13 (ErrorCode narrowing — shared types)
   └── I14 (Tab discriminated union — shared types)
 
-C5 (IPC error boundaries) ──> uses DatspaceError from errors.ts
+C5 (IPC error boundaries) ──> uses DuckspaceError from errors.ts
 C6 (loadURL await) ──> I1 (activate — depends on lifecycle.ts changes)
 C9 (type alignment) ──> I9 (arrow-error details — depends on types.ts ArrowBatch)
 
@@ -137,8 +137,8 @@ describe('handleConfigure input validation', () => {
   });
 
   it('accepts valid temp_directory', async () => {
-    await handler({ type: 'configure', settings: { temp_directory: '/tmp/datspace' } });
-    expect(mockRun).toHaveBeenCalledWith(expect.stringContaining('/tmp/datspace'));
+    await handler({ type: 'configure', settings: { temp_directory: '/tmp/duckspace' } });
+    expect(mockRun).toHaveBeenCalledWith(expect.stringContaining('/tmp/duckspace'));
   });
 
   it('applies valid settings and skips invalid ones', async () => {
@@ -467,7 +467,7 @@ REFACTOR — None needed (`setStatus` already pushes health).
 
 #### C5: No Error Boundaries on IPC Handlers
 
-**Problem**: `src/main/ipc-handlers.ts:99-205` — all `ipcMain.handle` callbacks throw raw errors. Electron serializes these via structured clone, losing DatspaceError code/retryable fields.
+**Problem**: `src/main/ipc-handlers.ts:99-205` — all `ipcMain.handle` callbacks throw raw errors. Electron serializes these via structured clone, losing DuckspaceError code/retryable fields.
 
 **Files to modify**:
 | File | Lines | Change |
@@ -491,7 +491,7 @@ describe('IPC handler error boundaries', () => {
     expect(result).toHaveProperty('retryable');
   });
 
-  it('preserves DatspaceError codes through IPC', async () => {
+  it('preserves DuckspaceError codes through IPC', async () => {
     const mockRouter = {
       executeQuery: vi.fn().mockRejectedValue(
         querySyntaxError('bad sql')
@@ -519,7 +519,7 @@ function wrapIPCHandler<T>(
     try {
       return await fn(event, args);
     } catch (err) {
-      if (err instanceof DatspaceError) return err.toIPCError();
+      if (err instanceof DuckspaceError) return err.toIPCError();
       const classified = classifyDuckDBError(
         err instanceof Error ? err : new Error(String(err)),
       );
@@ -530,7 +530,7 @@ function wrapIPCHandler<T>(
 
 // Usage:
 ipcMain.handle(IPC_CHANNELS.QUERY_EXECUTE, wrapIPCHandler(async (_event, args) => {
-  if (!queryRouter) throw new DatspaceError(ERROR_CODES.IPC_TIMEOUT, 'QueryRouter not initialized');
+  if (!queryRouter) throw new DuckspaceError(ERROR_CODES.IPC_TIMEOUT, 'QueryRouter not initialized');
   return await queryRouter.executeQuery(args.sql, args.params);
 }));
 ```
@@ -748,15 +748,15 @@ it('config:set validates full config after applying change', async () => {
 });
 ```
 
-GREEN — After constructing the modified config, validate with `DatspaceConfigSchema.safeParse()`:
+GREEN — After constructing the modified config, validate with `DuckspaceConfigSchema.safeParse()`:
 ```typescript
 ipcMain.handle(IPC_CHANNELS.CONFIG_SET, wrapIPCHandler(async (_event, args) => {
   const config = getConfig();
   const keys = args.key.split('.');
   // ... existing key traversal ...
-  const parsed = DatspaceConfigSchema.safeParse(config);
+  const parsed = DuckspaceConfigSchema.safeParse(config);
   if (!parsed.success) {
-    throw new DatspaceError(ERROR_CODES.MUTATION_REJECTED, `Invalid config: ${parsed.error.message}`);
+    throw new DuckspaceError(ERROR_CODES.MUTATION_REJECTED, `Invalid config: ${parsed.error.message}`);
   }
   setConfigValue(sectionKey, sectionObj as (typeof config)[typeof sectionKey]);
 }));
@@ -1005,7 +1005,7 @@ const IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 async previewTable(tableName: string, limit?: number): Promise<QueryHandle> {
   if (!IDENTIFIER_PATTERN.test(tableName)) {
-    throw new DatspaceError(
+    throw new DuckspaceError(
       ERROR_CODES.QUERY_SYNTAX_ERROR,
       `Invalid table name: "${tableName}". Must be a valid SQL identifier.`,
     );
@@ -1415,7 +1415,7 @@ REFACTOR — None needed.
 
 ### Milestone 2E: Type Narrowing Fixes
 
-#### I13: DatspaceError Constructor Accepts `string` Not `ErrorCode`
+#### I13: DuckspaceError Constructor Accepts `string` Not `ErrorCode`
 
 **Problem**: `src/shared/errors.ts:169` — constructor parameter `code` is `string`, not `ErrorCode`.
 
@@ -1433,7 +1433,7 @@ RED — Add compile-time test:
 ```typescript
 it('rejects invalid error codes at compile time', () => {
   // @ts-expect-error: 'INVALID' is not assignable to ErrorCode
-  new DatspaceError('INVALID', 'test');
+  new DuckspaceError('INVALID', 'test');
 });
 ```
 
@@ -1442,7 +1442,7 @@ GREEN —
 2. Change constructor signature: `constructor(code: ErrorCode, message?: string, ...)`
 3. Type `ERROR_METADATA` as `Record<ErrorCode, { name: string; retryable: boolean; defaultMessage: string }>`
 
-REFACTOR — Verify all `new DatspaceError(...)` call sites and factory functions pass valid `ErrorCode` values (they already use `ERROR_CODES.*` constants). Update `classifyDuckDBError` default to use a proper code.
+REFACTOR — Verify all `new DuckspaceError(...)` call sites and factory functions pass valid `ErrorCode` values (they already use `ERROR_CODES.*` constants). Update `classifyDuckDBError` default to use a proper code.
 
 **Tests**: 2 (compile-time: valid accepted, invalid rejected)
 
@@ -1557,7 +1557,7 @@ No tests needed — documentation-only changes.
 - **Files**: `src/shared/types.ts:640-665`, `src/preload/api.ts:24-155`
 - **Change**: In `types.ts`, re-export from `api.ts` instead of duplicating:
   ```typescript
-  export type { QueryNamespace, CatalogNamespace, LifecycleNamespace, DatspaceAPI } from '@preload/api';
+  export type { QueryNamespace, CatalogNamespace, LifecycleNamespace, DuckspaceAPI } from '@preload/api';
   ```
 
 ### D7: Fix classifyDuckDBError Default Fallback Comment

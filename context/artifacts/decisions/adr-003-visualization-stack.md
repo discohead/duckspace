@@ -2,14 +2,14 @@
 
 **Status:** Accepted
 **Date:** 2026-02-04
-**Deciders:** datspace Architecture Team
-**Domain:** System Design -- datspace
+**Deciders:** duckspace Architecture Team
+**Domain:** System Design -- duckspace
 
 ---
 
 ## Context
 
-datspace is an Electron-based desktop analytics application that must render diverse visualization types across three distinct usage patterns, each with fundamentally different technical requirements:
+duckspace is an Electron-based desktop analytics application that must render diverse visualization types across three distinct usage patterns, each with fundamentally different technical requirements:
 
 1. **High-performance tabular display.** Users need to explore raw datasets of millions of rows through data grids, pivot tables, and cross-tabulations. This demands virtual scrolling, server-side query pushdown, and native Apache Arrow ingestion to avoid materializing full datasets into JavaScript memory. The application's "stream-and-scan" principle (Constitution constraint #11) prohibits bulk-loading data into the renderer.
 
@@ -32,7 +32,7 @@ These constraints narrow the viable technology choices significantly, ruling out
 
 ## Decision
 
-datspace adopts a three-library visualization stack, unified by Apache Arrow as the interchange format. Each library is assigned a specific, non-overlapping role.
+duckspace adopts a three-library visualization stack, unified by Apache Arrow as the interchange format. Each library is assigned a specific, non-overlapping role.
 
 ### Primary Stack
 
@@ -125,7 +125,7 @@ Raw data never materializes as JavaScript objects in the renderer. Only pre-aggr
 
 #### AG Grid
 
-AG Grid is the most popular web data grid but lacks critical capabilities for datspace:
+AG Grid is the most popular web data grid but lacks critical capabilities for duckspace:
 
 - **No Arrow support.** Accepts only JSON or JavaScript arrays, requiring full deserialization of data into JS heap memory. This violates the Arrow-first (Constitution #9) and stream-and-scan (#11) principles.
 - **WASM engine absent.** Pure JavaScript execution creates GC pressure on large datasets. Perspective's C++ WASM engine avoids garbage collection entirely for data operations.
@@ -173,7 +173,7 @@ Vega-Lite provides a declarative JSON grammar for visualization:
 - **JSON specification layer.** Charts are defined as JSON objects, requiring a parsing/compilation step before rendering. This adds complexity compared to Observable Plot's direct JavaScript API.
 - **Larger runtime.** Requires the Vega runtime (~500KB) plus the Vega-Lite compiler.
 - **Indirect Electron integration.** JSON specs must be compiled to Vega specs, then rendered. Observable Plot generates DOM elements directly from JavaScript, a more natural fit for Electron's renderer.
-- **Rich interaction grammar.** Vega-Lite's selection and interaction grammar is more powerful than Observable Plot's. However, datspace delegates complex interactions (cross-filtering, brushing) to the dashboard Filter Manager rather than encoding them in chart specs.
+- **Rich interaction grammar.** Vega-Lite's selection and interaction grammar is more powerful than Observable Plot's. However, duckspace delegates complex interactions (cross-filtering, brushing) to the dashboard Filter Manager rather than encoding them in chart specs.
 
 **Verdict:** Rejected. JSON grammar adds unnecessary indirection in an Electron renderer context.
 
@@ -212,7 +212,7 @@ Highcharts is mature and feature-rich but commercially licensed:
 
 Chart.js is lightweight and popular but lacks features for analytics dashboards:
 
-- **Limited chart types.** Covers basic charts (bar, line, pie, scatter) but lacks Sankey diagrams, tree maps, geographic maps, and gauge charts that datspace dashboards require.
+- **Limited chart types.** Covers basic charts (bar, line, pie, scatter) but lacks Sankey diagrams, tree maps, geographic maps, and gauge charts that duckspace dashboards require.
 - **No progressive rendering.** Cannot handle datasets beyond ~10K points without custom optimization.
 - **No WebGL renderer.** Canvas-only, which limits maximum dataset size for smooth rendering.
 
@@ -257,7 +257,7 @@ The alternative of using one library (e.g., Plotly) for all visualization was co
 
 4. **Different rendering approaches.** Perspective renders via WebGL, Observable Plot via SVG (default), and ECharts via Canvas/WebGL. This means three different rendering pipelines coexist in one renderer process, competing for GPU contexts and requiring different resize/repaint strategies. Mitigation: ResizeObserver handles per-component resize; a single renderer window manages GPU context sharing efficiently on modern macOS.
 
-5. **Developer learning curve.** Contributors must understand three visualization APIs rather than one. Each library has its own configuration paradigm (Perspective: custom element attributes, Observable Plot: functional marks API, ECharts: declarative options object). Mitigation: provide wrapper components that expose a consistent datspace API, abstracting library-specific configuration.
+5. **Developer learning curve.** Contributors must understand three visualization APIs rather than one. Each library has its own configuration paradigm (Perspective: custom element attributes, Observable Plot: functional marks API, ECharts: declarative options object). Mitigation: provide wrapper components that expose a consistent duckspace API, abstracting library-specific configuration.
 
 6. **Perspective WASM memory limits.** Perspective's WASM linear memory (default ~256MB) can be exhausted by very large pivot operations. Mitigation: use DuckDB-side aggregation for large pivots; configure Perspective to fetch on-demand via DuckDBHandler rather than pre-loading into WASM memory.
 

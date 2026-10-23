@@ -1,11 +1,11 @@
-import type { DatspaceConfig } from '@shared/types';
+import type { DuckspaceConfig } from '@shared/types';
 import fc from 'fast-check';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock electron's app module before imports
 vi.mock('electron', () => ({
   app: {
-    getPath: vi.fn(() => '/tmp/datspace-test'),
+    getPath: vi.fn(() => '/tmp/duckspace-test'),
   },
 }));
 
@@ -195,7 +195,7 @@ describe('config validation properties', () => {
 
       // Verify writeFileSync was called with the validated config
       const writeCall = vi.mocked(fs.writeFileSync).mock.calls[0]!;
-      const written = JSON.parse(writeCall[1] as string) as DatspaceConfig;
+      const written = JSON.parse(writeCall[1] as string) as DuckspaceConfig;
 
       expect(written.duckdb.memoryLimitPercent).toBe(config.duckdb.memoryLimitPercent);
       expect(written.ui.theme).toBe(config.ui.theme);

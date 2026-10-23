@@ -21,7 +21,7 @@ import Dexie, { type Table } from 'dexie';
  * watch directories, column statistics, preferences, worker health, recovery logs, and app state.
  * Schema indexes are declared in the constructor.
  */
-export class DatspaceDB extends Dexie {
+export class DuckspaceDB extends Dexie {
   declare tabs: Table<Tab, string>;
   declare queries: Table<Query, string>;
   declare catalog_entries: Table<CatalogEntry, string>;
@@ -37,7 +37,7 @@ export class DatspaceDB extends Dexie {
   declare column_statistics: Table<ColumnStatisticsRecord, string>;
 
   constructor() {
-    super('Datspace');
+    super('Duckspace');
 
     this.version(1).stores({
       tabs: 'id, type, order',
@@ -75,4 +75,4 @@ export class DatspaceDB extends Dexie {
 }
 
 /** Singleton Dexie.js database instance used throughout the renderer process. */
-export const db = new DatspaceDB();
+export const db = new DuckspaceDB();

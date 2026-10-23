@@ -50,14 +50,14 @@ artifacts:
     produced_at: "2026-02-05T10:01:00Z"
     revision: R4
     verified: true
-    description: "Arquero integration research for datspace visualization pipeline"
+    description: "Arquero integration research for duckspace visualization pipeline"
     checksum: sha256:c6d5b7c1747ac1dcfaa5711d6283c04f8ffb28c7a4027979fcb7f2dac4abcb88
   - path: .orchestrator/artifacts/research/mosaic-evaluation.md
     type: research
     produced_by: mosaic-evaluation
     produced_at: "2026-02-05T11:30:00Z"
     verified: true
-    description: "Mosaic framework evaluation for datspace - 5-package analysis with per-package go/no-go recommendations"
+    description: "Mosaic framework evaluation for duckspace - 5-package analysis with per-package go/no-go recommendations"
     checksum: sha256:9f027f59263572d109bfeaa2887eb1c14b6c04bea7c37fe40a161746f090ceed
   - path: .orchestrator/artifacts/design/01-system-overview.md
     type: system-design
@@ -136,7 +136,7 @@ artifacts:
     produced_by: spec-ipc-api
     produced_at: "2026-02-06T03:42:16Z"
     verified: true
-    description: "Complete IPC and API specification for datspace - Preload Bridge, Arrow IPC, Worker protocols, Event Bus, Error codes"
+    description: "Complete IPC and API specification for duckspace - Preload Bridge, Arrow IPC, Worker protocols, Event Bus, Error codes"
     lines: 2280
     checksum: sha256:c472548870eabb62a776911123e01a234a95bffaf1451c43965654e17bc787cc
   - path: .orchestrator/artifacts/design/00-architecture-overview.md

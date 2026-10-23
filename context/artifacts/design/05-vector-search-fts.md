@@ -1,4 +1,4 @@
-# datspace: Vector Search and Full-Text Search
+# duckspace: Vector Search and Full-Text Search
 
 **Document:** 05-vector-search-fts.md
 **Version:** 1.0
@@ -934,5 +934,5 @@ When referencing information from search results, cite the source:
 
 ---
 
-*Document 05 of the datspace Architecture Series*
-*Generated: 2026-02-05 | Plan: datspace-system-design-2026-02-04 | Task: design-vector-search-fts*
+*Document 05 of the duckspace Architecture Series*
+*Generated: 2026-02-05 | Plan: duckspace-system-design-2026-02-04 | Task: design-vector-search-fts*

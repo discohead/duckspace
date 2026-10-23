@@ -2,14 +2,14 @@
 
 **Status:** Accepted
 **Date:** 2026-02-04
-**Deciders:** datspace Architecture Team
+**Deciders:** duckspace Architecture Team
 **Supersedes:** N/A
 
 ---
 
 ## Context
 
-datspace is a macOS-first desktop analytics application built on Electron. It embeds three database engines (DuckDB for SQL analytics, LanceDB for vector search, RxDB/SQLite for UI state), uses Apache Arrow as its universal data transfer format, and relies on GPU-accelerated visualization libraries (Perspective.js, Observable Plot, ECharts).
+duckspace is a macOS-first desktop analytics application built on Electron. It embeds three database engines (DuckDB for SQL analytics, LanceDB for vector search, RxDB/SQLite for UI state), uses Apache Arrow as its universal data transfer format, and relies on GPU-accelerated visualization libraries (Perspective.js, Observable Plot, ECharts).
 
 The central architectural question is: **how should these components be distributed across Electron's available process types?**
 
@@ -38,7 +38,7 @@ The architecture must satisfy these constraints while minimizing IPC overhead fo
 
 ### Process Topology
 
-datspace adopts a **Single Renderer + Main Process + 3 Dedicated Worker Threads** architecture.
+duckspace adopts a **Single Renderer + Main Process + 3 Dedicated Worker Threads** architecture.
 
 | Component | Process | Responsibility |
 |-----------|---------|----------------|
@@ -106,7 +106,7 @@ Each database engine and compute workload runs on a dedicated Worker Thread:
 
 ### Preload Script and contextBridge API Surface
 
-The preload script exposes a typed API via `contextBridge.exposeInMainWorld('datspace', api)`:
+The preload script exposes a typed API via `contextBridge.exposeInMainWorld('duckspace', api)`:
 
 **Control plane API (Renderer to Main via IPC):**
 - `query.execute(sql: string, params?: unknown[]): Promise<void>` -- Initiates a query; results arrive via MessagePort data channel
@@ -185,7 +185,7 @@ Three direct MessagePort channels are established at application startup:
 - MessagePort channels between renderers require Main Process coordination for setup and error handling.
 - Single-user desktop application does not benefit from multi-window complexity in the initial design.
 
-**Why rejected:** The synchronization complexity outweighs the benefits for datspace's initial single-user, single-focus design. Constitution principle #14 (Single-User, Local-First) means there is no concurrent-use scenario driving multi-window needs.
+**Why rejected:** The synchronization complexity outweighs the benefits for duckspace's initial single-user, single-focus design. Constitution principle #14 (Single-User, Local-First) means there is no concurrent-use scenario driving multi-window needs.
 
 **Escape hatch:** A "detach chart to new window" feature can be added later by creating a new BrowserWindow for a specific visualization. This is an additive change that does not require redesigning the core architecture.
 
@@ -292,5 +292,5 @@ Three direct MessagePort channels are established at application startup:
 - [Node.js worker_threads](https://nodejs.org/api/worker_threads.html)
 - [DuckDB Node.js API](https://duckdb.org/docs/api/nodejs/overview)
 - [Apache Arrow JavaScript](https://arrow.apache.org/docs/js/)
-- datspace Constitution (`.orchestrator/decomposition/constitution.yaml`)
+- duckspace Constitution (`.orchestrator/decomposition/constitution.yaml`)
 - Electron Process Model Research (`.orchestrator/artifacts/research/electron-process-model.md`)
