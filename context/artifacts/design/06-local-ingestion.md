@@ -1,4 +1,4 @@
-# datspace: Local Data Ingestion Pipeline
+# duckspace: Local Data Ingestion Pipeline
 
 **Document:** 06-local-ingestion.md
 **Version:** 1.0
@@ -19,7 +19,7 @@ The local data ingestion pipeline is responsible for discovering local files, de
 flowchart TB
     subgraph Discovery["File Discovery"]
         FolderWatch["Folder Watcher<br/>(chokidar / FSEvents)<br/>- Configured watch directories<br/>- File type filtering<br/>- Change detection"]
-        ManualPick["Manual File Picker<br/>(native dialog)<br/>- datspace.ingest.pickFiles()<br/>- datspace.ingest.pickFolder()"]
+        ManualPick["Manual File Picker<br/>(native dialog)<br/>- duckspace.ingest.pickFiles()<br/>- duckspace.ingest.pickFolder()"]
         DragDrop["Drag & Drop<br/>(Renderer)<br/>- File path extraction<br/>- Format validation"]
     end
 
@@ -1094,7 +1094,7 @@ On macOS, file locks can occur when files are being written by other application
 | DuckDB Worker #1 (Section 4.2) | Receives Arrow data for table registration |
 | Embedding Worker #4 (Section 4.2) | Receives schema text for embedding generation |
 | FileSystemManager (Section 2.1) | Provides file dialogs and folder watching infrastructure |
-| Preload Bridge (Section 5) | Exposes `datspace.ingest.*` API for Renderer |
+| Preload Bridge (Section 5) | Exposes `duckspace.ingest.*` API for Renderer |
 | WorkerManager (Section 4.3) | Manages Compute Worker lifecycle and restart |
 
 ### 8.3 Document 03 (Arrow Data Plane) Integration
@@ -1118,5 +1118,5 @@ On macOS, file locks can occur when files are being written by other application
 
 ---
 
-*Document 06 of the datspace Architecture Series*
-*Generated: 2026-02-05 | Plan: datspace-system-design-2026-02-04 | Task: design-local-ingestion*
+*Document 06 of the duckspace Architecture Series*
+*Generated: 2026-02-05 | Plan: duckspace-system-design-2026-02-04 | Task: design-local-ingestion*

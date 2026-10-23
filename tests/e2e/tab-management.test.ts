@@ -23,7 +23,7 @@ test.describe('Tab Management', () => {
 
   test('create new tab via + button shows query editor', async ({ page }) => {
     // Start from WelcomeView
-    await expect(page.getByRole('heading', { name: 'Datspace' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Duckspace' })).toBeVisible();
 
     // Click + to create a new query tab
     await createQueryTab(page);
@@ -32,7 +32,7 @@ test.describe('Tab Management', () => {
     await expect(page.getByRole('tab', { name: /Query 1/ })).toBeVisible();
 
     // WelcomeView disappears
-    await expect(page.getByRole('heading', { name: 'Datspace' })).not.toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Duckspace' })).not.toBeVisible();
 
     // Query editor is shown
     await expect(page.getByPlaceholder('Enter SQL query...')).toBeVisible();
@@ -49,7 +49,7 @@ test.describe('Tab Management', () => {
     await page.getByRole('tab').first().locator('button').click();
 
     // WelcomeView returns
-    await expect(page.getByRole('heading', { name: 'Datspace' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Duckspace' })).toBeVisible();
     await expect(page.getByRole('tab')).toHaveCount(0);
   });
 

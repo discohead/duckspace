@@ -3,7 +3,7 @@
  * Reproduction: to_arrow_ipc() crash with real CSV data.
  *
  * Uses the actual 58-column, 1.5M-row CSV that triggered the original crash.
- * This script uses ONLY @duckdb/node-api — no Electron, no Datspace code.
+ * This script uses ONLY @duckdb/node-api — no Electron, no Duckspace code.
  *
  * Tests at various row limits to find the crash threshold.
  */

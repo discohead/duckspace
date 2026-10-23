@@ -122,7 +122,7 @@ The recommended build order based on dependency analysis:
 | IPC handler registration | `ipc-handlers.ts` | Add `ipcMain.handle()` for new channels |
 | Startup sequence | `lifecycle.ts` | Add watcher init after step 6 (MessagePort setup) |
 | Shutdown sequence | `lifecycle.ts` | Add watcher teardown before Worker shutdown |
-| Preload bridge | `api.ts` + `index.ts` | Add `ingestion`, `watch` namespaces to `DatspaceAPI` |
+| Preload bridge | `api.ts` + `index.ts` | Add `ingestion`, `watch` namespaces to `DuckspaceAPI` |
 | Dexie schema version | `db.ts` | Bump version, add new table stores |
 | Renderer tab system | `App.tsx` | Add `DataGridTab` type for imported table views |
 | Constants | `constants.ts` | Add IPC channels, push events |

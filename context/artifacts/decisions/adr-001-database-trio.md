@@ -3,18 +3,18 @@
 **Status:** Accepted (Revised)
 **Date:** 2026-02-04
 **Revision:** 2 -- Replaced RxDB Premium with Dexie.js (free alternative)
-**Deciders:** datspace Architecture Team
+**Deciders:** duckspace Architecture Team
 **Domain:** System Design -- Database Layer
 
 ---
 
 ## Context
 
-datspace is an Electron-based desktop analytics application designed for single-user, local-first, macOS-first operation. The application must handle three fundamentally different data workloads:
+duckspace is an Electron-based desktop analytics application designed for single-user, local-first, macOS-first operation. The application must handle three fundamentally different data workloads:
 
 1. **Analytical queries on columnar data (OLAP).** Users import CSV, Parquet, and JSON files and run aggregations, joins, scans, and filters over potentially large datasets (millions of rows). This workload demands a columnar OLAP engine with vectorized execution, predicate pushdown, and native Apache Arrow output.
 
-2. **Vector search and full-text search.** datspace includes an AI/RAG pipeline that requires storing document embeddings, performing k-nearest-neighbor similarity search, running full-text search over document content, and supporting hybrid search (vector + FTS). This workload demands a purpose-built vector database with index support and streaming scan capability.
+2. **Vector search and full-text search.** duckspace includes an AI/RAG pipeline that requires storing document embeddings, performing k-nearest-neighbor similarity search, running full-text search over document content, and supporting hybrid search (vector + FTS). This workload demands a purpose-built vector database with index support and streaming scan capability.
 
 3. **Reactive UI state and metadata catalog.** The application UI needs observable, push-based queries for dashboard layouts, data source metadata, chat history, user preferences, and column statistics. This workload demands a reactive document store with schema migration support, efficient change detection, and direct React integration.
 
@@ -98,7 +98,7 @@ function DashboardList() {
 - **Schema and migrations:** Version-based schema declarations. Only indexed properties are declared -- non-indexed properties are stored without declaration (schemaless documents). Migrations run within IndexedDB transactions via `upgrade()` functions.
 
 ```typescript
-const db = new Dexie('Datspace');
+const db = new Dexie('Duckspace');
 
 db.version(1).stores({
   user_preferences: 'id',
@@ -177,7 +177,7 @@ Embeddable and would fit the architecture, but lacks Arrow-native integration (r
 
 #### RxDB Premium with SQLite Adapter -- Rejected (Paid License)
 
-RxDB Premium was the recommendation in revision 1 of this ADR. It provides an excellent reactive query system (EventReduce algorithm, RxJS Observables) with a SQLite storage adapter that runs in the Main Process, fully aligning with Constitution Principle 12. However, **RxDB Premium requires a paid license (~$100-300/year)**. This cost dependency is rejected for datspace. The free community edition uses Dexie.js/IndexedDB internally, making RxDB Premium's unique value the SQLite adapter -- which is paywalled. Additionally, the paid license creates an ongoing budget dependency and licensing risk for an open-source project.
+RxDB Premium was the recommendation in revision 1 of this ADR. It provides an excellent reactive query system (EventReduce algorithm, RxJS Observables) with a SQLite storage adapter that runs in the Main Process, fully aligning with Constitution Principle 12. However, **RxDB Premium requires a paid license (~$100-300/year)**. This cost dependency is rejected for duckspace. The free community edition uses Dexie.js/IndexedDB internally, making RxDB Premium's unique value the SQLite adapter -- which is paywalled. Additionally, the paid license creates an ongoing budget dependency and licensing risk for an open-source project.
 
 #### RxDB Community Edition (Free, Dexie backend) -- Rejected (Diminishing Returns)
 
@@ -193,7 +193,7 @@ The additional abstraction layer is not justified when Dexie provides reactive q
 
 #### PouchDB -- Rejected (Wrong Tool)
 
-PouchDB was designed for CouchDB sync -- a capability datspace does not need. It lacks native reactive queries (only low-level change feeds requiring manual query re-evaluation). Revision tracking and conflict resolution machinery add storage and processing overhead without benefit for a single-user local app. Performance degrades noticeably with tens of thousands of documents, which would affect `chat_messages` (up to 50K) and `column_statistics` (up to 100K) collections. Declining maintenance pace.
+PouchDB was designed for CouchDB sync -- a capability duckspace does not need. It lacks native reactive queries (only low-level change feeds requiring manual query re-evaluation). Revision tracking and conflict resolution machinery add storage and processing overhead without benefit for a single-user local app. Performance degrades noticeably with tens of thousands of documents, which would affect `chat_messages` (up to 50K) and `column_statistics` (up to 100K) collections. Declining maintenance pace.
 
 #### better-sqlite3 + Custom Reactive Layer -- Rejected (Engineering Cost)
 
@@ -205,7 +205,7 @@ In-memory document database with periodic full-database serialization to disk. D
 
 #### electron-store -- Rejected (Insufficient)
 
-Single JSON file key-value store. Cannot handle queryable indexed collections, has no reactive queries, and has a practical size limit under 10 MB. Only suitable for simple settings, not the state layer datspace requires.
+Single JSON file key-value store. Cannot handle queryable indexed collections, has no reactive queries, and has a practical size limit under 10 MB. Only suitable for simple settings, not the state layer duckspace requires.
 
 ---
 
@@ -341,7 +341,7 @@ Choosing Dexie.js (free) over the prior RxDB Premium recommendation introduces s
 | **IPC for UI reads** | None (Renderer-native) | Required (Main Process to Renderer) |
 | **Native addon** | None | better-sqlite3 (~2 MB, requires rebuild) |
 
-The key tradeoff is **process model purity vs zero cost and simplicity**. RxDB Premium would place the reactive state layer in the Main Process (fully aligned with Principle 12) with a faster SQLite backend. Dexie.js places it in the Renderer (pragmatic deviation) with IndexedDB, but eliminates IPC bridging for reactive queries -- the most frequent operation. For datspace's use case (small-to-moderate UI state documents in a single-user desktop app), this tradeoff favors Dexie.js.
+The key tradeoff is **process model purity vs zero cost and simplicity**. RxDB Premium would place the reactive state layer in the Main Process (fully aligned with Principle 12) with a faster SQLite backend. Dexie.js places it in the Renderer (pragmatic deviation) with IndexedDB, but eliminates IPC bridging for reactive queries -- the most frequent operation. For duckspace's use case (small-to-moderate UI state documents in a single-user desktop app), this tradeoff favors Dexie.js.
 
 ### Bundle Size Impact
 

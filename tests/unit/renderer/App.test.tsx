@@ -83,19 +83,19 @@ describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Mock ingestion/catalog/watch push event listeners
-    window.datspace = {
-      ...window.datspace,
+    window.duckspace = {
+      ...window.duckspace,
       ingestion: {
-        ...(window.datspace?.ingestion ?? {}),
+        ...(window.duckspace?.ingestion ?? {}),
         onProgress: noop,
         onComplete: noop,
       },
       catalog: {
-        ...(window.datspace?.catalog ?? {}),
+        ...(window.duckspace?.catalog ?? {}),
         onSourceUpdated: noop,
       },
       watch: {
-        ...(window.datspace?.watch ?? {}),
+        ...(window.duckspace?.watch ?? {}),
         onFileEvent: noop,
         restoreDirectories: vi.fn().mockResolvedValue(0),
       },

@@ -2,14 +2,14 @@
 
 **Task:** research-lancedb-electron
 **Date:** 2026-02-04
-**Domain:** datspace - Desktop Analytics Application (Electron)
+**Domain:** duckspace - Desktop Analytics Application (Electron)
 **Status:** Complete
 
 ---
 
 ## Executive Summary
 
-LanceDB is an embedded, open-source vector database built on the Lance columnar format. It is designed for serverless and edge deployments, making it a strong candidate for embedding within an Electron desktop application. This document evaluates LanceDB's Node.js SDK, vector indexing capabilities, full-text search, DuckDB interoperability, embedding pipeline integration, and resource footprint within the context of datspace -- a single-user, macOS-first, embedded-only analytics application.
+LanceDB is an embedded, open-source vector database built on the Lance columnar format. It is designed for serverless and edge deployments, making it a strong candidate for embedding within an Electron desktop application. This document evaluates LanceDB's Node.js SDK, vector indexing capabilities, full-text search, DuckDB interoperability, embedding pipeline integration, and resource footprint within the context of duckspace -- a single-user, macOS-first, embedded-only analytics application.
 
 ---
 
@@ -83,7 +83,7 @@ Lance is a modern columnar data format designed for ML workloads:
 
 - **Column-oriented:** Similar to Parquet but optimized for random access and fast vector operations
 - **Versioned:** Copy-on-write versioning; each write creates a new version, enabling time-travel queries and rollback
-- **Arrow-native:** Lance data can be read directly as Apache Arrow record batches with zero-copy semantics -- this aligns perfectly with the datspace "Arrow-First Data Flow" principle
+- **Arrow-native:** Lance data can be read directly as Apache Arrow record batches with zero-copy semantics -- this aligns perfectly with the duckspace "Arrow-First Data Flow" principle
 - **Fragment-based:** Data is stored in fragments (row groups), enabling efficient append operations without rewriting entire files
 - **Self-describing:** Schema embedded in the format, no external catalog required
 
@@ -176,7 +176,7 @@ await table.createIndex("vector", {
 | IVF_PQ | Moderate | Fast | Low | Moderate | 50K-500K vectors |
 | IVF_HNSW_SQ | Slow | Fastest | Medium | High | >50K vectors, latency-critical |
 
-**Recommendation for datspace:** Start with no index for small collections. Use IVF_FLAT for medium collections. Graduate to IVF_PQ or IVF_HNSW_SQ only when collection size exceeds 50K vectors. The index type can be changed without data migration -- only a rebuild is required.
+**Recommendation for duckspace:** Start with no index for small collections. Use IVF_FLAT for medium collections. Graduate to IVF_PQ or IVF_HNSW_SQ only when collection size exceeds 50K vectors. The index type can be changed without data migration -- only a rebuild is required.
 
 ---
 
@@ -230,7 +230,7 @@ const results = await table.search("data analytics", { queryType: "hybrid" })
 | Filtering | SQL-like WHERE clause filtering on metadata |
 | Performance | Both queries run in parallel internally |
 
-**Relevance to datspace:** Hybrid search is critical for the AI/RAG pipeline. Users may search for analytical concepts (better served by vector search) or specific data terms/column names (better served by FTS). Hybrid search provides the best of both worlds.
+**Relevance to duckspace:** Hybrid search is critical for the AI/RAG pipeline. Users may search for analytical concepts (better served by vector search) or specific data terms/column names (better served by FTS). Hybrid search provides the best of both worlds.
 
 ---
 
@@ -238,7 +238,7 @@ const results = await table.search("data analytics", { queryType: "hybrid" })
 
 ### Direct Querying via DuckDB
 
-The Lance format has a DuckDB extension that enables querying Lance tables directly from DuckDB SQL. This is significant for datspace because DuckDB is already a core component.
+The Lance format has a DuckDB extension that enables querying Lance tables directly from DuckDB SQL. This is significant for duckspace because DuckDB is already a core component.
 
 **Usage:**
 
@@ -281,7 +281,7 @@ LIMIT 100;
 - **LanceDB API** for vector search, FTS, hybrid search, and writes
 - **DuckDB Lance extension** for analytical queries, joins, and aggregations over Lance data
 
-This aligns with the datspace architecture where DuckDB handles analytical workloads and LanceDB handles vector/FTS workloads, with both operating over the same underlying Lance data files.
+This aligns with the duckspace architecture where DuckDB handles analytical workloads and LanceDB handles vector/FTS workloads, with both operating over the same underlying Lance data files.
 
 ---
 
@@ -289,7 +289,7 @@ This aligns with the datspace architecture where DuckDB handles analytical workl
 
 ### Flow from Model to Storage
 
-The embedding pipeline in datspace must move data from text content through an embedding model into LanceDB vector storage.
+The embedding pipeline in duckspace must move data from text content through an embedding model into LanceDB vector storage.
 
 **Pipeline architecture:**
 
@@ -356,7 +356,7 @@ for (const chunk of chunks) {
 - **Cons:** Creates many small Lance fragments (performance degrades without compaction), more I/O overhead
 - **Mitigation:** Run periodic compaction: `await table.optimize()` to merge small fragments
 
-**Recommendation for datspace:** Use batch insertion for initial document ingestion (folder scanning, bulk import). Use micro-batch streaming (batches of 16-64) for real-time embedding during chat/RAG interactions. Run background compaction via Worker Thread on a schedule.
+**Recommendation for duckspace:** Use batch insertion for initial document ingestion (folder scanning, bulk import). Use micro-batch streaming (batches of 16-64) for real-time embedding during chat/RAG interactions. Run background compaction via Worker Thread on a schedule.
 
 ### LanceDB Built-in Embedding Functions
 
@@ -379,7 +379,7 @@ const results = await table.search("analytics dashboard")
   .toArray();
 ```
 
-This simplifies the pipeline but couples embedding to LanceDB. For datspace, maintaining a separate embedding pipeline provides more flexibility (model switching, local vs remote, caching).
+This simplifies the pipeline but couples embedding to LanceDB. For duckspace, maintaining a separate embedding pipeline provides more flexibility (model switching, local vs remote, caching).
 
 ---
 
@@ -457,7 +457,7 @@ Renderer Process
         (main process handles LanceDB queries, returns Arrow buffers)
 ```
 
-**Alignment with datspace architecture:**
+**Alignment with duckspace architecture:**
 - Main Process owns the LanceDB connection (single writer guarantee)
 - Worker Threads handle embedding computation and send results to main process for insertion
 - Renderer process sends search queries via IPC; main process returns Arrow-serialized results
@@ -479,7 +479,7 @@ Renderer Process
 | DuckDB interop | None | Lance DuckDB extension |
 | Arrow integration | None | Native |
 
-**Verdict:** Chroma's client-server architecture violates the "Embedded-Only Databases" principle. While Chroma has an experimental embedded mode, it is less mature and lacks the Arrow-native integration that datspace requires.
+**Verdict:** Chroma's client-server architecture violates the "Embedded-Only Databases" principle. While Chroma has an experimental embedded mode, it is less mature and lacks the Arrow-native integration that duckspace requires.
 
 ### Qdrant
 
@@ -508,7 +508,7 @@ Renderer Process
 | Maintenance | Sole maintainer, sporadic updates | Active team, frequent releases |
 | DuckDB interop | Separate databases | Lance extension available |
 
-**Verdict:** SQLite-VSS is embeddable and would fit the architecture, but it lacks Arrow-native integration (requiring serialization in the hot path, violating the "Arrow-First" principle). Its maintenance status is also a concern. Additionally, datspace already uses RxDB with SQLite adapter for document state -- introducing sqlite-vss would create two SQLite usage patterns with different extension requirements.
+**Verdict:** SQLite-VSS is embeddable and would fit the architecture, but it lacks Arrow-native integration (requiring serialization in the hot path, violating the "Arrow-First" principle). Its maintenance status is also a concern. Additionally, duckspace already uses RxDB with SQLite adapter for document state -- introducing sqlite-vss would create two SQLite usage patterns with different extension requirements.
 
 ### Summary Comparison Matrix
 
@@ -543,7 +543,7 @@ Renderer Process
 - Pros: Best of both worlds, each engine used for its strength
 - Cons: Two query paths to maintain, potential consistency considerations
 
-**Recommendation:** Option C. The dual-access pattern aligns with datspace's existing multi-database architecture (DuckDB for analytics, RxDB for state, LanceDB for vectors). Queries are routed based on type:
+**Recommendation:** Option C. The dual-access pattern aligns with duckspace's existing multi-database architecture (DuckDB for analytics, RxDB for state, LanceDB for vectors). Queries are routed based on type:
 
 | Query Type | Engine | Rationale |
 |-----------|--------|-----------|
@@ -596,13 +596,13 @@ class LanceDBManager {
 
 ## Recommendation
 
-### Primary Recommendation: Use LanceDB as the vector and full-text search engine for datspace.
+### Primary Recommendation: Use LanceDB as the vector and full-text search engine for duckspace.
 
 **Rationale:**
 
 1. **Embedded-only compliance:** LanceDB runs in-process within the Electron main process, satisfying the "Embedded-Only Databases" constitutional principle. No external server required.
 
-2. **Arrow-native data flow:** Lance format is built on Apache Arrow, enabling zero-copy data transfer between LanceDB and other datspace components. This directly satisfies the "Arrow-First Data Flow" principle. Query results from LanceDB are already Arrow record batches -- no serialization needed.
+2. **Arrow-native data flow:** Lance format is built on Apache Arrow, enabling zero-copy data transfer between LanceDB and other duckspace components. This directly satisfies the "Arrow-First Data Flow" principle. Query results from LanceDB are already Arrow record batches -- no serialization needed.
 
 3. **DuckDB synergy:** The Lance DuckDB extension enables analytical queries over vector data using SQL, joining vector metadata with other DuckDB tables. This creates a unified analytical surface across the embedded database trio.
 
@@ -647,4 +647,4 @@ class LanceDBManager {
 
 ---
 
-*Research conducted for datspace system design. All technology assessments based on published documentation and verified API surfaces.*
+*Research conducted for duckspace system design. All technology assessments based on published documentation and verified API surfaces.*

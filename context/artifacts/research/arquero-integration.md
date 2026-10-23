@@ -1,7 +1,7 @@
 # Arquero Integration Research
 
 **Date:** 2026-02-05
-**Purpose:** Evaluate Arquero for datspace Renderer-side data wrangling layer
+**Purpose:** Evaluate Arquero for duckspace Renderer-side data wrangling layer
 **Sources:** idl.uw.edu/arquero, github.com/uwdata/arquero, Observable Plot PR #2115, idl.uw.edu/flechette
 
 ---
@@ -109,7 +109,7 @@ Observable Plot can consume data from Arquero through multiple paths:
 2. **Arrow Table passthrough**: If the Arquero table wraps Arrow data, the underlying Arrow Table can be extracted and passed to Plot's native Arrow path
 3. **objects() conversion**: `dt.objects()` produces the array-of-objects format Plot natively accepts
 
-**Recommended path for datspace:** Use Arquero `fromArrow()` for wrangling, then pass directly to Plot marks. Plot's iterator protocol handles Arquero tables.
+**Recommended path for duckspace:** Use Arquero `fromArrow()` for wrangling, then pass directly to Plot marks. Plot's iterator protocol handles Arquero tables.
 
 ## 5. ECharts Integration Patterns
 
@@ -141,7 +141,7 @@ const rows = [...dt]; // Iterate rows
 const tableData = [header, ...rows.map(r => header.map(c => r[c]))];
 ```
 
-## 6. datspace Architecture Fit
+## 6. duckspace Architecture Fit
 
 ### Where Arquero Sits
 
@@ -206,7 +206,7 @@ const tableData = [header, ...rows.map(r => header.map(c => r[c]))];
 
 ## 9. Conclusion
 
-Arquero is the correct choice for datspace's Renderer-side data wrangling:
+Arquero is the correct choice for duckspace's Renderer-side data wrangling:
 - **Zero-copy Arrow loading** via `fromArrow()` maintains the Constitution's Arrow-First principle
 - **Native Plot integration** eliminates the `toArray()` conversion step
 - **TypedArray passthrough** for ECharts enables zero-copy rendering of large numeric series

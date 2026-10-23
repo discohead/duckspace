@@ -12,7 +12,7 @@
 
 ### User Story 1 - Launch and See an Interactive Application (Priority: P1)
 
-An analyst launches datspace for the first time on their Mac. Within a couple of seconds, they see a responsive application window with a familiar desktop interface including a tab bar, a sidebar area, and a main content region. The application feels native to macOS with proper traffic-light buttons, and they can immediately begin exploring the interface.
+An analyst launches duckspace for the first time on their Mac. Within a couple of seconds, they see a responsive application window with a familiar desktop interface including a tab bar, a sidebar area, and a main content region. The application feels native to macOS with proper traffic-light buttons, and they can immediately begin exploring the interface.
 
 **Why this priority**: Without a functioning application shell, no other feature can exist. This is the foundational user experience that everything else builds upon.
 
@@ -20,7 +20,7 @@ An analyst launches datspace for the first time on their Mac. Within a couple of
 
 **Acceptance Scenarios**:
 
-1. **Given** datspace is installed on a macOS machine, **When** the user double-clicks the application icon, **Then** a native-feeling window appears within 2 seconds showing a loading state followed by the main interface.
+1. **Given** duckspace is installed on a macOS machine, **When** the user double-clicks the application icon, **Then** a native-feeling window appears within 2 seconds showing a loading state followed by the main interface.
 2. **Given** the application is launching for the first time (no prior data), **When** the main window appears, **Then** the user sees a welcome/empty state that communicates the application is ready for use.
 3. **Given** the application has been used before, **When** the user re-launches the application, **Then** previously open tabs and their scroll positions are restored.
 4. **Given** the application is running, **When** the user presses Cmd+Q or clicks the close button, **Then** the application shuts down gracefully without data loss, saving current UI state.
@@ -31,7 +31,7 @@ An analyst launches datspace for the first time on their Mac. Within a couple of
 
 An analyst opens a query editor tab and types a SQL query against a pre-registered sample table. They press a key or click a button to execute the query, and results appear in a data grid below the editor. The results load progressively for large datasets and can be scrolled through without lag.
 
-**Why this priority**: The ability to write SQL and see results is the core value proposition of datspace. If the query execution pipeline does not work end-to-end, the application has no analytical utility.
+**Why this priority**: The ability to write SQL and see results is the core value proposition of duckspace. If the query execution pipeline does not work end-to-end, the application has no analytical utility.
 
 **Independent Test**: Can be fully tested by executing a SQL query (e.g., `SELECT 1 AS test`) and confirming results appear in the data grid, then executing progressively larger queries to verify streaming behavior.
 
@@ -41,7 +41,7 @@ An analyst opens a query editor tab and types a SQL query against a pre-register
 2. **Given** a table with 1 million rows is registered in the system, **When** the user executes `SELECT * FROM large_table`, **Then** the first rows appear within 1 second and the grid supports virtual scrolling through the full result set without loading all rows into memory.
 3. **Given** a query is running that takes more than 2 seconds, **When** the user clicks a cancel button, **Then** the query stops and a cancellation confirmation appears.
 4. **Given** the user writes a query with a SQL syntax error, **When** they execute the query, **Then** a clear, human-readable error message appears indicating the nature of the syntax problem.
-5. **Given** the user writes SQL with `$1`, `$2` parameter placeholders, **When** the query is executed programmatically with parameter values (via the `window.datspace.query.execute(sql, params)` API), **Then** the query executes with proper parameter binding and returns correct results. *(Note: An interactive parameter input UI is deferred; Phase 1 supports parameters via the API only.)*
+5. **Given** the user writes SQL with `$1`, `$2` parameter placeholders, **When** the query is executed programmatically with parameter values (via the `window.duckspace.query.execute(sql, params)` API), **Then** the query executes with proper parameter binding and returns correct results. *(Note: An interactive parameter input UI is deferred; Phase 1 supports parameters via the API only.)*
 
 ---
 
@@ -63,7 +63,7 @@ An analyst wants to understand what data is available. They navigate to a catalo
 
 ### User Story 4 - Recover Gracefully from Errors and Crashes (Priority: P2)
 
-An analyst is working in datspace when the application unexpectedly quits (e.g., force-quit, power loss). When they relaunch, the application detects the abnormal shutdown, verifies data integrity, and resumes to a usable state without data loss.
+An analyst is working in duckspace when the application unexpectedly quits (e.g., force-quit, power loss). When they relaunch, the application detects the abnormal shutdown, verifies data integrity, and resumes to a usable state without data loss.
 
 **Why this priority**: Data integrity and crash resilience build user trust. Without this, analysts risk losing work and may hesitate to rely on the tool for important analyses.
 
@@ -192,4 +192,4 @@ An analyst wants to work with multiple queries simultaneously. They can open new
 - **@uwdata/flechette ^2.3.0**: Arrow IPC deserialization in the Renderer (4x smaller, 1.3-5.4x faster than apache-arrow; recommended by DuckDB team -- see research.md RQ-2)
 - **Dexie.js + dexie-react-hooks**: Reactive IndexedDB state management
 - **React**: UI component framework
-- **datspace Constitution v1.0.0**: Governance document defining immutable architectural principles (Arrow-first, embedded-only, process isolation, stream-and-scan, macOS-first, single-user local-first)
+- **duckspace Constitution v1.0.0**: Governance document defining immutable architectural principles (Arrow-first, embedded-only, process isolation, stream-and-scan, macOS-first, single-user local-first)

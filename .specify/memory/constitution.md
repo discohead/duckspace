@@ -33,7 +33,7 @@
     - Arquero budget separated from Flechette for clarity
 -->
 
-# datspace Constitution
+# duckspace Constitution
 
 ## Core Principles
 
@@ -166,13 +166,13 @@ decisions.
 - `safeStorage` uses macOS Keychain for credential encryption.
 - FSEvents (via chokidar) for filesystem watching.
 - Application data stored at
-  `~/Library/Application Support/Datspace/`.
+  `~/Library/Application Support/Duckspace/`.
 
 **Canonical references:** Design Doc 01 Section 1, Design Doc 02
 
 ### VI. Single-User, Local-First
 
-datspace is designed for a single user working locally. There is no
+duckspace is designed for a single user working locally. There is no
 multi-user synchronization, no authentication system, and no
 collaboration features. The application MUST work offline for all local
 data operations. Remote connectors MUST degrade gracefully when the
@@ -245,7 +245,7 @@ budgets:
 ### Storage Locations
 
 All persistent data resides under
-`~/Library/Application Support/Datspace/`:
+`~/Library/Application Support/Duckspace/`:
 
 | Store | Path | Engine |
 |-------|------|--------|
@@ -261,7 +261,7 @@ All persistent data resides under
 
 ### Phased Delivery
 
-datspace is delivered incrementally across seven phases. Each phase
+duckspace is delivered incrementally across seven phases. Each phase
 produces a functional increment that builds on previous phases.
 Implementation MUST follow this ordering -- no phase may begin before
 its dependencies are complete.
@@ -317,7 +317,7 @@ documents, the Architecture Overview (00) takes precedence.
 
 ## Governance
 
-This constitution is the supreme governing document for datspace
+This constitution is the supreme governing document for duckspace
 development. It supersedes all other practices, guidelines, and ad-hoc
 decisions. When any specification, plan, or implementation conflicts with
 a principle defined here, this constitution prevails.

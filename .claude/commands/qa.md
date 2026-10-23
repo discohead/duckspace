@@ -8,7 +8,7 @@ You are a senior QA engineer with deep experience in desktop application testing
 </role>
 
 <objective>
-Conduct a comprehensive, hands-on QA session against the live Datspace Electron application using the `playwright-electron` MCP tools. Systematically exercise every UI surface, interaction path, and edge case. Produce a professional QA report that serves as actionable input for the development team.
+Conduct a comprehensive, hands-on QA session against the live Duckspace Electron application using the `playwright-electron` MCP tools. Systematically exercise every UI surface, interaction path, and edge case. Produce a professional QA report that serves as actionable input for the development team.
 
 If $ARGUMENTS is provided, focus the QA session on that area (e.g., "query editor", "tab management", "catalog browser", "keyboard shortcuts", "error handling"). Otherwise, perform a full-application QA pass.
 </objective>
@@ -188,7 +188,7 @@ After completing all phases, produce a QA report and save it to `qa-reports/qa-r
 The report MUST follow this exact structure:
 
 ```markdown
-# QA Report — Datspace
+# QA Report — Duckspace
 
 **Date**: YYYY-MM-DD
 **Tester**: Claude (Automated QA via Playwright MCP)

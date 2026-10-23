@@ -1,4 +1,4 @@
-# datspace: Database Integration Layer
+# duckspace: Database Integration Layer
 
 **Document:** 04-database-integration.md
 **Version:** 1.0
@@ -11,7 +11,7 @@
 
 ## 1. Database Manager Architecture
 
-The Database Manager is the central coordination layer for all three embedded databases in datspace. It runs in the Main Process and provides a unified interface for initialization, health monitoring, query routing, and lifecycle management. Per ADR-001, the three databases are DuckDB (OLAP analytics), LanceDB (vector/FTS), and Dexie.js (reactive UI state). Dexie.js was chosen over RxDB after evaluating both options -- RxDB Premium requires a paid license and RxDB Community offers diminishing returns over Dexie.js's native `liveQuery()` capability (see ADR-001 for the full comparison).
+The Database Manager is the central coordination layer for all three embedded databases in duckspace. It runs in the Main Process and provides a unified interface for initialization, health monitoring, query routing, and lifecycle management. Per ADR-001, the three databases are DuckDB (OLAP analytics), LanceDB (vector/FTS), and Dexie.js (reactive UI state). Dexie.js was chosen over RxDB after evaluating both options -- RxDB Premium requires a paid license and RxDB Community offers diminishing returns over Dexie.js's native `liveQuery()` capability (see ADR-001 for the full comparison).
 
 ### 1.1 Component Diagram
 
@@ -86,7 +86,7 @@ This architecture ensures the Main Process event loop is never blocked by databa
 
 ## 2. DuckDB Integration Design
 
-DuckDB is the analytical SQL engine for datspace, handling all OLAP queries: aggregations, joins, window functions, columnar scans, and filtered projections. It runs as a native Node.js addon in a dedicated Worker Thread per ADR-001 and the Process Model (doc 02, Section 4.2).
+DuckDB is the analytical SQL engine for duckspace, handling all OLAP queries: aggregations, joins, window functions, columnar scans, and filtered projections. It runs as a native Node.js addon in a dedicated Worker Thread per ADR-001 and the Process Model (doc 02, Section 4.2).
 
 ### 2.1 Initialization
 
@@ -96,11 +96,11 @@ import { parentPort, workerData } from 'worker_threads';
 import duckdb from 'duckdb';
 
 interface DuckDBWorkerConfig {
-  dbPath: string;          // e.g., ~/Library/Application Support/Datspace/analytics.duckdb
+  dbPath: string;          // e.g., ~/Library/Application Support/Duckspace/analytics.duckdb
   memoryLimit: string;     // e.g., "8GB" (50% of system RAM)
   threads: number;         // os.cpus().length - 2
   extensions: string[];    // ['parquet', 'json', 'httpfs', 'icu']
-  tempDirectory: string;   // e.g., ~/Library/Application Support/Datspace/tmp
+  tempDirectory: string;   // e.g., ~/Library/Application Support/Duckspace/tmp
 }
 
 const config = workerData as DuckDBWorkerConfig;
@@ -181,7 +181,7 @@ graph LR
 
 DuckDB extensions are loaded at startup and provide critical capabilities:
 
-| Extension | Size | Capability | Usage in datspace |
+| Extension | Size | Capability | Usage in duckspace |
 |-----------|------|-----------|-------------------|
 | `parquet` | ~8 MB | Read/write Parquet files | Ingestion of Parquet data sources; export to Parquet |
 | `json` | ~3 MB | Read/write JSON and NDJSON | Ingestion of JSON data sources |
@@ -205,7 +205,7 @@ interface DuckDBCatalogEntry {
   name: string;            // Table name in DuckDB
   schema: string;          // DuckDB schema (default: 'main')
   type: 'table' | 'view'; // Persistent table or view over external data
-  sourceId: string;        // datspace source ID (links to Dexie.js metadata)
+  sourceId: string;        // duckspace source ID (links to Dexie.js metadata)
   columns: ColumnInfo[];   // Column names, types, nullable
   rowCount: number;        // Estimated row count
   sizeBytes: number;       // Estimated storage size
@@ -229,7 +229,7 @@ DuckDB's memory management is critical for a desktop application that shares sys
 ```
 Total System RAM: 16 GB (typical Mac)
 DuckDB memory_limit: 8 GB (50%, user-configurable)
-DuckDB temp_directory: ~/Library/Application Support/Datspace/tmp
+DuckDB temp_directory: ~/Library/Application Support/Duckspace/tmp
 
 Behavior:
 - Queries < 8 GB intermediate results: fully in-memory, maximum speed
@@ -244,7 +244,7 @@ Behavior:
 
 ## 3. LanceDB Integration Design
 
-LanceDB is the vector search and full-text search engine for datspace, supporting the AI/RAG pipeline. It stores document embeddings, provides k-nearest-neighbor (kNN) similarity search, BM25 full-text search, and hybrid search (vector + FTS combined). Per ADR-001, LanceDB runs as a native N-API addon.
+LanceDB is the vector search and full-text search engine for duckspace, supporting the AI/RAG pipeline. It stores document embeddings, provides k-nearest-neighbor (kNN) similarity search, BM25 full-text search, and hybrid search (vector + FTS combined). Per ADR-001, LanceDB runs as a native N-API addon.
 
 ### 3.1 Initialization
 
@@ -254,7 +254,7 @@ import { parentPort, workerData } from 'worker_threads';
 import * as lancedb from '@lancedb/lancedb';
 
 interface LanceDBWorkerConfig {
-  dbPath: string;              // e.g., ~/Library/Application Support/Datspace/lance
+  dbPath: string;              // e.g., ~/Library/Application Support/Duckspace/lance
   compactionThreshold: number; // Fragment count threshold (default: 50)
   retentionVersions: number;   // Keep last N versions (default: 10)
 }
@@ -283,7 +283,7 @@ parentPort?.postMessage({
 **Database directory structure:**
 
 ```
-~/Library/Application Support/Datspace/lance/
+~/Library/Application Support/Duckspace/lance/
   document_embeddings/          # Main embeddings table
     data/                       # Lance fragment files (columnar, Arrow-native)
     _versions/                  # Version manifest files
@@ -316,7 +316,7 @@ async function createTable(
   tables.set(name, table);
 }
 
-// Standard table schemas used by datspace:
+// Standard table schemas used by duckspace:
 
 // Document embeddings table
 const documentEmbeddingsSchema = {
@@ -549,7 +549,7 @@ ORDER BY doc._distance ASC;
 
 ## 4. Dexie.js Integration Design
 
-Dexie.js is the reactive state layer for datspace, managing all UI state, metadata catalog, chat history, and user preferences. Per ADR-001, Dexie.js was chosen over RxDB (both Premium and Community editions) for its free license, native `liveQuery()` reactive queries, and zero-IPC operation in the Renderer Process.
+Dexie.js is the reactive state layer for duckspace, managing all UI state, metadata catalog, chat history, and user preferences. Per ADR-001, Dexie.js was chosen over RxDB (both Premium and Community editions) for its free license, native `liveQuery()` reactive queries, and zero-IPC operation in the Renderer Process.
 
 ### 4.1 Initialization
 
@@ -557,7 +557,7 @@ Dexie.js is the reactive state layer for datspace, managing all UI state, metada
 // Renderer Process: DexieStateManager initialization
 import Dexie from 'dexie';
 
-class DatspaceDB extends Dexie {
+class DuckspaceDB extends Dexie {
   // Typed table declarations
   user_preferences!: Dexie.Table<UserPreference, string>;
   dashboards!: Dexie.Table<Dashboard, string>;
@@ -570,7 +570,7 @@ class DatspaceDB extends Dexie {
   open_tabs!: Dexie.Table<OpenTab, string>;
 
   constructor() {
-    super('Datspace');
+    super('Duckspace');
 
     this.version(1).stores({
       user_preferences: 'id',
@@ -586,12 +586,12 @@ class DatspaceDB extends Dexie {
   }
 }
 
-const db = new DatspaceDB();
+const db = new DuckspaceDB();
 ```
 
 **IndexedDB storage location:** Chromium stores IndexedDB data in LevelDB files within Electron's user data directory:
 ```
-~/Library/Application Support/Datspace/IndexedDB/
+~/Library/Application Support/Duckspace/IndexedDB/
 ```
 
 ### 4.2 Collection Schema Definitions
@@ -709,7 +709,7 @@ interface StateUpdateMessage {
 Dexie.js uses version-based schema migrations. When the application upgrades and the schema changes:
 
 ```typescript
-const db = new Dexie('Datspace');
+const db = new Dexie('Duckspace');
 
 // Version 1: Initial schema
 db.version(1).stores({
@@ -916,7 +916,7 @@ sequenceDiagram
     Note over ALM,D: Phase 4: Renderer Database (Dexie.js)
 
     BW->>R: Load application
-    R->>D: new DatspaceDB()
+    R->>D: new DuckspaceDB()
     D->>D: Open IndexedDB<br/>Run version migrations<br/>Initialize liveQuery engine
 
     R-->>ALM: lifecycle.ready()
@@ -1268,5 +1268,5 @@ async function recoverDatabases(): Promise<RecoveryReport> {
 
 ---
 
-*Document 04 of the datspace Architecture Series*
-*Generated: 2026-02-05 | Plan: datspace-system-design-2026-02-04 | Task: design-database-integration*
+*Document 04 of the duckspace Architecture Series*
+*Generated: 2026-02-05 | Plan: duckspace-system-design-2026-02-04 | Task: design-database-integration*

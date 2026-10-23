@@ -8,7 +8,7 @@
 
 ## Overview
 
-Dexie.js provides reactive state management for the datspace Renderer Process via IndexedDB. It stores UI state, metadata mirrors, and application configuration that must be reactive (auto-updating React components via `useLiveQuery`) and persistent across sessions.
+Dexie.js provides reactive state management for the duckspace Renderer Process via IndexedDB. It stores UI state, metadata mirrors, and application configuration that must be reactive (auto-updating React components via `useLiveQuery`) and persistent across sessions.
 
 Key architectural constraints:
 
@@ -23,10 +23,10 @@ Key architectural constraints:
 
 | Property | Value |
 |----------|-------|
-| **Database name** | `Datspace` |
+| **Database name** | `Duckspace` |
 | **Schema version** | `1` |
 | **Collections** | 9 |
-| **Storage location** | `~/Library/Application Support/Datspace/IndexedDB/` (managed by Chromium) |
+| **Storage location** | `~/Library/Application Support/Duckspace/IndexedDB/` (managed by Chromium) |
 | **Library** | Dexie.js ^4.3.0 with `dexie-react-hooks` |
 
 ### Complete Schema Declaration
@@ -36,7 +36,7 @@ Key architectural constraints:
 
 import Dexie, { type Table } from 'dexie';
 
-export class DatspaceDB extends Dexie {
+export class DuckspaceDB extends Dexie {
   tabs!: Table<Tab, string>;
   queries!: Table<Query, string>;
   catalog_entries!: Table<CatalogEntry, string>;
@@ -48,7 +48,7 @@ export class DatspaceDB extends Dexie {
   app_state!: Table<AppStateEntry, string>;
 
   constructor() {
-    super('Datspace');
+    super('Duckspace');
 
     this.version(1).stores({
       // Tab management - indexed by type and display order
@@ -81,7 +81,7 @@ export class DatspaceDB extends Dexie {
   }
 }
 
-const db = new DatspaceDB();
+const db = new DuckspaceDB();
 export default db;
 ```
 
@@ -1214,7 +1214,7 @@ The Renderer listens for `catalog:change` push events from Main Process and writ
 ```typescript
 // Called during Renderer bootstrap
 function setupCatalogSync(): void {
-  window.datspace.on?.catalogChange?.((event) => {
+  window.duckspace.on?.catalogChange?.((event) => {
     const { collection, action, data, key, keys } = event;
     const table = db.table(collection);
 

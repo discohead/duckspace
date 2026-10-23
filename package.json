@@ -1,6 +1,6 @@
 {
-  "name": "datspace",
-  "productName": "Datspace",
+  "name": "duckspace",
+  "productName": "Duckspace",
   "version": "0.1.0",
   "description": "Desktop analytics workspace powered by DuckDB and Apache Arrow",
   "main": ".vite/build/main-entry.js",

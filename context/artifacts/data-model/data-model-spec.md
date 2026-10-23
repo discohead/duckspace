@@ -1,4 +1,4 @@
-# datspace: Data Model Specification
+# duckspace: Data Model Specification
 
 **Document:** data-model-spec.md
 **Version:** 1.0
@@ -11,7 +11,7 @@
 
 ## 1. Data Model Overview
 
-This specification defines every persistent data entity in datspace, its storage location, field-level schema, relationships to other entities, and lifecycle rules. datspace uses a **database trio** architecture (per ADR-001): DuckDB for OLAP analytics, LanceDB for vector and full-text search, and Dexie.js for reactive UI state via IndexedDB. Each database is optimized for its workload, and cross-database references are managed through shared identifier conventions.
+This specification defines every persistent data entity in duckspace, its storage location, field-level schema, relationships to other entities, and lifecycle rules. duckspace uses a **database trio** architecture (per ADR-001): DuckDB for OLAP analytics, LanceDB for vector and full-text search, and Dexie.js for reactive UI state via IndexedDB. Each database is optimized for its workload, and cross-database references are managed through shared identifier conventions.
 
 ### 1.1 Entity Relationship Diagram
 
@@ -284,13 +284,13 @@ interface RegisteredTable {
   /** Table name in DuckDB (sanitized from source filename) */
   name: string;
 
-  /** DuckDB schema (always 'main' for datspace) */
+  /** DuckDB schema (always 'main' for duckspace) */
   schema: string;
 
   /** Whether this is a persistent table or a view */
   type: 'table' | 'view';
 
-  /** datspace source ID (links to Dexie.js DataSource.id) */
+  /** duckspace source ID (links to Dexie.js DataSource.id) */
   sourceId: string;
 
   /** Column definitions */
@@ -719,9 +719,9 @@ FTS indices are created at table creation time and updated incrementally on ever
 
 Dexie.js manages all reactive UI state in the Renderer Process via IndexedDB. It uses `liveQuery()` for push-based reactive queries and `useLiveQuery` for React component integration. Per doc 04 Section 4, Dexie.js was chosen over RxDB for its free license and native reactive capabilities.
 
-The Dexie.js database is named `Datspace` and stores data at:
+The Dexie.js database is named `Duckspace` and stores data at:
 ```
-~/Library/Application Support/Datspace/IndexedDB/
+~/Library/Application Support/Duckspace/IndexedDB/
 ```
 
 ### 4.1 DataSource
@@ -1052,7 +1052,7 @@ AI chat session metadata. The actual conversation context (full message history,
  * Updated by: ConversationManager via CatalogSyncBridge
  */
 interface Conversation {
-  /** UUID primary key (datspace internal ID) */
+  /** UUID primary key (duckspace internal ID) */
   id: string;
 
   /** Claude Agent SDK session ID (for resume/fork operations) */
@@ -1456,7 +1456,7 @@ This is the complete Dexie.js schema declaration used in the Renderer Process:
 ```typescript
 import Dexie from 'dexie';
 
-class DatspaceDB extends Dexie {
+class DuckspaceDB extends Dexie {
   // Typed table declarations
   data_sources!: Dexie.Table<DataSource, string>;
   table_metadata!: Dexie.Table<DataSourceSchema, string>;
@@ -1471,7 +1471,7 @@ class DatspaceDB extends Dexie {
   query_history!: Dexie.Table<QueryHistoryUI, string>;
 
   constructor() {
-    super('Datspace');
+    super('Duckspace');
 
     this.version(1).stores({
       // Metadata catalog
@@ -1502,7 +1502,7 @@ class DatspaceDB extends Dexie {
   }
 }
 
-const db = new DatspaceDB();
+const db = new DuckspaceDB();
 export default db;
 ```
 
@@ -1601,7 +1601,7 @@ All three databases use independent version numbers:
 
 | Database | Version Format | Current Version | Tracking Location |
 |----------|---------------|-----------------|-------------------|
-| **Dexie.js** | Integer (1, 2, 3...) | 1 | `db.version(N).stores({...})` in DatspaceDB class |
+| **Dexie.js** | Integer (1, 2, 3...) | 1 | `db.version(N).stores({...})` in DuckspaceDB class |
 | **DuckDB** | Semantic (1.0.0) | 1.0.0 | `_schema_version` user-defined table |
 | **LanceDB** | Integer (1, 2, 3...) | 1 | `_meta` file in lance directory |
 
@@ -1610,7 +1610,7 @@ All three databases use independent version numbers:
 Dexie.js uses version-based declarative migrations. Each version increment declares the new schema and an optional `upgrade()` function for data transformation.
 
 ```typescript
-const db = new Dexie('Datspace');
+const db = new Dexie('Duckspace');
 
 // Version 1: Initial schema (current)
 db.version(1).stores({
@@ -1904,5 +1904,5 @@ This ordering ensures the most valuable data (analytical tables) is written firs
 
 ---
 
-*Data Model Specification for the datspace Architecture Series*
-*Generated: 2026-02-05 | Plan: datspace-system-design-2026-02-04 | Task: spec-data-model*
+*Data Model Specification for the duckspace Architecture Series*
+*Generated: 2026-02-05 | Plan: duckspace-system-design-2026-02-04 | Task: spec-data-model*

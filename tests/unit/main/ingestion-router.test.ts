@@ -76,7 +76,7 @@ import {
   setWorker,
 } from '@main/ingestion/ingestion-router';
 import { PUSH_EVENTS } from '@shared/constants';
-import { DatspaceError, ERROR_CODES } from '@shared/errors';
+import { DuckspaceError, ERROR_CODES } from '@shared/errors';
 import type { BrowserWindow } from 'electron';
 
 // ---------------------------------------------------------------------------
@@ -329,8 +329,8 @@ describe('IngestionRouter', () => {
         await importFiles(['/tmp/missing.csv'], 'file_picker');
         expect.fail('Expected importFiles to throw');
       } catch (err) {
-        expect(err).toBeInstanceOf(DatspaceError);
-        expect((err as DatspaceError).code).toBe(ERROR_CODES.FILE_NOT_FOUND);
+        expect(err).toBeInstanceOf(DuckspaceError);
+        expect((err as DuckspaceError).code).toBe(ERROR_CODES.FILE_NOT_FOUND);
       }
     });
 
@@ -344,8 +344,8 @@ describe('IngestionRouter', () => {
         await importFiles(['/tmp/noperm.csv'], 'file_picker');
         expect.fail('Expected importFiles to throw');
       } catch (err) {
-        expect(err).toBeInstanceOf(DatspaceError);
-        expect((err as DatspaceError).code).toBe(ERROR_CODES.PERMISSION_DENIED);
+        expect(err).toBeInstanceOf(DuckspaceError);
+        expect((err as DuckspaceError).code).toBe(ERROR_CODES.PERMISSION_DENIED);
       }
     });
 

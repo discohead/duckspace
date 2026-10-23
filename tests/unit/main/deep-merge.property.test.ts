@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // Mock electron's app module before imports
 vi.mock('electron', () => ({
   app: {
-    getPath: vi.fn(() => '/tmp/datspace-test'),
+    getPath: vi.fn(() => '/tmp/duckspace-test'),
   },
 }));
 

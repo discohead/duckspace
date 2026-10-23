@@ -10,7 +10,7 @@
     {
       "name": "window-has-title",
       "type": "title",
-      "expected": "Datspace"
+      "expected": "Duckspace"
     },
     {
       "name": "root-mounted",

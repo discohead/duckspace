@@ -1,4 +1,4 @@
-# datspace: Visualization Engine Architecture
+# duckspace: Visualization Engine Architecture
 
 **Document:** 08-visualization-engine.md
 **Version:** 1.1
@@ -108,7 +108,7 @@ graph TB
 
 ### 2.1 DuckDBHandler Architecture
 
-Perspective.js operates in two modes: (1) loading data into its internal WASM table, or (2) connecting to an external data source via a Handler. datspace uses mode (2) exclusively via a custom `DuckDBHandler` that bridges Perspective's query interface to DuckDB running in the Main Process Worker Thread.
+Perspective.js operates in two modes: (1) loading data into its internal WASM table, or (2) connecting to an external data source via a Handler. duckspace uses mode (2) exclusively via a custom `DuckDBHandler` that bridges Perspective's query interface to DuckDB running in the Main Process Worker Thread.
 
 The DuckDBHandler translates Perspective's internal query operations (filter, sort, aggregate, group-by, pagination) into DuckDB SQL queries, executes them via the duckdb-data MessagePort, and returns Arrow IPC results that Perspective renders directly from WASM memory.
 
@@ -129,7 +129,7 @@ sequenceDiagram
     PE->>DH: on_update callback<br/>{ sort: [["revenue", "desc"]], ... }
 
     DH->>DH: Translate Perspective config<br/>to StructuredQueryDescriptor
-    DH->>PB: datspace.query.execute(sql, params)
+    DH->>PB: duckspace.query.execute(sql, params)
     PB->>QR: ipcRenderer.invoke('query:execute', descriptor)
     QR->>DW: worker.postMessage(execute_query)
 
@@ -174,7 +174,7 @@ class DuckDBHandler {
     const params = this.extractParams(config);
 
     // Submit query via control plane
-    await window.datspace.query.execute(sql, params);
+    await window.duckspace.query.execute(sql, params);
 
     // Wait for Arrow IPC result via data channel
     return new Promise((resolve, reject) => {
@@ -264,7 +264,7 @@ class DuckDBHandler {
 
 ### 2.2 Custom Element Lifecycle
 
-Perspective.js renders via the `<perspective-viewer>` custom element. datspace wraps this in a React component that manages the element lifecycle:
+Perspective.js renders via the `<perspective-viewer>` custom element. duckspace wraps this in a React component that manages the element lifecycle:
 
 ```typescript
 interface PerspectiveViewerProps {
@@ -373,7 +373,7 @@ Perspective.js supports themes via CSS custom properties:
 
 ```css
 perspective-viewer {
-  /* datspace dark theme */
+  /* duckspace dark theme */
   --plugin--background: #1e1e2e;
   --plugin--font-family: 'Inter', -apple-system, system-ui, sans-serif;
   --plugin--font-size: 12px;
@@ -924,7 +924,7 @@ export default echarts;
 
 ### 5.1 Layout System
 
-datspace dashboards use `react-grid-layout` for a CSS Grid-based, drag-and-drop layout system:
+duckspace dashboards use `react-grid-layout` for a CSS Grid-based, drag-and-drop layout system:
 
 ```mermaid
 graph TB
@@ -1138,7 +1138,7 @@ Dashboard configurations are persisted in Dexie.js (IndexedDB) in the Renderer p
 
 ```typescript
 // Dexie.js schema for dashboards
-const db = new Dexie('Datspace');
+const db = new Dexie('Duckspace');
 db.version(1).stores({
   dashboards: 'id, name, updatedAt',
   panels: 'id, dashboardId, panelType',
@@ -1266,7 +1266,7 @@ sequenceDiagram
         end
         VM-->>DP: renderFromCache(data)
     else Cache miss
-        VM->>PB: datspace.query.execute(sql, params)
+        VM->>PB: duckspace.query.execute(sql, params)
         PB->>QR: ipcRenderer.invoke('query:execute')
         QR->>DW: worker.postMessage(execute_query)
 
@@ -1309,7 +1309,7 @@ class IncrementalUpdater {
     const timer = setInterval(async () => {
       try {
         // Execute query (same as initial load)
-        const queryId = await window.datspace.query.execute(
+        const queryId = await window.duckspace.query.execute(
           queryDescriptor.sql,
           queryDescriptor.params
         );
@@ -1366,7 +1366,7 @@ For very large query results, visualization components can begin rendering befor
 | ECharts GL | WebGL 2.0 | Metal (via ANGLE) | `scatterGL`, `linesGL` series types |
 | Observable Plot | SVG | CPU-composited | Default; Canvas mode for density plots |
 
-**WebGL context limits:** Chromium allows up to 16 WebGL contexts per process. datspace constrains usage:
+**WebGL context limits:** Chromium allows up to 16 WebGL contexts per process. duckspace constrains usage:
 - 1 context for Perspective.js datagrid
 - 1-2 contexts for ECharts GL charts
 - Remaining available for future extensions
@@ -1493,7 +1493,7 @@ All resize and filter change events are debounced to prevent excessive re-render
 |-----------------|--------------------------------|
 | Renderer Process Architecture (Section 3) | All visualization components listed in Section 3.1 module listing |
 | MessagePortManager (Section 3.1) | Receives Arrow data from 3 data channels, routes to ArrowResultCache |
-| Preload Bridge (Section 5) | `datspace.query.execute()` initiates queries; results via MessagePort |
+| Preload Bridge (Section 5) | `duckspace.query.execute()` initiates queries; results via MessagePort |
 | Context Isolation (Section 3.2) | Visualization runs in sandboxed Renderer; no direct DB access |
 | Renderer Web Workers (Section 3.1) | Chart prep workers for Observable Plot SVG and ECharts data processing |
 
@@ -1510,8 +1510,8 @@ All resize and filter change events are debounced to prevent excessive re-render
 
 ---
 
-*Document 08 of the datspace Architecture Series*
-*Generated: 2026-02-05 | Plan: datspace-system-design-2026-02-04 | Task: design-visualization-engine*
+*Document 08 of the duckspace Architecture Series*
+*Generated: 2026-02-05 | Plan: duckspace-system-design-2026-02-04 | Task: design-visualization-engine*
 
 ---
 **R4 Revision (2026-02-05):** Integrated Arquero as Renderer-side data wrangling layer per goal.md requirement. Replaces manual `arrowToPlotData()` and `arrowToEChartsDataset()` with Arquero `fromArrow()` (zero-copy) and native Plot/ECharts consumption patterns. Added TypedArray passthrough for ECharts large series.

@@ -5,13 +5,13 @@
 
 ## Summary
 
-Build the datspace Electron application shell with embedded DuckDB for OLAP analytics, Apache Arrow IPC for data transfer between Worker Threads and the Renderer, and Dexie.js for reactive UI state. The deliverable is a functional macOS desktop application where a user can launch the app, write SQL queries, see results in a virtual-scrolling data grid, browse table schemas, and have their session state persist across restarts. Crash recovery, backpressure-controlled streaming, and health-monitored worker processes provide production-grade reliability from day one.
+Build the duckspace Electron application shell with embedded DuckDB for OLAP analytics, Apache Arrow IPC for data transfer between Worker Threads and the Renderer, and Dexie.js for reactive UI state. The deliverable is a functional macOS desktop application where a user can launch the app, write SQL queries, see results in a virtual-scrolling data grid, browse table schemas, and have their session state persist across restarts. Crash recovery, backpressure-controlled streaming, and health-monitored worker processes provide production-grade reliability from day one.
 
 ## Technical Context
 
 **Language/Version**: TypeScript 5.4+, Node.js (via Electron v33+)
 **Primary Dependencies**: Electron v33+, @duckdb/node-api ^1.4.4 (Neo client), @uwdata/flechette ^2.3.0, React 18, Dexie.js ^4.3.0 + dexie-react-hooks
-**Storage**: DuckDB (`~/Library/Application Support/Datspace/analytics.duckdb`), Dexie.js (IndexedDB in Renderer), JSON config file
+**Storage**: DuckDB (`~/Library/Application Support/Duckspace/analytics.duckdb`), Dexie.js (IndexedDB in Renderer), JSON config file
 **Testing**: Vitest ^3.x (unit/integration), Playwright ^1.52+ (E2E with Electron CDP support)
 **Target Platform**: macOS (Apple Silicon arm64 + Intel x64)
 **Project Type**: Single Electron application (monorepo-style with main/renderer/worker source trees)
@@ -43,7 +43,7 @@ Build the datspace Electron application shell with embedded DuckDB for OLAP anal
 | II | Embedded-Only Databases | PASS | DuckDB runs as N-API addon in Worker Thread #1. Dexie.js runs in Renderer (IndexedDB). No external database servers. LanceDB deferred to Phase 5 (not in scope). |
 | III | Stream and Scan | PASS | Chunked Arrow RecordBatch streaming with adaptive ~2MB batches. Window-based backpressure (window=4, ~8MB in-flight). Virtual scrolling in data grid — Renderer holds only visible rows + buffer. All filtering/sorting pushed to DuckDB. |
 | IV | Process Isolation | PASS | Main Process: lifecycle, IPC dispatch, query routing. Worker Thread #1: DuckDB addon, Arrow IPC output. Renderer: React UI, Dexie.js state, data grid. MessagePort channels for direct Worker→Renderer data transfer; Main never relays data-plane buffers. |
-| V | macOS-First | PASS | Targets macOS arm64 + x64 only. Native traffic-light buttons, Cmd+Q, dock integration. App data at `~/Library/Application Support/Datspace/`. No cross-platform considerations. |
+| V | macOS-First | PASS | Targets macOS arm64 + x64 only. Native traffic-light buttons, Cmd+Q, dock integration. App data at `~/Library/Application Support/Duckspace/`. No cross-platform considerations. |
 | VI | Single-User, Local-First | PASS | Single user, no auth, no sync. All data local. No network connectivity required for core functionality. |
 
 **Gate result**: ALL PASS — proceed to implementation planning.
@@ -81,7 +81,7 @@ src/
 │
 ├── preload/
 │   ├── index.ts                 # contextBridge exposure
-│   └── api.ts                   # Typed window.datspace API definition
+│   └── api.ts                   # Typed window.duckspace API definition
 │
 ├── renderer/
 │   ├── index.html               # Renderer entry HTML

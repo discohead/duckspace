@@ -139,8 +139,8 @@ function detectFormatFromMagicBytes(header: Uint8Array): DataSourceFormat | unde
  *
  * @param filePath - Absolute path to the file to detect.
  * @returns The detected data source format.
- * @throws DatspaceError E2001 if the file does not exist.
- * @throws DatspaceError E2002 if the file extension is not recognized.
+ * @throws DuckspaceError E2001 if the file does not exist.
+ * @throws DuckspaceError E2002 if the file extension is not recognized.
  */
 export async function detectFormat(filePath: string): Promise<DataSourceFormat> {
   // Verify the file exists

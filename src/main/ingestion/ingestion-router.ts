@@ -124,9 +124,9 @@ export function getProgressTracker(): ProgressTracker {
  * @param filePaths - Absolute paths to import.
  * @param trigger - How the import was initiated.
  * @returns One job entry per file path.
- * @throws DatspaceError E2001 if a file does not exist.
- * @throws DatspaceError E2002 if the file format is unsupported.
- * @throws DatspaceError E2003 if a file is not readable.
+ * @throws DuckspaceError E2001 if a file does not exist.
+ * @throws DuckspaceError E2002 if the file format is unsupported.
+ * @throws DuckspaceError E2003 if a file is not readable.
  */
 export async function importFiles(
   filePaths: readonly string[],

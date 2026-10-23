@@ -1,5 +1,5 @@
 /**
- * Shared type definitions for the datspace Electron application.
+ * Shared type definitions for the duckspace Electron application.
  *
  * This is the central types file imported by all processes:
  *   - Main Process (src/main/)
@@ -1202,7 +1202,7 @@ export interface IPCError {
 // ============================================================
 
 /** Root configuration schema — defined by Zod in schemas/config-schema.ts */
-export type { DatspaceConfig } from './schemas/config-schema';
+export type { DuckspaceConfig } from './schemas/config-schema';
 
 // ============================================================
 // 7. Preload Bridge API Namespace Types
@@ -1494,11 +1494,11 @@ export interface WatchNamespace {
 }
 
 /**
- * Root API interface exposed to the Renderer as `window.datspace`.
+ * Root API interface exposed to the Renderer as `window.duckspace`.
  * Provides namespaced access to query execution, catalog browsing,
  * file ingestion, directory watching, and lifecycle management.
  */
-export interface DatspaceAPI {
+export interface DuckspaceAPI {
   /** Query execution and data streaming. */
   query: QueryNamespace;
   /** Table catalog browsing, schema inspection, and data source management. */
@@ -1526,6 +1526,6 @@ export function assertNever(x: never): never {
 
 declare global {
   interface Window {
-    datspace: DatspaceAPI;
+    duckspace: DuckspaceAPI;
   }
 }

@@ -1,4 +1,4 @@
-# datspace: Electron Process Model
+# duckspace: Electron Process Model
 
 **Document:** 02-electron-process-model.md
 **Version:** 1.0
@@ -11,7 +11,7 @@
 
 ## 1. Process Topology Diagram
 
-The following diagram shows the complete process topology of datspace, including all modules, their process assignments, and communication channels.
+The following diagram shows the complete process topology of duckspace, including all modules, their process assignments, and communication channels.
 
 ```mermaid
 graph TB
@@ -105,7 +105,7 @@ graph TB
 
 ## 2. Main Process Architecture
 
-The Main Process is the **control plane** and **lifecycle manager** for datspace. It runs no data-plane operations after initial MessagePort channel setup. Per ADR-005, the Main Process must remain responsive at all times -- it must never perform synchronous computation that blocks the Node.js event loop for more than 10ms.
+The Main Process is the **control plane** and **lifecycle manager** for duckspace. It runs no data-plane operations after initial MessagePort channel setup. Per ADR-005, the Main Process must remain responsive at all times -- it must never perform synchronous computation that blocks the Node.js event loop for more than 10ms.
 
 ### 2.1 Module Listing
 
@@ -300,7 +300,7 @@ The Renderer Process is a **pure visualization and interaction layer**. Per ADR-
 
 | Module | Responsibility |
 |--------|---------------|
-| **PreloadBridge** | `contextBridge.exposeInMainWorld('datspace', api)` -- typed API surface for Renderer-to-Main control messages |
+| **PreloadBridge** | `contextBridge.exposeInMainWorld('duckspace', api)` -- typed API surface for Renderer-to-Main control messages |
 | **React UI Layer** | Component tree, routing (React Router), keyboard shortcut handling, theme management |
 | **VisualizationEngine** | Chart type selection, cross-filter coordination (CrossFilterManager), dashboard layout (react-grid-layout) |
 | **Perspective.js** | Data grid, pivot tables, WebGL rendering, WASM query engine, virtual scrolling |
@@ -313,7 +313,7 @@ The Renderer Process is a **pure visualization and interaction layer**. Per ADR-
 
 ### 3.2 Context Isolation and Security Model
 
-datspace uses Electron's default security configuration for v28+:
+duckspace uses Electron's default security configuration for v28+:
 
 ```javascript
 const mainWindow = new BrowserWindow({
@@ -338,7 +338,7 @@ const mainWindow = new BrowserWindow({
 
 ### 3.3 Window Management
 
-datspace uses a **single BrowserWindow with a tab model**:
+duckspace uses a **single BrowserWindow with a tab model**:
 
 - **One BrowserWindow** for the entire application
 - **Tabs** are implemented in the Renderer via React Router (not Electron's `BrowserView` or multiple windows)
@@ -359,7 +359,7 @@ This aligns with ADR-005's decision to reject multi-window architecture (Alterna
 
 ### 4.1 Worker Thread Pool Configuration
 
-datspace uses **4 dedicated Worker Threads** (not a generic thread pool). Each worker has a specific role, its own V8 isolate, and independent lifecycle.
+duckspace uses **4 dedicated Worker Threads** (not a generic thread pool). Each worker has a specific role, its own V8 isolate, and independent lifecycle.
 
 ```javascript
 // WorkerManager configuration
@@ -590,7 +590,7 @@ async terminateWorker(name: string): Promise<void> {
 
 ### 4.4 Communication Patterns
 
-datspace uses two distinct communication patterns, separating control from data:
+duckspace uses two distinct communication patterns, separating control from data:
 
 **Control plane (parentPort -- Worker <-> Main Process):**
 - Used for: query requests, lifecycle messages, heartbeat, error reports, configuration updates
@@ -625,13 +625,13 @@ EmbeddingWorker --parentPort--> Main --worker.postMessage--> LanceDBWorker
 
 ## 5. Preload Bridge API Design
 
-The preload script exposes a typed API via `contextBridge.exposeInMainWorld('datspace', api)`. This is the **only** interface between the sandboxed Renderer and the privileged Main Process.
+The preload script exposes a typed API via `contextBridge.exposeInMainWorld('duckspace', api)`. This is the **only** interface between the sandboxed Renderer and the privileged Main Process.
 
 ### 5.1 Complete Method Listing
 
 ```typescript
 // Type definitions for the contextBridge-exposed API
-interface DatspaceAPI {
+interface DuckspaceAPI {
   // === Query Operations ===
   query: {
     /** Initiate a SQL query. Results arrive via duckdb-data MessagePort. */
@@ -755,7 +755,7 @@ All contextBridge methods use `ipcRenderer.invoke()` / `ipcMain.handle()` (reque
 **Invoke/handle (request-response, for control messages):**
 ```typescript
 // Preload script (simplified)
-contextBridge.exposeInMainWorld('datspace', {
+contextBridge.exposeInMainWorld('duckspace', {
   query: {
     execute: (sql: string, params?: unknown[]) =>
       ipcRenderer.invoke('query:execute', { sql, params }),
@@ -779,7 +779,7 @@ ipcMain.handle('query:execute', async (event, { sql, params }) => {
 mainWindow.webContents.send('ai:stream', { conversationId, chunk, done: false });
 
 // Preload script
-contextBridge.exposeInMainWorld('datspace', {
+contextBridge.exposeInMainWorld('duckspace', {
   on: {
     aiStream: (callback: (event: AIStreamEvent) => void) => {
       const handler = (_event: IpcRendererEvent, data: AIStreamEvent) => callback(data);
@@ -889,7 +889,7 @@ sequenceDiagram
 
         PS->>PS: Receive ports via<br/>ipcRenderer.on('port')<br/>Store in MessagePortManager
 
-        R->>D: new Dexie('Datspace')<br/>Open IndexedDB<br/>Run migrations if needed
+        R->>D: new Dexie('Duckspace')<br/>Open IndexedDB<br/>Run migrations if needed
 
         R->>R: Render main UI<br/>Restore saved tab state<br/>Subscribe to liveQuery()
 
@@ -1040,5 +1040,5 @@ This section maps each design decision in this document back to [ADR-005](../dec
 
 ---
 
-*Document 02 of the datspace Architecture Series*
-*Generated: 2026-02-05 | Plan: datspace-system-design-2026-02-04 | Task: design-electron-process-model*
+*Document 02 of the duckspace Architecture Series*
+*Generated: 2026-02-05 | Plan: duckspace-system-design-2026-02-04 | Task: design-electron-process-model*

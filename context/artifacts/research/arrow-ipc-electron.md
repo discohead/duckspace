@@ -2,14 +2,14 @@
 
 **Task ID:** research-arrow-ipc-electron
 **Date:** 2026-02-04
-**Domain:** System Design - datspace
+**Domain:** System Design - duckspace
 **Status:** Complete
 
 ---
 
 ## Executive Summary
 
-This document evaluates Apache Arrow IPC mechanisms for zero-copy data transfer within a datspace Electron application. The analysis covers Arrow JS APIs, Electron process transfer semantics, DuckDB interoperability, predicate pushdown, streaming, and memory layout considerations. The conclusion is that **ArrayBuffer transfer via Electron's `MessagePort` with Arrow IPC stream format** is the optimal primary mechanism, supplemented by `SharedArrayBuffer` for high-frequency, read-only data sharing where security constraints allow.
+This document evaluates Apache Arrow IPC mechanisms for zero-copy data transfer within a duckspace Electron application. The analysis covers Arrow JS APIs, Electron process transfer semantics, DuckDB interoperability, predicate pushdown, streaming, and memory layout considerations. The conclusion is that **ArrayBuffer transfer via Electron's `MessagePort` with Arrow IPC stream format** is the optimal primary mechanism, supplemented by `SharedArrayBuffer` for high-frequency, read-only data sharing where security constraints allow.
 
 ---
 
@@ -66,7 +66,7 @@ Arrow JS stores all columnar data in `ArrayBuffer` instances:
 
 ## 2. Zero-Copy Transfer Mechanisms in Electron
 
-Electron has three process types relevant to datspace:
+Electron has three process types relevant to duckspace:
 - **Main Process** (Node.js): owns DuckDB, LanceDB, RxDB
 - **Renderer Process** (Chromium): owns visualization (Perspective.js, Observable Plot, ECharts)
 - **Worker Threads** (Node.js workers in main): isolate heavy computation
@@ -85,7 +85,7 @@ Electron has three process types relevant to datspace:
 **Security restrictions:**
 - Spectre/Meltdown mitigations mean `SharedArrayBuffer` requires opt-in isolation
 - Enabling COOP/COEP can break third-party resources (fonts, scripts loaded without CORS)
-- For a local desktop app like datspace with no third-party web content, this is manageable
+- For a local desktop app like duckspace with no third-party web content, this is manageable
 
 **Concurrency concerns:**
 - `SharedArrayBuffer` requires careful synchronization (Atomics, Mutex)
@@ -129,7 +129,7 @@ Clarifying the terminology:
 
 ### 2.4 Actual Zero-Copy Feasibility
 
-True zero-copy requires that the data bytes are never copied from producer to consumer. In the datspace pipeline:
+True zero-copy requires that the data bytes are never copied from producer to consumer. In the duckspace pipeline:
 
 1. **DuckDB produces Arrow buffers** in native (C++) memory
 2. **DuckDB Node.js binding** exposes these as `ArrayBuffer` (or copies into JS-managed `ArrayBuffer`)
@@ -339,7 +339,7 @@ Arrow Flight is an RPC framework built on gRPC that uses Arrow IPC format for da
 - `DoPut`: stream Arrow RecordBatches from client to server
 - `DoExchange`: bidirectional streaming
 
-**Applicability to datspace (local desktop):**
+**Applicability to duckspace (local desktop):**
 
 | Factor | Assessment |
 |--------|------------|
@@ -366,13 +366,13 @@ Arrow Flight:
   Overhead: gRPC server lifecycle, TCP connection, HTTP2 framing, protobuf metadata
 ```
 
-**Flight adds 3-5 layers of overhead** over direct `MessagePort` transfer with no functional benefit for the datspace use case.
+**Flight adds 3-5 layers of overhead** over direct `MessagePort` transfer with no functional benefit for the duckspace use case.
 
 ### 6.3 Verdict on Arrow Flight
 
-**Do not use Arrow Flight for datspace.** It is designed for network-distributed Arrow data services (data lakes, query engines serving multiple clients). For a single-user desktop app with in-process databases, direct `MessagePort` + Arrow IPC stream format is strictly superior in every dimension: latency, complexity, bundle size, and memory efficiency.
+**Do not use Arrow Flight for duckspace.** It is designed for network-distributed Arrow data services (data lakes, query engines serving multiple clients). For a single-user desktop app with in-process databases, direct `MessagePort` + Arrow IPC stream format is strictly superior in every dimension: latency, complexity, bundle size, and memory efficiency.
 
-Arrow Flight could be relevant in the future if datspace adds a "server mode" that exposes datasets over the network, but this is explicitly out of scope (single-user, local-first).
+Arrow Flight could be relevant in the future if duckspace adds a "server mode" that exposes datasets over the network, but this is explicitly out of scope (single-user, local-first).
 
 ---
 
@@ -539,7 +539,7 @@ This is the recommended architecture for all data flow between Main and Renderer
 - TCP loopback adds latency vs direct MessagePort
 - No functional benefit over direct transfer for single-user desktop app
 
-**When to reconsider:** If datspace adds a "server mode" exposing data over the network.
+**When to reconsider:** If duckspace adds a "server mode" exposing data over the network.
 
 ### Alternative 2: JSON Serialization with Structured Clone
 
@@ -600,7 +600,7 @@ This is the recommended architecture for all data flow between Main and Renderer
 
 2. **Perspective.js Arrow consumption:** Does Perspective.js accept Arrow IPC buffers directly, or does it require conversion to Arrow JS `Table` first? If it has a custom Arrow reader, the `apache-arrow` npm package may only be needed for non-Perspective visualizations.
 
-3. **Electron MessagePort + ReadableStream transfer:** Is `ReadableStream` transfer via `postMessage` stable in the Electron version datspace will target? If so, it provides the cleanest streaming API with built-in backpressure.
+3. **Electron MessagePort + ReadableStream transfer:** Is `ReadableStream` transfer via `postMessage` stable in the Electron version duckspace will target? If so, it provides the cleanest streaming API with built-in backpressure.
 
 4. **SharedArrayBuffer COOP/COEP impact:** Does enabling cross-origin isolation in Electron's BrowserWindow cause any issues with the visualization libraries or other Renderer dependencies?
 

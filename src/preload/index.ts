@@ -1,5 +1,5 @@
 /**
- * Electron preload script that sets up the `window.datspace` bridge.
+ * Electron preload script that sets up the `window.duckspace` bridge.
  *
  * Runs in the Renderer's isolated preload context. Uses `contextBridge.exposeInMainWorld`
  * to expose a safe API surface to the Renderer without granting full Node.js access.
@@ -36,7 +36,7 @@ import type {
   WorkerHealth,
 } from '@shared/types';
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from 'electron';
-import type { DatspaceAPI } from './api';
+import type { DuckspaceAPI } from './api';
 
 /** Inbound data plane message with buffer attached by the MessagePort */
 type InboundDataPlaneMessage =
@@ -161,7 +161,7 @@ ipcRenderer.on(PUSH_EVENTS.PORT, (event: IpcRendererEvent, payload: { channel: s
   }
 });
 
-const api: DatspaceAPI = {
+const api: DuckspaceAPI = {
   query: {
     execute: (sql: string, params?: unknown[]) =>
       ipcRenderer.invoke(IPC_CHANNELS.QUERY_EXECUTE, { sql, params }),
@@ -388,4 +388,4 @@ const api: DatspaceAPI = {
   },
 };
 
-contextBridge.exposeInMainWorld('datspace', api);
+contextBridge.exposeInMainWorld('duckspace', api);

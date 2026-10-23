@@ -31,11 +31,11 @@ US4 WatchDirConfig UI is **functionally solid** for all CRUD operations and vali
 
 | # | Issue | Location | Description |
 |---|-------|----------|-------------|
-| 3 | File watcher events not propagating to renderer | `file-watcher.ts` -> `App.tsx` | After adding `/tmp/datspace-qa/test-data` as a watch directory, `sourceCount` remains at 0. No data sources appear in the sidebar. Creating new files in the directory doesn't trigger events. Standalone chokidar test works correctly. Built main-entry.js has correct code (chokidar.watch, watcher.on, emitWatchFileEvent, importFiles). Cannot debug further via MCP as main process console output is not captured by `browser_console_messages`. |
+| 3 | File watcher events not propagating to renderer | `file-watcher.ts` -> `App.tsx` | After adding `/tmp/duckspace-qa/test-data` as a watch directory, `sourceCount` remains at 0. No data sources appear in the sidebar. Creating new files in the directory doesn't trigger events. Standalone chokidar test works correctly. Built main-entry.js has correct code (chokidar.watch, watcher.on, emitWatchFileEvent, importFiles). Cannot debug further via MCP as main process console output is not captured by `browser_console_messages`. |
 
 **Reproduction:**
 1. Launch app
-2. Add watch directory `/tmp/datspace-qa/test-data` (contains .csv, .json, .tsv files)
+2. Add watch directory `/tmp/duckspace-qa/test-data` (contains .csv, .json, .tsv files)
 3. Wait 10+ seconds
 4. Source count stays at "0 sources", no data sources appear in sidebar
 
@@ -62,7 +62,7 @@ US4 WatchDirConfig UI is **functionally solid** for all CRUD operations and vali
 
 | # | Issue | Location | Description |
 |---|-------|----------|-------------|
-| 4 | Error messages leak internal IPC details | `WatchDirConfig.tsx:100` | Error banner shows raw: "Error invoking remote method 'watch:addDirectory': DatspaceError: Directory is already being watched: ..." Should strip "Error invoking remote method..." prefix for user-friendly messages. |
+| 4 | Error messages leak internal IPC details | `WatchDirConfig.tsx:100` | Error banner shows raw: "Error invoking remote method 'watch:addDirectory': DuckspaceError: Directory is already being watched: ..." Should strip "Error invoking remote method..." prefix for user-friendly messages. |
 | 5 | No confirmation dialog on Remove | `CatalogSidebar.tsx:85-91` | `handleRemoveSource` immediately deletes without "Are you sure?" confirmation. Accidental clicks permanently destroy data source + DuckDB table. |
 | 6 | Remove error silently swallowed | `CatalogSidebar.tsx:87-90` | `void (async () => { await removeSource(); await db.delete() })()` has no `.catch()`. If IPC fails, error is lost with no UI feedback. |
 | 7 | Retry creates duplicate data source | `CatalogSidebar.tsx:94-97` | `handleRetryImport` calls `importFiles([source.filePath], 'retry')` without passing `dataSourceId`. IPC handler requires `args.dataSourceId !== undefined` to route to `retryImport()`. Without it, falls through to `importFiles()` which creates a NEW data source instead of updating the existing one. |
@@ -102,11 +102,11 @@ US4 WatchDirConfig UI is **functionally solid** for all CRUD operations and vali
 | 2b. Cancel closes form and resets state | PASS | Form hidden, error cleared, "+ Add" reappears |
 | 2b. Reopening form restores defaults | PASS | |
 | 2c. Empty path validation | PASS | "Directory path is required." with `role="alert"` |
-| 2c. Non-existent path error | PASS | "DatspaceError: Directory not found: ..." with `role="alert"` |
-| 2c. File path (not directory) error | PASS | "DatspaceError: Path is not a directory: ..." with `role="alert"` |
+| 2c. Non-existent path error | PASS | "DuckspaceError: Directory not found: ..." with `role="alert"` |
+| 2c. File path (not directory) error | PASS | "DuckspaceError: Path is not a directory: ..." with `role="alert"` |
 | 2d. Successful add (default options) | PASS | Entry shows green dot, "test-data" name, full path, "0 sources", all format badges, "recursive" tag |
 | 2d. Form closes after success | PASS | "+ Add" button reappears |
-| 2e. Duplicate directory rejection | PASS | "DatspaceError: Directory is already being watched: ..." |
+| 2e. Duplicate directory rejection | PASS | "DuckspaceError: Directory is already being watched: ..." |
 | 2f. Remove directory | PASS | Entry removed, empty state returns |
 | 2f. Remove button `aria-label` | PASS | "Remove watch directory test-data" |
 | 2g. Add with format filters (CSV+JSON) | PASS | Entry shows "CSV, JSON" filter text |

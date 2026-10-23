@@ -1,4 +1,4 @@
-# Embedding Model Options for Local Vector Search in datspace
+# Embedding Model Options for Local Vector Search in duckspace
 
 **Research Finding** | Generated: 2026-02-04
 **Scope**: Evaluate embedding model strategies for LanceDB vector search within an Electron desktop application
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-datspace requires an embedding pipeline to power semantic search, AI-assisted analytics (RAG), and contextual retrieval across SQL queries, table schemas, data samples, and user notes. The embedding model must integrate with the LanceDB vector store, run within the Electron process model (Worker Threads), and respect the project's immutable principles: local-first operation, offline capability, and embedded-only databases.
+duckspace requires an embedding pipeline to power semantic search, AI-assisted analytics (RAG), and contextual retrieval across SQL queries, table schemas, data samples, and user notes. The embedding model must integrate with the LanceDB vector store, run within the Electron process model (Worker Threads), and respect the project's immutable principles: local-first operation, offline capability, and embedded-only databases.
 
 After evaluating local inference (Transformers.js), API-based services, and hybrid approaches, this document recommends a **hybrid strategy with Transformers.js as the primary local engine** and optional API-based enrichment when online.
 
@@ -80,7 +80,7 @@ The ONNX Runtime Web/Node package itself adds approximately 8 MB. Bundling the d
 
 ### Strengths
 
-- Fully local, fully offline -- aligns with datspace constitution
+- Fully local, fully offline -- aligns with duckspace constitution
 - No API keys, no costs, no rate limits
 - Deterministic results (same input always yields same embedding)
 - Worker Thread isolation keeps UI responsive
@@ -115,7 +115,7 @@ External embedding APIs provide higher-quality embeddings but require network co
 
 ### Cost Analysis for Desktop App Usage
 
-Typical datspace usage patterns and estimated API costs:
+Typical duckspace usage patterns and estimated API costs:
 
 | Use Case | Tokens/Event | Events/Day | Monthly Tokens | Monthly Cost (OpenAI small) |
 |----------|-------------|------------|----------------|----------------------------|
@@ -231,11 +231,11 @@ LanceDB uses the Lance columnar format, which stores vectors in contiguous Float
 | 1024 | ~2ms | ~6ms | ~15ms |
 | 1536 | ~3ms | ~10ms | ~25ms |
 
-For datspace's expected scale (thousands to tens of thousands of embedded items -- not millions), **all dimensionalities perform well**. The 384-dim option offers the best balance of quality, storage, and speed.
+For duckspace's expected scale (thousands to tens of thousands of embedded items -- not millions), **all dimensionalities perform well**. The 384-dim option offers the best balance of quality, storage, and speed.
 
 ### Recommendation on Dimensions
 
-**384 dimensions** is the right choice for datspace:
+**384 dimensions** is the right choice for duckspace:
 - Expected corpus size (SQL queries, schemas, notes) is <100K items
 - At this scale, brute-force search is <1ms, index-based is <2ms
 - Storage overhead is minimal (~150 KB for 100 items)
@@ -246,7 +246,7 @@ For datspace's expected scale (thousands to tens of thousands of embedded items 
 
 ## 5. Chunking Strategies for Analytics Context
 
-Different content types in datspace require tailored chunking and embedding strategies.
+Different content types in duckspace require tailored chunking and embedding strategies.
 
 ### 5.1 SQL Query Embedding
 
@@ -332,7 +332,7 @@ Parameters:
 - Privacy concerns: user SQL queries and data schemas sent to external service
 - Cost is trivial, but dependency on external availability is not
 
-**When it might be reconsidered**: If a future "cloud tier" of datspace supports always-online enterprise users, API embedding could be the default for that tier.
+**When it might be reconsidered**: If a future "cloud tier" of duckspace supports always-online enterprise users, API embedding could be the default for that tier.
 
 ### Alternative 2: Hybrid Dual-Column from Day One
 
@@ -358,7 +358,7 @@ Parameters:
 - For the expected corpus sizes (<100K items), the quality improvement is negligible
 - Storage doubles for vector columns
 
-**When it might be reconsidered**: If datspace grows to handle very large corpora (>500K embedded items) where the additional dimensions meaningfully improve retrieval precision in ANN search.
+**When it might be reconsidered**: If duckspace grows to handle very large corpora (>500K embedded items) where the additional dimensions meaningfully improve retrieval precision in ANN search.
 
 ### Alternative 4: FAISS or Usearch Instead of LanceDB Vector Search
 
@@ -369,7 +369,7 @@ Parameters:
 - Adding another native library increases Electron build complexity
 - LanceDB's disk-based search is ideal for the "Stream and Scan" principle
 - FAISS requires loading index into memory, violating the embedded-only and memory-conscious constraints
-- No meaningful performance advantage at datspace's expected scale
+- No meaningful performance advantage at duckspace's expected scale
 
 ### Alternative 5: Sentence-Transformers via Python Sidecar
 
@@ -469,4 +469,4 @@ The architecture is designed to support future additions without breaking change
 
 ---
 
-*This research finding supports the datspace system design project. All recommendations comply with the project constitution's immutable principles.*
+*This research finding supports the duckspace system design project. All recommendations comply with the project constitution's immutable principles.*

@@ -2,14 +2,14 @@
 
 **Status:** Accepted
 **Date:** 2026-02-04
-**Deciders:** datspace Architecture Team
-**Domain:** System Design - datspace
+**Deciders:** duckspace Architecture Team
+**Domain:** System Design - duckspace
 
 ---
 
 ## Context
 
-datspace is a single-user, local-first Electron desktop application for analytical data exploration. Its architecture involves three process boundaries: a Main Process (hosting DuckDB in a Worker Thread, LanceDB, RxDB), a Renderer Process (hosting Perspective.js, Observable Plot, ECharts for visualization), and auxiliary Worker Threads for heavy computation.
+duckspace is a single-user, local-first Electron desktop application for analytical data exploration. Its architecture involves three process boundaries: a Main Process (hosting DuckDB in a Worker Thread, LanceDB, RxDB), a Renderer Process (hosting Perspective.js, Observable Plot, ECharts for visualization), and auxiliary Worker Threads for heavy computation.
 
 These process boundaries create a critical design question: **how should analytical data be transferred between the database engines and the visualization layer?**
 
@@ -175,7 +175,7 @@ This separation prevents large data transfers from blocking control messages and
 - No functional benefit over direct MessagePort transfer for a single-user desktop application.
 - Latency: TCP loopback + HTTP/2 framing adds measurable latency vs. direct in-process MessagePort.
 
-**Verdict:** Rejected. Arrow Flight solves the wrong problem (network distribution) for datspace (local in-process IPC). Reconsider only if datspace adds a "server mode" exposing datasets over the network, which is explicitly out of scope per Principle 14 (single-user, local-first).
+**Verdict:** Rejected. Arrow Flight solves the wrong problem (network distribution) for duckspace (local in-process IPC). Reconsider only if duckspace adds a "server mode" exposing datasets over the network, which is explicitly out of scope per Principle 14 (single-user, local-first).
 
 ### Alternative 5: Electron ipcMain/ipcRenderer
 

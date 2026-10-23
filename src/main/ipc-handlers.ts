@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { MessageChannel as NodeMessageChannel, type Worker } from 'node:worker_threads';
 import { IPC_CHANNELS, PUSH_EVENTS, TIMEOUTS } from '@shared/constants';
-import { DatspaceConfigSchema } from '@shared/schemas/config-schema';
+import { DuckspaceConfigSchema } from '@shared/schemas/config-schema';
 import type {
   AddWatchDirectoryRequest,
   AppState,
@@ -284,7 +284,7 @@ export function registerIPCHandlers(): void {
 
       // Validate the proposed section against the Zod schema
       const proposed = { ...config, [sectionKey]: sectionObj };
-      const result = DatspaceConfigSchema.safeParse(proposed);
+      const result = DuckspaceConfigSchema.safeParse(proposed);
       if (!result.success) {
         console.warn(`config:set rejected [${args.key}]:`, result.error.issues);
         return;

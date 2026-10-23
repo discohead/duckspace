@@ -1,7 +1,7 @@
 /**
- * Datspace Error Taxonomy
+ * Duckspace Error Taxonomy
  *
- * Structured error codes and classes for the datspace Electron application.
+ * Structured error codes and classes for the duckspace Electron application.
  * All IPC errors follow the IPCError interface for safe serialization across
  * process boundaries (Main, Worker, Renderer).
  *
@@ -206,24 +206,24 @@ export const ERROR_METADATA: Record<
 };
 
 // ---------------------------------------------------------------------------
-// DatspaceError Class
+// DuckspaceError Class
 // ---------------------------------------------------------------------------
 
 /**
- * Structured error class for all Datspace application errors.
+ * Structured error class for all Duckspace application errors.
  *
  * Extends `Error` with a machine-readable code, retryability flag, and optional
- * details. Use {@link DatspaceError.toIPCError} to serialize for safe transport
+ * details. Use {@link DuckspaceError.toIPCError} to serialize for safe transport
  * across process boundaries (Main, Worker, Renderer).
  */
-export class DatspaceError extends Error {
+export class DuckspaceError extends Error {
   readonly code: ErrorCode;
   readonly retryable: boolean;
   readonly retryAfterMs?: number | undefined;
   readonly details?: Record<string, unknown> | undefined;
 
   /**
-   * Create a new DatspaceError.
+   * Create a new DuckspaceError.
    *
    * @param code - Error code from {@link ERROR_CODES} (e.g., 'E1001').
    * @param message - Human-readable message; falls back to the default from {@link ERROR_METADATA}.
@@ -238,7 +238,7 @@ export class DatspaceError extends Error {
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety for invalid codes
     super(message ?? meta?.defaultMessage ?? 'Unknown error');
 
-    this.name = 'DatspaceError';
+    this.name = 'DuckspaceError';
     this.code = code;
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety for invalid codes
     this.retryable = meta?.retryable ?? false;
@@ -272,20 +272,20 @@ export class DatspaceError extends Error {
  * Create a QUERY_SYNTAX_ERROR (E1001) for malformed SQL.
  *
  * @param message - The syntax error message from DuckDB.
- * @returns A non-retryable DatspaceError.
+ * @returns A non-retryable DuckspaceError.
  */
-export function querySyntaxError(message: string): DatspaceError {
-  return new DatspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR, message);
+export function querySyntaxError(message: string): DuckspaceError {
+  return new DuckspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR, message);
 }
 
 /**
  * Create a TABLE_NOT_FOUND error (E1004) for missing tables.
  *
  * @param tableName - Name of the table that was not found.
- * @returns A non-retryable DatspaceError.
+ * @returns A non-retryable DuckspaceError.
  */
-export function tableNotFoundError(tableName: string): DatspaceError {
-  return new DatspaceError(ERROR_CODES.TABLE_NOT_FOUND, `Table '${tableName}' does not exist`);
+export function tableNotFoundError(tableName: string): DuckspaceError {
+  return new DuckspaceError(ERROR_CODES.TABLE_NOT_FOUND, `Table '${tableName}' does not exist`);
 }
 
 /**
@@ -293,23 +293,23 @@ export function tableNotFoundError(tableName: string): DatspaceError {
  *
  * @param columnName - Name of the column that was not found.
  * @param tableName - Name of the table the column was expected in.
- * @returns A non-retryable DatspaceError.
+ * @returns A non-retryable DuckspaceError.
  */
-export function columnNotFoundError(columnName: string, tableName: string): DatspaceError {
+export function columnNotFoundError(columnName: string, tableName: string): DuckspaceError {
   const msg = tableName
     ? `Column '${columnName}' does not exist in table '${tableName}'`
     : `Column '${columnName}' does not exist`;
-  return new DatspaceError(ERROR_CODES.COLUMN_NOT_FOUND, msg);
+  return new DuckspaceError(ERROR_CODES.COLUMN_NOT_FOUND, msg);
 }
 
 /**
  * Create a QUERY_TIMEOUT error (E1002) when a query exceeds its time limit.
  *
  * @param timeoutMs - The timeout threshold in milliseconds that was exceeded.
- * @returns A retryable DatspaceError with retryAfterMs capped at 5000ms.
+ * @returns A retryable DuckspaceError with retryAfterMs capped at 5000ms.
  */
-export function queryTimeoutError(timeoutMs: number): DatspaceError {
-  return new DatspaceError(
+export function queryTimeoutError(timeoutMs: number): DuckspaceError {
+  return new DuckspaceError(
     ERROR_CODES.QUERY_TIMEOUT,
     `Query execution timed out after ${String(timeoutMs)}ms`,
     { retryAfterMs: Math.min(timeoutMs, 5_000) },
@@ -320,10 +320,10 @@ export function queryTimeoutError(timeoutMs: number): DatspaceError {
  * Create a QUERY_CANCELLED error (E1003) when a query is explicitly cancelled.
  *
  * @param queryId - Identifier of the cancelled query.
- * @returns A non-retryable DatspaceError with the queryId in details.
+ * @returns A non-retryable DuckspaceError with the queryId in details.
  */
-export function queryCancelledError(queryId: string): DatspaceError {
-  return new DatspaceError(ERROR_CODES.QUERY_CANCELLED, `Query '${queryId}' was cancelled`, {
+export function queryCancelledError(queryId: string): DuckspaceError {
+  return new DuckspaceError(ERROR_CODES.QUERY_CANCELLED, `Query '${queryId}' was cancelled`, {
     details: { queryId },
   });
 }
@@ -332,10 +332,10 @@ export function queryCancelledError(queryId: string): DatspaceError {
  * Create an OUT_OF_MEMORY error (E1007) when DuckDB exceeds its memory limit.
  *
  * @param details - Optional memory usage details (e.g., heapUsed, heapTotal).
- * @returns A retryable DatspaceError with a 1-second retry delay.
+ * @returns A retryable DuckspaceError with a 1-second retry delay.
  */
-export function outOfMemoryError(details?: Record<string, unknown>): DatspaceError {
-  return new DatspaceError(ERROR_CODES.OUT_OF_MEMORY, undefined, {
+export function outOfMemoryError(details?: Record<string, unknown>): DuckspaceError {
+  return new DuckspaceError(ERROR_CODES.OUT_OF_MEMORY, undefined, {
     retryAfterMs: 1_000,
     details,
   });
@@ -345,10 +345,10 @@ export function outOfMemoryError(details?: Record<string, unknown>): DatspaceErr
  * Create a WORKER_CRASHED error (E6001) when the DuckDB worker terminates unexpectedly.
  *
  * @param message - Optional crash reason or exit code description.
- * @returns A retryable DatspaceError with a 2-second retry delay.
+ * @returns A retryable DuckspaceError with a 2-second retry delay.
  */
-export function workerCrashedError(message?: string): DatspaceError {
-  return new DatspaceError(
+export function workerCrashedError(message?: string): DuckspaceError {
+  return new DuckspaceError(
     ERROR_CODES.WORKER_CRASHED,
     message ?? 'DuckDB Worker terminated unexpectedly',
     { retryAfterMs: 2_000 },
@@ -358,10 +358,10 @@ export function workerCrashedError(message?: string): DatspaceError {
 /**
  * Create a WORKER_UNRESPONSIVE error (E6002) when the worker fails to respond to health checks.
  *
- * @returns A retryable DatspaceError with a 3-second retry delay.
+ * @returns A retryable DuckspaceError with a 3-second retry delay.
  */
-export function workerUnresponsiveError(): DatspaceError {
-  return new DatspaceError(ERROR_CODES.WORKER_UNRESPONSIVE, undefined, {
+export function workerUnresponsiveError(): DuckspaceError {
+  return new DuckspaceError(ERROR_CODES.WORKER_UNRESPONSIVE, undefined, {
     retryAfterMs: 3_000,
   });
 }
@@ -371,10 +371,10 @@ export function workerUnresponsiveError(): DatspaceError {
  *
  * @param channel - The IPC channel name that timed out.
  * @param timeoutMs - The timeout threshold in milliseconds.
- * @returns A retryable DatspaceError with a 1-second retry delay.
+ * @returns A retryable DuckspaceError with a 1-second retry delay.
  */
-export function ipcTimeoutError(channel: string, timeoutMs: number): DatspaceError {
-  return new DatspaceError(
+export function ipcTimeoutError(channel: string, timeoutMs: number): DuckspaceError {
+  return new DuckspaceError(
     ERROR_CODES.IPC_TIMEOUT,
     `IPC request on channel '${channel}' timed out after ${String(timeoutMs)}ms`,
     { retryAfterMs: 1_000, details: { channel, timeoutMs } },
@@ -384,20 +384,20 @@ export function ipcTimeoutError(channel: string, timeoutMs: number): DatspaceErr
 /**
  * Create a SHUTTING_DOWN error (E6006) to reject requests during application shutdown.
  *
- * @returns A non-retryable DatspaceError.
+ * @returns A non-retryable DuckspaceError.
  */
-export function shuttingDownError(): DatspaceError {
-  return new DatspaceError(ERROR_CODES.SHUTTING_DOWN);
+export function shuttingDownError(): DuckspaceError {
+  return new DuckspaceError(ERROR_CODES.SHUTTING_DOWN);
 }
 
 /**
  * Create a MUTATION_REJECTED error (E1012) when a DDL/DML statement is blocked.
  *
  * @param sql - The rejected SQL statement (truncated to 200 chars in message, 1000 in details).
- * @returns A non-retryable DatspaceError.
+ * @returns A non-retryable DuckspaceError.
  */
-export function mutationRejectedError(sql: string): DatspaceError {
-  return new DatspaceError(
+export function mutationRejectedError(sql: string): DuckspaceError {
+  return new DuckspaceError(
     ERROR_CODES.MUTATION_REJECTED,
     `DDL/DML statement rejected: ${sql.slice(0, 200)}`,
     { details: { sql: sql.slice(0, 1_000) } },
@@ -408,10 +408,10 @@ export function mutationRejectedError(sql: string): DatspaceError {
  * Create a DATABASE_CORRUPT error (E1010) when a database integrity check fails.
  *
  * @param details - Optional description of the corruption detected.
- * @returns A non-retryable DatspaceError.
+ * @returns A non-retryable DuckspaceError.
  */
-export function databaseCorruptError(details?: string): DatspaceError {
-  return new DatspaceError(
+export function databaseCorruptError(details?: string): DuckspaceError {
+  return new DuckspaceError(
     ERROR_CODES.DATABASE_CORRUPT,
     details ?? 'Database integrity check failed',
   );
@@ -421,10 +421,10 @@ export function databaseCorruptError(details?: string): DatspaceError {
  * Create a PORT_DISCONNECTED error (E6004) when a MessagePort channel is lost.
  *
  * @param channel - The name of the disconnected channel.
- * @returns A retryable DatspaceError with a 1-second retry delay.
+ * @returns A retryable DuckspaceError with a 1-second retry delay.
  */
-export function portDisconnectedError(channel: string): DatspaceError {
-  return new DatspaceError(
+export function portDisconnectedError(channel: string): DuckspaceError {
+  return new DuckspaceError(
     ERROR_CODES.PORT_DISCONNECTED,
     `MessagePort channel '${channel}' disconnected`,
     { retryAfterMs: 1_000, details: { channel } },
@@ -436,15 +436,15 @@ export function portDisconnectedError(channel: string): DatspaceError {
 // ---------------------------------------------------------------------------
 
 /** Create a FILE_NOT_FOUND error (E2001). */
-export function fileNotFoundError(filePath: string): DatspaceError {
-  return new DatspaceError(ERROR_CODES.FILE_NOT_FOUND, `File not found: ${filePath}`, {
+export function fileNotFoundError(filePath: string): DuckspaceError {
+  return new DuckspaceError(ERROR_CODES.FILE_NOT_FOUND, `File not found: ${filePath}`, {
     details: { filePath },
   });
 }
 
 /** Create an UNSUPPORTED_FORMAT error (E2002). */
-export function unsupportedFormatError(filePath: string, extension: string): DatspaceError {
-  return new DatspaceError(
+export function unsupportedFormatError(filePath: string, extension: string): DuckspaceError {
+  return new DuckspaceError(
     ERROR_CODES.UNSUPPORTED_FORMAT,
     `Unsupported file format: ${extension}`,
     { details: { filePath, extension } },
@@ -452,8 +452,8 @@ export function unsupportedFormatError(filePath: string, extension: string): Dat
 }
 
 /** Create a PERMISSION_DENIED error (E2003). */
-export function filePermissionDeniedError(filePath: string): DatspaceError {
-  return new DatspaceError(
+export function filePermissionDeniedError(filePath: string): DuckspaceError {
+  return new DuckspaceError(
     ERROR_CODES.PERMISSION_DENIED,
     `Permission denied reading file: ${filePath}`,
     { details: { filePath } },
@@ -461,15 +461,19 @@ export function filePermissionDeniedError(filePath: string): DatspaceError {
 }
 
 /** Create a SOURCE_NOT_FOUND error (E2010). */
-export function sourceNotFoundError(dataSourceId: string): DatspaceError {
-  return new DatspaceError(ERROR_CODES.SOURCE_NOT_FOUND, `Data source not found: ${dataSourceId}`, {
-    details: { dataSourceId },
-  });
+export function sourceNotFoundError(dataSourceId: string): DuckspaceError {
+  return new DuckspaceError(
+    ERROR_CODES.SOURCE_NOT_FOUND,
+    `Data source not found: ${dataSourceId}`,
+    {
+      details: { dataSourceId },
+    },
+  );
 }
 
 /** Create a TABLE_DROP_FAILED error (E2011). */
-export function tableDropFailedError(tableName: string, reason: string): DatspaceError {
-  return new DatspaceError(
+export function tableDropFailedError(tableName: string, reason: string): DuckspaceError {
+  return new DuckspaceError(
     ERROR_CODES.TABLE_DROP_FAILED,
     `Failed to drop table '${tableName}': ${reason}`,
     { retryAfterMs: 1_000, details: { tableName } },
@@ -477,22 +481,22 @@ export function tableDropFailedError(tableName: string, reason: string): Datspac
 }
 
 /** Create a DIRECTORY_NOT_FOUND error (E2020). */
-export function directoryNotFoundError(dirPath: string): DatspaceError {
-  return new DatspaceError(ERROR_CODES.DIRECTORY_NOT_FOUND, `Directory not found: ${dirPath}`, {
+export function directoryNotFoundError(dirPath: string): DuckspaceError {
+  return new DuckspaceError(ERROR_CODES.DIRECTORY_NOT_FOUND, `Directory not found: ${dirPath}`, {
     details: { dirPath },
   });
 }
 
 /** Create a NOT_A_DIRECTORY error (E2021). */
-export function notADirectoryError(path: string): DatspaceError {
-  return new DatspaceError(ERROR_CODES.NOT_A_DIRECTORY, `Path is not a directory: ${path}`, {
+export function notADirectoryError(path: string): DuckspaceError {
+  return new DuckspaceError(ERROR_CODES.NOT_A_DIRECTORY, `Path is not a directory: ${path}`, {
     details: { path },
   });
 }
 
 /** Create a DIRECTORY_PERMISSION_DENIED error (E2022). */
-export function directoryPermissionDeniedError(dirPath: string): DatspaceError {
-  return new DatspaceError(
+export function directoryPermissionDeniedError(dirPath: string): DuckspaceError {
+  return new DuckspaceError(
     ERROR_CODES.DIRECTORY_PERMISSION_DENIED,
     `Permission denied reading directory: ${dirPath}`,
     { details: { dirPath } },
@@ -500,8 +504,8 @@ export function directoryPermissionDeniedError(dirPath: string): DatspaceError {
 }
 
 /** Create an ALREADY_WATCHING error (E2023). */
-export function alreadyWatchingError(dirPath: string): DatspaceError {
-  return new DatspaceError(
+export function alreadyWatchingError(dirPath: string): DuckspaceError {
+  return new DuckspaceError(
     ERROR_CODES.ALREADY_WATCHING,
     `Directory is already being watched: ${dirPath}`,
     { details: { dirPath } },
@@ -509,8 +513,8 @@ export function alreadyWatchingError(dirPath: string): DatspaceError {
 }
 
 /** Create an UNKNOWN_DATABASE_ERROR (E1099). */
-export function unknownDatabaseError(message: string): DatspaceError {
-  return new DatspaceError(ERROR_CODES.UNKNOWN_DATABASE_ERROR, message);
+export function unknownDatabaseError(message: string): DuckspaceError {
+  return new DuckspaceError(ERROR_CODES.UNKNOWN_DATABASE_ERROR, message);
 }
 
 // ---------------------------------------------------------------------------
@@ -528,10 +532,10 @@ function extractFilePath(errorMessage: string): string {
 }
 
 /**
- * Classify a raw DuckDB error into the datspace error taxonomy.
+ * Classify a raw DuckDB error into the duckspace error taxonomy.
  * Inspects the error message to determine the appropriate structured error code.
  */
-export function classifyDuckDBError(error: Error): DatspaceError {
+export function classifyDuckDBError(error: Error): DuckspaceError {
   const msg = error.message.toLowerCase();
 
   if (msg.includes('syntax error') || msg.includes('parser error')) {
@@ -547,7 +551,7 @@ export function classifyDuckDBError(error: Error): DatspaceError {
     return outOfMemoryError();
   }
   if (msg.includes('type mismatch')) {
-    return new DatspaceError(ERROR_CODES.TYPE_MISMATCH, error.message);
+    return new DuckspaceError(ERROR_CODES.TYPE_MISMATCH, error.message);
   }
   if (msg.includes('no such file')) {
     return fileNotFoundError(extractFilePath(error.message));
@@ -558,5 +562,5 @@ export function classifyDuckDBError(error: Error): DatspaceError {
 
   // Default fallback: unclassified database error — preserves the original message
   // without misattributing the cause to a specific error category.
-  return new DatspaceError(ERROR_CODES.UNKNOWN_DATABASE_ERROR, error.message);
+  return new DuckspaceError(ERROR_CODES.UNKNOWN_DATABASE_ERROR, error.message);
 }

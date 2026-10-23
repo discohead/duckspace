@@ -28,8 +28,8 @@ uname -m  # arm64 (Apple Silicon) or x86_64 (Intel)
 ### 1. Initialize the Electron Forge project
 
 ```bash
-npx create-electron-app@latest datspace -- --template=vite-typescript
-cd datspace
+npx create-electron-app@latest duckspace -- --template=vite-typescript
+cd duckspace
 ```
 
 This scaffolds a project with `@electron-forge/plugin-vite` pre-configured for main, preload, and renderer entry points.
@@ -92,8 +92,8 @@ import { MakerZIP } from '@electron-forge/maker-zip';
 
 const config: ForgeConfig = {
   packagerConfig: {
-    name: 'Datspace',
-    appBundleId: 'com.datspace.app',
+    name: 'Duckspace',
+    appBundleId: 'com.duckspace.app',
     icon: './assets/icon',
     // asar: true is default; DuckDB binary resolves from node_modules
   },
@@ -239,7 +239,7 @@ src/
 │
 ├── preload/
 │   ├── index.ts                 # contextBridge exposure
-│   └── api.ts                   # Typed window.datspace API definition
+│   └── api.ts                   # Typed window.duckspace API definition
 │
 ├── renderer/
 │   ├── index.html               # Renderer entry HTML
@@ -506,7 +506,7 @@ export function decodeArrowIPC(buffer: Uint8Array) {
 // src/renderer/stores/db.ts
 import Dexie from 'dexie';
 
-class DatspaceDB extends Dexie {
+class DuckspaceDB extends Dexie {
   tabs!: Dexie.Table;
   queries!: Dexie.Table;
   catalog_entries!: Dexie.Table;
@@ -518,7 +518,7 @@ class DatspaceDB extends Dexie {
   app_state!: Dexie.Table;
 
   constructor() {
-    super('Datspace');
+    super('Duckspace');
 
     this.version(1).stores({
       tabs:            'id, type, order',
@@ -534,7 +534,7 @@ class DatspaceDB extends Dexie {
   }
 }
 
-const db = new DatspaceDB();
+const db = new DuckspaceDB();
 export default db;
 ```
 
@@ -567,7 +567,7 @@ The Renderer cannot access Node.js APIs directly. The preload script exposes a t
 
 ```typescript
 // src/preload/api.ts
-export interface DatspaceAPI {
+export interface DuckspaceAPI {
   query: {
     execute(sql: string): Promise<{ queryId: string }>;
     cancel(queryId: string): Promise<void>;
@@ -587,9 +587,9 @@ export interface DatspaceAPI {
 ```typescript
 // src/preload/index.ts
 import { contextBridge, ipcRenderer } from 'electron';
-import type { DatspaceAPI } from './api';
+import type { DuckspaceAPI } from './api';
 
-const api: DatspaceAPI = {
+const api: DuckspaceAPI = {
   query: {
     execute: (sql) => ipcRenderer.invoke('query:execute', sql),
     cancel: (queryId) => ipcRenderer.invoke('query:cancel', queryId),
@@ -605,7 +605,7 @@ const api: DatspaceAPI = {
   },
 };
 
-contextBridge.exposeInMainWorld('datspace', api);
+contextBridge.exposeInMainWorld('duckspace', api);
 ```
 
 In the Main Process, set up the BrowserWindow with the preload script:
@@ -645,7 +645,7 @@ function createWindow() {
 
 ## App Data Paths
 
-All persistent data lives under `~/Library/Application Support/Datspace/`:
+All persistent data lives under `~/Library/Application Support/Duckspace/`:
 
 | Path | Contents |
 |------|----------|
@@ -687,7 +687,7 @@ After completing the implementation, verify each item:
 
 **Dexie.js schema version mismatch**
 - If you change the Dexie.js schema, increment the version number. Dexie will not run migrations if the version number stays the same.
-- To reset during development: open Chrome DevTools in the Renderer, go to Application > IndexedDB, delete the "Datspace" database.
+- To reset during development: open Chrome DevTools in the Renderer, go to Application > IndexedDB, delete the "Duckspace" database.
 
 **Vite HMR not working for Renderer**
 - Confirm `@vitejs/plugin-react` is in `vite.renderer.config.ts` plugins.

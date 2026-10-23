@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import 'fake-indexeddb/auto';
-import { DatspaceDB } from '@renderer/stores/db';
+import { DuckspaceDB } from '@renderer/stores/db';
 import type {
   AppStateEntry,
   CatalogEntry,
@@ -14,19 +14,19 @@ import type {
 } from '@shared/types';
 import Dexie from 'dexie';
 
-let testDb: DatspaceDB;
+let testDb: DuckspaceDB;
 
 beforeEach(async () => {
-  testDb = new DatspaceDB();
+  testDb = new DuckspaceDB();
   await testDb.open();
 });
 
 afterEach(async () => {
   testDb.close();
-  await Dexie.delete('Datspace');
+  await Dexie.delete('Duckspace');
 });
 
-describe('DatspaceDB', () => {
+describe('DuckspaceDB', () => {
   describe('database initialization', () => {
     it('can be opened', () => {
       expect(testDb.isOpen()).toBe(true);

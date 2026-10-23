@@ -1,4 +1,4 @@
-# datspace: System Overview and Component Topology
+# duckspace: System Overview and Component Topology
 
 **Document:** 01-system-overview.md
 **Version:** 1.1
@@ -10,11 +10,11 @@
 
 ## 1. System Purpose and Scope
 
-### What datspace Is
+### What duckspace Is
 
-datspace is a **serverless data warehouse in a desktop application**. It is a macOS-first Electron application that gives individual analysts the power of a modern data stack -- analytical SQL, vector search, GPU-accelerated visualization, and AI-powered exploration -- without deploying any servers, managing any infrastructure, or paying per-query cloud costs.
+duckspace is a **serverless data warehouse in a desktop application**. It is a macOS-first Electron application that gives individual analysts the power of a modern data stack -- analytical SQL, vector search, GPU-accelerated visualization, and AI-powered exploration -- without deploying any servers, managing any infrastructure, or paying per-query cloud costs.
 
-datspace embeds three specialized database engines directly inside the Electron process:
+duckspace embeds three specialized database engines directly inside the Electron process:
 
 - **DuckDB** for analytical SQL (OLAP queries, columnar scans, aggregations, joins)
 - **LanceDB** for vector similarity search and full-text search (RAG pipeline, semantic search)
@@ -24,7 +24,7 @@ All inter-component data transfer uses **Apache Arrow IPC** -- a zero-copy colum
 
 ### Target User
 
-datspace targets the **solo analyst or small-team data practitioner** who:
+duckspace targets the **solo analyst or small-team data practitioner** who:
 
 - Works primarily on macOS
 - Needs to explore datasets ranging from thousands to millions of rows
@@ -195,7 +195,7 @@ graph TB
 
 ## 4. Roadmap Phase Overview
 
-datspace is designed for incremental delivery across seven phases. Each phase produces a functional increment that builds on previous phases.
+duckspace is designed for incremental delivery across seven phases. Each phase produces a functional increment that builds on previous phases.
 
 | Phase | Name | Key Systems | Dependencies | Key Deliverables |
 |-------|------|------------|--------------|------------------|
@@ -398,7 +398,7 @@ Renderer ArrayBuffer --[tableFromIPC]--> Arrow Table --[direct read]--> Perspect
 
 ### Pattern: Defense-in-Depth SQL Safety
 
-1. **Layer 1 -- Agent SDK allowedTools:** Restricts agent to `mcp__datspace__*` tools only
+1. **Layer 1 -- Agent SDK allowedTools:** Restricts agent to `mcp__duckspace__*` tools only
 2. **Layer 2 -- PreToolUse hook:** Intercepts `execute_sql`, validates read-only
 3. **Layer 3 -- MCP tool handler:** Regex rejects mutation keywords
 4. **Layer 4 -- DuckDB connection:** Configured in read-only mode
@@ -417,8 +417,8 @@ This keeps context usage proportional to query complexity.
 
 ---
 
-*Document 01 of the datspace Architecture Series*
-*Generated: 2026-02-04 | Plan: datspace-system-design-2026-02-04 | Task: design-system-overview*
+*Document 01 of the duckspace Architecture Series*
+*Generated: 2026-02-04 | Plan: duckspace-system-design-2026-02-04 | Task: design-system-overview*
 
 ---
 **R4 Revision (2026-02-05):** Added Arquero to technology table and bundle budget. Updated pipeline diagram to show Arquero replacing toArray() for Observable Plot and ECharts paths.

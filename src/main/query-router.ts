@@ -78,7 +78,7 @@ export class QueryRouter {
    * @param sql - The SQL statement to execute.
    * @param params - Optional bind parameters for the query.
    * @returns A handle containing the assigned query ID.
-   * @throws {@link DatspaceError} If the router is shutting down.
+   * @throws {@link DuckspaceError} If the router is shutting down.
    */
   // eslint-disable-next-line @typescript-eslint/require-await
   async executeQuery(sql: string, params?: unknown[]): Promise<QueryHandle> {

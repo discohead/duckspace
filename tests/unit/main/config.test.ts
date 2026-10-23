@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // Mock electron's app module before imports
 vi.mock('electron', () => ({
   app: {
-    getPath: vi.fn(() => '/tmp/datspace-test'),
+    getPath: vi.fn(() => '/tmp/duckspace-test'),
   },
 }));
 
@@ -329,7 +329,7 @@ describe('config module', () => {
       saveConfig(DEFAULT_CONFIG);
 
       // existsSync should be called with the parent directory of the config path
-      expect(fs.existsSync).toHaveBeenCalledWith('/tmp/datspace-test');
+      expect(fs.existsSync).toHaveBeenCalledWith('/tmp/duckspace-test');
     });
   });
 
@@ -417,7 +417,7 @@ describe('config module', () => {
 
       const dbPath = getDatabasePath();
       expect(dbPath).toContain('analytics.duckdb');
-      expect(dbPath).toContain('datspace-test');
+      expect(dbPath).toContain('duckspace-test');
     });
   });
 
@@ -428,7 +428,7 @@ describe('config module', () => {
 
       const tmpDir = getTempDirectory();
       expect(tmpDir).toContain('tmp');
-      expect(tmpDir).toContain('datspace-test');
+      expect(tmpDir).toContain('duckspace-test');
     });
   });
 
@@ -465,7 +465,7 @@ describe('config module', () => {
 
       // Verify the paths checked include userData and temp directory
       const checkedPaths = existsCalls.map((call) => call[0] as string);
-      expect(checkedPaths).toContain('/tmp/datspace-test');
+      expect(checkedPaths).toContain('/tmp/duckspace-test');
       expect(checkedPaths.some((p) => p.includes('tmp'))).toBe(true);
     });
 

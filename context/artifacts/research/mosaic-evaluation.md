@@ -1,7 +1,7 @@
-# Mosaic Framework Evaluation for datspace
+# Mosaic Framework Evaluation for duckspace
 
 **Date:** 2026-02-05
-**Purpose:** Evaluate UW IDL's Mosaic framework for integration with datspace
+**Purpose:** Evaluate UW IDL's Mosaic framework for integration with duckspace
 **Sources:** idl.uw.edu/mosaic, github.com/uwdata/mosaic
 
 ---
@@ -87,7 +87,7 @@ const query = Query
 // ORDER BY cnt DESC LIMIT 100
 ```
 
-**datspace alignment:**
+**duckspace alignment:**
 
 | Current Pattern | Mosaic SQL Replacement |
 |----------------|----------------------|
@@ -108,9 +108,9 @@ const query = Query
 - **Filter Groups:** Automatic materialized views of pre-aggregated data for fast interactive filtering
 - **Client Interface:** `connect(coordinator)` → `fields()` → `query()` → `queryResult(data)` lifecycle
 
-**datspace alignment:**
+**duckspace alignment:**
 
-| datspace Component | Mosaic Core Equivalent |
+| duckspace Component | Mosaic Core Equivalent |
 |---------------------|----------------------|
 | CrossFilterManager (Section 5.3 of 08) | Selections with `crossfilter` resolution |
 | SQL WHERE predicate propagation | Selection `predicate()` method |
@@ -120,10 +120,10 @@ const query = Query
 
 **Custom Connector Feasibility:**
 
-The critical question: can the Mosaic Coordinator run in datspace's Renderer process and talk to DuckDB in a Worker Thread?
+The critical question: can the Mosaic Coordinator run in duckspace's Renderer process and talk to DuckDB in a Worker Thread?
 
 ```
-Current datspace:
+Current duckspace:
   Renderer → MessagePort → DuckDB Worker Thread → Arrow IPC → Renderer
 
 Mosaic Coordinator in Renderer:
@@ -140,7 +140,7 @@ class DuckDB {
 }
 ```
 
-A custom connector for datspace would need to:
+A custom connector for duckspace would need to:
 1. Implement the Mosaic connector interface (query → Arrow result)
 2. Bridge to our existing MessagePort → DuckDB Worker architecture
 3. Return Arrow IPC buffers (which Mosaic already expects)
@@ -164,9 +164,9 @@ A custom connector for datspace would need to:
 - Density marks: heatmap, contour, hexbin, denseLine
 - Geographic marks via DuckDB `spatial` extension
 
-**datspace alignment:**
+**duckspace alignment:**
 
-| Feature | datspace Current | vgplot |
+| Feature | duckspace Current | vgplot |
 |---------|-------------------|--------|
 | Statistical charts | Observable Plot + Arquero | vgplot marks (auto-query) |
 | Time series optimization | LTTB downsampling in ECharts | M4 in vgplot (pixel-aware) |
@@ -174,9 +174,9 @@ A custom connector for datspace would need to:
 | Dashboard charts (Sankey, gauge, treemap) | ECharts | **Not available** |
 | Data grid | Perspective.js | **Not available** |
 
-**Key limitation:** vgplot does NOT replace ECharts or Perspective. datspace needs all three visualization libraries. Adopting vgplot as a fourth library adds complexity without eliminating any existing dependency.
+**Key limitation:** vgplot does NOT replace ECharts or Perspective. duckspace needs all three visualization libraries. Adopting vgplot as a fourth library adds complexity without eliminating any existing dependency.
 
-**M4 optimization:** The one compelling unique feature. M4 performs pixel-aware binning that preserves visual shape while drastically reducing rendered points for time series. Could be valuable for datspace's time series dashboards. However, this optimization can be extracted independently or replicated in ~50-100 lines of DuckDB SQL.
+**M4 optimization:** The one compelling unique feature. M4 performs pixel-aware binning that preserves visual shape while drastically reducing rendered points for time series. Could be valuable for duckspace's time series dashboards. However, this optimization can be extracted independently or replicated in ~50-100 lines of DuckDB SQL.
 
 **Risk:** Medium. Adds a fourth visualization framework, requires Mosaic Coordinator.
 **Value:** Low-medium. Observable Plot + Arquero already covers statistical charts. M4 is nice-to-have.
@@ -206,7 +206,7 @@ plot:
     filterBy: $brush
 ```
 
-**datspace alignment:** Could power Phase 5 (Publishing) dashboard serialization. Save user's dashboard layout, chart configs, filter state as JSON → reload later. Also enables "dashboard templates" — pre-built analytical views users can apply to their data.
+**duckspace alignment:** Could power Phase 5 (Publishing) dashboard serialization. Save user's dashboard layout, chart configs, filter state as JSON → reload later. Also enables "dashboard templates" — pre-built analytical views users can apply to their data.
 
 **Risk:** Low (additive, doesn't replace anything).
 **Value:** Medium, but not needed until Phase 5.
@@ -216,7 +216,7 @@ plot:
 
 **What it provides:** Data-driven menu, search, slider, table widgets connected to Mosaic Selections.
 
-**datspace alignment:** React already provides form components. Dexie.js reactive queries power UI state. Value only with full Mosaic Coordinator adoption.
+**duckspace alignment:** React already provides form components. Dexie.js reactive queries power UI state. Value only with full Mosaic Coordinator adoption.
 
 **Recommendation:** **Skip.** React ecosystem is sufficient.
 
@@ -233,7 +233,7 @@ interface MosaicConnector {
 }
 ```
 
-### datspace Worker Thread Bridge
+### duckspace Worker Thread Bridge
 
 ```typescript
 class ElectronDuckDBConnector {
@@ -274,7 +274,7 @@ This is significantly less complex than our current CrossFilterManager (~500 lin
 
 ## 5. Architecture Comparison
 
-### Current datspace (designed)
+### Current duckspace (designed)
 
 ```
 ┌─────────────┐    MessagePort     ┌────────────┐

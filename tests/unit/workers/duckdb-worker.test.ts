@@ -728,9 +728,9 @@ describe('duckdb-worker', () => {
         const run = vi.fn().mockResolvedValue(undefined);
         mockGetConnection.mockReturnValue({ run });
 
-        await handler({ type: 'configure', settings: { temp_directory: '/tmp/datspace' } });
+        await handler({ type: 'configure', settings: { temp_directory: '/tmp/duckspace' } });
 
-        expect(run).toHaveBeenCalledWith(expect.stringContaining('/tmp/datspace'));
+        expect(run).toHaveBeenCalledWith(expect.stringContaining('/tmp/duckspace'));
       });
 
       it('applies valid settings and skips invalid ones', async () => {

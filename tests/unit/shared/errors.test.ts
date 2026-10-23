@@ -1,7 +1,7 @@
 import {
   classifyDuckDBError,
   columnNotFoundError,
-  DatspaceError,
+  DuckspaceError,
   databaseCorruptError,
   ERROR_CODES,
   ERROR_METADATA,
@@ -80,43 +80,43 @@ describe('ERROR_METADATA', () => {
 });
 
 // ---------------------------------------------------------------------------
-// DatspaceError
+// DuckspaceError
 // ---------------------------------------------------------------------------
 
-describe('DatspaceError', () => {
+describe('DuckspaceError', () => {
   it('extends Error', () => {
-    const err = new DatspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR);
+    const err = new DuckspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR);
     expect(err).toBeInstanceOf(Error);
-    expect(err).toBeInstanceOf(DatspaceError);
+    expect(err).toBeInstanceOf(DuckspaceError);
   });
 
   it('uses default message from metadata when no message provided', () => {
-    const err = new DatspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR);
+    const err = new DuckspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR);
     expect(err.message).toBe('SQL syntax error');
   });
 
   it('uses custom message when provided', () => {
-    const err = new DatspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR, 'Custom msg');
+    const err = new DuckspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR, 'Custom msg');
     expect(err.message).toBe('Custom msg');
   });
 
   it('falls back to "Unknown error" for unknown codes', () => {
-    // @ts-expect-error — I13: testing runtime behavior with invalid code; DatspaceError now requires ErrorCode at compile-time
-    const err = new DatspaceError('E9999');
+    // @ts-expect-error — I13: testing runtime behavior with invalid code; DuckspaceError now requires ErrorCode at compile-time
+    const err = new DuckspaceError('E9999');
     expect(err.message).toBe('Unknown error');
     expect(err.retryable).toBe(false);
   });
 
   it('sets retryable from metadata', () => {
-    const retryable = new DatspaceError(ERROR_CODES.QUERY_TIMEOUT);
+    const retryable = new DuckspaceError(ERROR_CODES.QUERY_TIMEOUT);
     expect(retryable.retryable).toBe(true);
 
-    const nonRetryable = new DatspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR);
+    const nonRetryable = new DuckspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR);
     expect(nonRetryable.retryable).toBe(false);
   });
 
   it('sets retryAfterMs and details from options', () => {
-    const err = new DatspaceError(ERROR_CODES.OUT_OF_MEMORY, undefined, {
+    const err = new DuckspaceError(ERROR_CODES.OUT_OF_MEMORY, undefined, {
       retryAfterMs: 1000,
       details: { heapUsed: 500 },
     });
@@ -125,13 +125,13 @@ describe('DatspaceError', () => {
   });
 
   it('has correct name property', () => {
-    const err = new DatspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR);
-    expect(err.name).toBe('DatspaceError');
+    const err = new DuckspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR);
+    expect(err.name).toBe('DuckspaceError');
   });
 
   describe('toIPCError', () => {
     it('returns a plain object suitable for IPC serialization', () => {
-      const err = new DatspaceError(ERROR_CODES.IPC_TIMEOUT, 'timed out', {
+      const err = new DuckspaceError(ERROR_CODES.IPC_TIMEOUT, 'timed out', {
         retryAfterMs: 1000,
         details: { channel: 'query:execute' },
       });
@@ -146,12 +146,12 @@ describe('DatspaceError', () => {
       });
 
       // Verify it's a plain object, not a class instance
-      expect(ipcError).not.toBeInstanceOf(DatspaceError);
+      expect(ipcError).not.toBeInstanceOf(DuckspaceError);
       expect(ipcError).not.toBeInstanceOf(Error);
     });
 
     it('omits retryAfterMs and details when not set', () => {
-      const err = new DatspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR, 'bad sql');
+      const err = new DuckspaceError(ERROR_CODES.QUERY_SYNTAX_ERROR, 'bad sql');
       const ipcError = err.toIPCError();
 
       expect(ipcError.retryAfterMs).toBeUndefined();

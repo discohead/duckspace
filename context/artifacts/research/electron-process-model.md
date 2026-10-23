@@ -1,4 +1,4 @@
-# Electron Process Model for datspace
+# Electron Process Model for duckspace
 
 **Type:** Research Finding
 **Date:** 2026-02-04
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-Electron provides a multi-process architecture rooted in Chromium's process model. For datspace -- a single-user desktop analytics app hosting DuckDB, LanceDB, and RxDB with Apache Arrow data transfer -- the critical decision is how to distribute database engines, computation, and visualization across Electron's process boundaries. This document evaluates the available process types, communication mechanisms, and memory management strategies, then recommends a specific process topology.
+Electron provides a multi-process architecture rooted in Chromium's process model. For duckspace -- a single-user desktop analytics app hosting DuckDB, LanceDB, and RxDB with Apache Arrow data transfer -- the critical decision is how to distribute database engines, computation, and visualization across Electron's process boundaries. This document evaluates the available process types, communication mechanisms, and memory management strategies, then recommends a specific process topology.
 
 ---
 
@@ -31,7 +31,7 @@ The Main Process is a Node.js runtime with full access to the operating system. 
 - V8 heap is shared with all Main Process JavaScript; default limit is ~1.5 GB on 64-bit systems (configurable via `--max-old-space-size`)
 - No direct access to DOM or Web APIs
 
-**Relevance to datspace:**
+**Relevance to duckspace:**
 The Main Process is the natural host for database engine initialization and lifecycle management. However, running DuckDB queries synchronously on the Main Process event loop would block IPC dispatch and window management. This motivates offloading actual query execution to Worker Threads or UtilityProcess instances.
 
 ### 1.2 Renderer Process
@@ -51,7 +51,7 @@ Each BrowserWindow runs in an isolated Renderer Process -- a Chromium content pr
 - Each renderer has its own V8 heap; memory is not shared with Main Process
 - Chromium sandbox restricts filesystem and OS access
 
-**Relevance to datspace:**
+**Relevance to duckspace:**
 The Renderer Process is where Perspective.js, Observable Plot, and ECharts render visualizations. It should never host database engines or perform heavy data transformation. Data arrives via IPC as Arrow buffers; the renderer's job is to visualize, not compute.
 
 ### 1.3 Worker Threads (Node.js `worker_threads`)
@@ -72,7 +72,7 @@ Worker Threads run in the Main Process's Node.js runtime but on separate V8 isol
 - No built-in process isolation or crash recovery; a stuck Worker Thread must be terminated and restarted manually
 - Limited to CPU-bound work; no DOM or web platform APIs
 
-**Relevance to datspace:**
+**Relevance to duckspace:**
 Worker Threads are the primary mechanism for hosting DuckDB and LanceDB instances. They can load the native addons, execute queries off the Main Process event loop, and transfer Arrow buffers back to the Main Process (or directly to the renderer via MessagePort) without serialization overhead.
 
 ### 1.4 UtilityProcess (Electron-specific)
@@ -94,8 +94,8 @@ Introduced in Electron v22, `UtilityProcess` spawns a separate OS process (a Nod
 - Relatively new API; fewer production references than Worker Threads
 - Each UtilityProcess has its own V8 heap and native memory; higher total memory footprint than Worker Threads for equivalent workloads
 
-**Relevance to datspace:**
-UtilityProcess provides crash isolation -- a DuckDB segfault in a UtilityProcess would not crash the entire app. However, the inability to share memory and the overhead of data transfer (especially for large Arrow buffers) makes it less suitable for the high-throughput Arrow data plane that datspace requires.
+**Relevance to duckspace:**
+UtilityProcess provides crash isolation -- a DuckDB segfault in a UtilityProcess would not crash the entire app. However, the inability to share memory and the overhead of data transfer (especially for large Arrow buffers) makes it less suitable for the high-throughput Arrow data plane that duckspace requires.
 
 ### 1.5 Web Workers (Renderer-side)
 
@@ -112,7 +112,7 @@ Web Workers run JavaScript threads within the Renderer Process. They have no acc
 - Isolated to the renderer's web platform sandbox
 - Communication with Main Process requires routing through the renderer's main thread and IPC
 
-**Relevance to datspace:**
+**Relevance to duckspace:**
 Web Workers are useful for client-side data preparation (e.g., preparing Arrow record batches for Perspective.js, computing layout for Observable Plot). They should not host databases or heavy computation -- that belongs in Worker Threads on the Node.js side.
 
 ---
@@ -133,7 +133,7 @@ The standard Electron IPC mechanism. With context isolation enabled:
 - Structured clone of 1 MB object: ~2-10 ms (serialization + deserialization)
 
 **Arrow buffer transfer:**
-Apache Arrow IPC buffers are `ArrayBuffer` instances. Using the `Transferable` mechanism, Arrow buffers can be moved from Main Process to Renderer with negligible overhead -- the buffer's backing memory is transferred, not copied. This is critical for datspace's "Arrow-First Data Flow" principle.
+Apache Arrow IPC buffers are `ArrayBuffer` instances. Using the `Transferable` mechanism, Arrow buffers can be moved from Main Process to Renderer with negligible overhead -- the buffer's backing memory is transferred, not copied. This is critical for duckspace's "Arrow-First Data Flow" principle.
 
 ### 2.2 contextBridge
 
@@ -146,7 +146,7 @@ Apache Arrow IPC buffers are `ArrayBuffer` instances. Using the `Transferable` m
 - For high-frequency data transfer: the structured clone overhead is identical to standard IPC -- contextBridge does not add extra serialization beyond what `ipcRenderer.invoke` already does
 - `Transferable` support works through contextBridge (Arrow buffers can be transferred)
 
-**Conclusion:** contextBridge overhead is negligible for datspace's use case. The alternative (disabling context isolation) is a security anti-pattern and has been deprecated as a default in modern Electron. Use contextBridge unconditionally.
+**Conclusion:** contextBridge overhead is negligible for duckspace's use case. The alternative (disabling context isolation) is a security anti-pattern and has been deprecated as a default in modern Electron. Use contextBridge unconditionally.
 
 ### 2.3 MessagePort (MessageChannelMain)
 
@@ -154,7 +154,7 @@ Electron's `MessageChannelMain` creates a pair of `MessagePort` objects that can
 
 **Key capability:** A `MessagePort` can be sent from Main Process to a Renderer Process and another port from the same channel to a Worker Thread. This establishes a **direct renderer-to-worker communication channel** that bypasses the Main Process for data transfer.
 
-**Architecture implication for datspace:**
+**Architecture implication for duckspace:**
 1. Main Process creates a `MessageChannelMain` pair
 2. One port is sent to the Renderer via `webContents.postMessage`
 3. The other port is sent to the Worker Thread hosting DuckDB
@@ -162,7 +162,7 @@ Electron's `MessageChannelMain` creates a pair of `MessagePort` objects that can
 5. The Worker Thread sends Arrow result buffers directly back to the Renderer
 6. Main Process is not in the data path -- only in the control path (lifecycle, configuration)
 
-This is the optimal topology for datspace: Main Process handles orchestration and lifecycle, Worker Threads handle database queries and computation, and data flows directly between Worker Thread and Renderer without Main Process bottleneck.
+This is the optimal topology for duckspace: Main Process handles orchestration and lifecycle, Worker Threads handle database queries and computation, and data flows directly between Worker Thread and Renderer without Main Process bottleneck.
 
 ### 2.4 MessagePort Limitations
 
@@ -186,7 +186,7 @@ Each V8 isolate (Main Process, each Worker Thread, each Renderer) has its own he
 | Renderer | ~1.5 GB | Yes, via Chromium flags |
 | UtilityProcess | ~1.5 GB | Yes, via Electron API |
 
-For datspace, V8 heap usage should remain low because the "Stream and Scan" principle prohibits loading full datasets into JS memory. DuckDB and LanceDB manage their own native memory outside V8's heap.
+For duckspace, V8 heap usage should remain low because the "Stream and Scan" principle prohibits loading full datasets into JS memory. DuckDB and LanceDB manage their own native memory outside V8's heap.
 
 ### 3.2 Native Memory (Outside V8)
 
@@ -208,7 +208,7 @@ DuckDB, LanceDB, and Arrow all allocate memory outside V8's managed heap:
 
 ---
 
-## 4. Electron v28+ Features Relevant to datspace
+## 4. Electron v28+ Features Relevant to duckspace
 
 ### 4.1 WebGPU Support
 
@@ -231,7 +231,7 @@ Electron v28+ defaults:
 - `sandbox: true` (renderer cannot access Node.js)
 - `nodeIntegration: false`
 
-These defaults align with datspace's architecture: Renderer is a pure web environment; all Node.js/native work happens in Main Process or Worker Threads.
+These defaults align with duckspace's architecture: Renderer is a pure web environment; all Node.js/native work happens in Main Process or Worker Threads.
 
 ### 4.4 UtilityProcess Improvements
 
@@ -267,7 +267,7 @@ Electron v28+ ships with Node.js 18+ and V8 11.x+:
 | **Debugging** | Harder (same process) | Easier (separate process, stdio) |
 | **Memory limit independence** | Partial (separate V8 heap, shared native) | Full (separate process) |
 
-**Verdict:** Worker Thread is the better choice for datspace.
+**Verdict:** Worker Thread is the better choice for duckspace.
 
 **Rationale:**
 1. **Performance:** Worker Threads enable SharedArrayBuffer and near-instant Transferable transfer. For an app built around Apache Arrow zero-copy IPC, this is the deciding factor.
@@ -299,7 +299,7 @@ contextBridge does not add measurable overhead beyond what IPC already requires.
 **Verdict:** Start with a single Renderer Process, use Web Workers for heavy renderer-side computation.
 
 **Rationale:**
-1. datspace is single-user, single-focus. Multi-window adds complexity without clear user benefit for the initial design.
+1. duckspace is single-user, single-focus. Multi-window adds complexity without clear user benefit for the initial design.
 2. Perspective.js manages its own rendering pipeline and handles large datasets efficiently. A single renderer with Perspective.js and Web Workers is sufficient.
 3. If a "detach chart" feature is needed later, individual charts can be moved to separate BrowserWindows. This is an additive change, not a redesign.
 4. State synchronization between multiple renderers (e.g., shared query results, shared catalog state) would require a pub/sub layer that adds significant complexity.
@@ -362,7 +362,7 @@ Renderer Process                  Main Process                  Worker Threads
 
 ## Recommendation
 
-### Recommended Process Topology for datspace
+### Recommended Process Topology for duckspace
 
 **Architecture:** Single Renderer + Main Process + 3 Dedicated Worker Threads
 

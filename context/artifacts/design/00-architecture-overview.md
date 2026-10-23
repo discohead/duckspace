@@ -1,4 +1,4 @@
-# datspace: Master Architecture Overview
+# duckspace: Master Architecture Overview
 
 **Document:** 00-architecture-overview.md
 **Version:** 1.0
@@ -10,7 +10,7 @@
 
 ## 1. Executive Summary
 
-datspace is a **serverless data warehouse in a desktop application** -- a macOS-first Electron application that gives individual analysts the power of a modern data stack without deploying servers, managing infrastructure, or paying per-query cloud costs. It embeds three specialized database engines (DuckDB for OLAP analytics, LanceDB for vector/FTS search, Dexie.js for reactive UI state), transfers all data via Apache Arrow IPC, and integrates Claude AI for natural language analytics through the Claude Agent SDK.
+duckspace is a **serverless data warehouse in a desktop application** -- a macOS-first Electron application that gives individual analysts the power of a modern data stack without deploying servers, managing infrastructure, or paying per-query cloud costs. It embeds three specialized database engines (DuckDB for OLAP analytics, LanceDB for vector/FTS search, Dexie.js for reactive UI state), transfers all data via Apache Arrow IPC, and integrates Claude AI for natural language analytics through the Claude Agent SDK.
 
 ### Key Design Principles
 
@@ -97,7 +97,7 @@ datspace is a **serverless data warehouse in a desktop application** -- a macOS-
 
 ### 2.4 Recommended Reading Order
 
-For someone new to the datspace architecture, the recommended reading order is:
+For someone new to the duckspace architecture, the recommended reading order is:
 
 1. **00-Architecture Overview** (this document) -- start here for orientation
 2. **01-System Overview** -- component topology and technology stack
@@ -201,7 +201,7 @@ graph TD
 
 ## 3. Roadmap Phase Architecture Mapping
 
-datspace is designed for incremental delivery across seven phases. Each phase produces a functional increment that builds on previous phases.
+duckspace is designed for incremental delivery across seven phases. Each phase produces a functional increment that builds on previous phases.
 
 ### Phase Dependency Graph
 
@@ -758,13 +758,13 @@ graph TB
 
 | Database | Process | Storage Location | Purpose | Access Pattern |
 |----------|---------|-----------------|---------|---------------|
-| **DuckDB** | Worker #1 | `~/Library/Application Support/Datspace/analytics.duckdb` | OLAP analytics, registered tables, cache tables | SQL via Worker postMessage, Arrow IPC results |
-| **LanceDB** | Worker #2 | `~/Library/Application Support/Datspace/lance/` | Vector embeddings, FTS indices, semantic search | Vector/FTS via Worker postMessage, Arrow IPC results |
-| **Dexie.js** | Renderer | `~/Library/Application Support/Datspace/IndexedDB/` | UI state, metadata catalog, chat history, preferences | Direct IndexedDB access, liveQuery reactive |
-| **Credentials** | Main | `~/Library/Application Support/Datspace/credentials.enc` | Encrypted connector credentials | safeStorage encrypt/decrypt, macOS Keychain |
-| **Config** | Main | `~/Library/Application Support/Datspace/config.json` | Application configuration | JSON file read/write |
-| **DuckDB Temp** | Worker #1 | `~/Library/Application Support/Datspace/tmp/` | Spill-to-disk for large queries | Managed by DuckDB, cleaned on shutdown |
-| **ONNX Models** | Worker #4 | `~/Library/Application Support/Datspace/models/` | Embedding model cache | Transformers.js model cache |
+| **DuckDB** | Worker #1 | `~/Library/Application Support/Duckspace/analytics.duckdb` | OLAP analytics, registered tables, cache tables | SQL via Worker postMessage, Arrow IPC results |
+| **LanceDB** | Worker #2 | `~/Library/Application Support/Duckspace/lance/` | Vector embeddings, FTS indices, semantic search | Vector/FTS via Worker postMessage, Arrow IPC results |
+| **Dexie.js** | Renderer | `~/Library/Application Support/Duckspace/IndexedDB/` | UI state, metadata catalog, chat history, preferences | Direct IndexedDB access, liveQuery reactive |
+| **Credentials** | Main | `~/Library/Application Support/Duckspace/credentials.enc` | Encrypted connector credentials | safeStorage encrypt/decrypt, macOS Keychain |
+| **Config** | Main | `~/Library/Application Support/Duckspace/config.json` | Application configuration | JSON file read/write |
+| **DuckDB Temp** | Worker #1 | `~/Library/Application Support/Duckspace/tmp/` | Spill-to-disk for large queries | Managed by DuckDB, cleaned on shutdown |
+| **ONNX Models** | Worker #4 | `~/Library/Application Support/Duckspace/models/` | Embedding model cache | Transformers.js model cache |
 
 ---
 
@@ -792,5 +792,5 @@ The following technology choices reflect decisions made during the design proces
 
 ---
 
-*Document 00 of the datspace Architecture Series*
-*Generated: 2026-02-05 | Plan: datspace-system-design-2026-02-04 | Task: integration-architecture-overview*
+*Document 00 of the duckspace Architecture Series*
+*Generated: 2026-02-05 | Plan: duckspace-system-design-2026-02-04 | Task: integration-architecture-overview*

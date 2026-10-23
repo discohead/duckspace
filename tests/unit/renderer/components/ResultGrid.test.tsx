@@ -35,12 +35,12 @@ vi.mock('@renderer/lib/arrow-decode', () => ({
 import { ResultGrid } from '@renderer/components/ResultGrid';
 
 /**
- * Dispatches a `datspace:arrow-batch` event to populate the component's batches state.
+ * Dispatches a `duckspace:arrow-batch` event to populate the component's batches state.
  * Must be wrapped in `act()` to flush React state updates.
  */
 function dispatchBatch(queryId: string, buffer = new ArrayBuffer(64)): void {
   window.dispatchEvent(
-    new CustomEvent('datspace:arrow-batch', {
+    new CustomEvent('duckspace:arrow-batch', {
       detail: {
         queryId,
         batch: { buffer, index: 0, rowCount: 0, byteSize: buffer.byteLength, isLast: false },

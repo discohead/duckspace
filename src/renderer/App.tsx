@@ -194,7 +194,7 @@ export function App(): ReactElement {
         const activeSources = await db.data_sources.where('status').equals('active').toArray();
         if (activeSources.length === 0) return;
 
-        const catalogEntries = await window.datspace.catalog.listTables();
+        const catalogEntries = await window.duckspace.catalog.listTables();
         const duckdbTableNames = new Set(catalogEntries.map((e) => e.name));
 
         for (const source of activeSources) {
@@ -218,7 +218,7 @@ export function App(): ReactElement {
   // The ingestion-router sends full DataSource/IngestionJob objects in initial
   // push events, which we use to CREATE Dexie records. Subsequent events UPDATE them.
   useEffect(() => {
-    const unsubProgress = window.datspace.ingestion.onProgress((event: IngestionProgressEvent) => {
+    const unsubProgress = window.duckspace.ingestion.onProgress((event: IngestionProgressEvent) => {
       // The initial progress event from importFiles() includes a full IngestionJob
       // object. Use it to create the Dexie record. Subsequent progress events
       // only include partial update fields.
@@ -248,7 +248,7 @@ export function App(): ReactElement {
       return typeof updated === 'number' ? updated : 1;
     };
 
-    const unsubComplete = window.datspace.ingestion.onComplete((event: IngestionCompleteEvent) => {
+    const unsubComplete = window.duckspace.ingestion.onComplete((event: IngestionCompleteEvent) => {
       void (async () => {
         const updated = await applyComplete(event);
         if (updated === 0) {
@@ -278,7 +278,7 @@ export function App(): ReactElement {
       }
     });
 
-    const unsubSourceUpdated = window.datspace.catalog.onSourceUpdated(
+    const unsubSourceUpdated = window.duckspace.catalog.onSourceUpdated(
       (event: CatalogSourceUpdatedEvent) => {
         // The ingestion pipeline sends source_created events with a full DataSource
         // object. Use it to create the Dexie record. Standard status update events
@@ -300,7 +300,7 @@ export function App(): ReactElement {
 
     // T038: Listen for watch:fileEvent push events from the file watcher.
     // Update sourceCount on 'add'/'unlink' events for the originating watch directory.
-    const unsubWatchFileEvent = window.datspace.watch.onFileEvent((event: WatchFileEvent) => {
+    const unsubWatchFileEvent = window.duckspace.watch.onFileEvent((event: WatchFileEvent) => {
       if (event.eventType === 'add' || event.eventType === 'unlink') {
         const delta = event.eventType === 'add' ? 1 : -1;
         // Use .modify() callback for atomic read-modify-write within a single
@@ -327,7 +327,7 @@ export function App(): ReactElement {
         const dirs = await db.watch_directories.filter((d) => d.isActive).toArray();
         console.log(`[App:watch] Restoring ${String(dirs.length)} active watch directories`);
         if (dirs.length > 0) {
-          const restored = await window.datspace.watch.restoreDirectories(dirs);
+          const restored = await window.duckspace.watch.restoreDirectories(dirs);
           console.log(
             `[App:watch] Restored ${String(restored)}/${String(dirs.length)} directories`,
           );

@@ -9,7 +9,7 @@
 
 ### User Story 1 - Import a Local File (Priority: P1)
 
-A user has a data file on their computer (CSV, Parquet, or JSON) that they want to analyze. They open Datspace and import the file either by using a file picker dialog, dragging the file onto the application window, or dropping it into a designated import area. The system detects the file format, parses it, registers it for querying, and shows the imported table in the data catalog sidebar.
+A user has a data file on their computer (CSV, Parquet, or JSON) that they want to analyze. They open Duckspace and import the file either by using a file picker dialog, dragging the file onto the application window, or dropping it into a designated import area. The system detects the file format, parses it, registers it for querying, and shows the imported table in the data catalog sidebar.
 
 **Why this priority**: File import is the foundational interaction -- without it, no other data features work. A user must be able to get data into the system before they can browse, query, or visualize it.
 
@@ -62,7 +62,7 @@ After importing data, the user wants to understand data quality and distribution
 
 ### User Story 4 - Watch a Folder for Automatic Ingestion (Priority: P2)
 
-The user has a folder where data files are regularly added (e.g., daily exports from another tool). They configure Datspace to watch this folder. When new files appear, they are automatically ingested. When existing files are modified, the catalog reflects the update. When files are deleted, the catalog marks them as removed.
+The user has a folder where data files are regularly added (e.g., daily exports from another tool). They configure Duckspace to watch this folder. When new files appear, they are automatically ingested. When existing files are modified, the catalog reflects the update. When files are deleted, the catalog marks them as removed.
 
 **Why this priority**: Folder watching enables continuous data workflows without manual re-import. It is a differentiating feature for power users who deal with recurring data drops.
 

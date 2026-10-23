@@ -2,7 +2,7 @@
 /**
  * Minimal reproduction: to_arrow_ipc() SIGTRAP crash with wide tables.
  *
- * This script uses ONLY @duckdb/node-api (no Electron, no Datspace code)
+ * This script uses ONLY @duckdb/node-api (no Electron, no Duckspace code)
  * to demonstrate that to_arrow_ipc() crashes the Node.js process when
  * given a wide table (many columns) at high row counts.
  *

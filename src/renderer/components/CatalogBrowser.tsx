@@ -30,7 +30,7 @@ const COLUMN_SCHEMA_TABLE: React.FC<{ entry: CatalogEntry }> = ({ entry }) => {
   const columns = useColumnSchemas(entry.id);
 
   const handlePreview = (): void => {
-    void window.datspace.catalog.previewTable(entry.name);
+    void window.duckspace.catalog.previewTable(entry.name);
   };
 
   return (

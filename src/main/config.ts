@@ -2,11 +2,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DEFAULT_CONFIG } from '@shared/constants';
-import { DatspaceConfigSchema } from '@shared/schemas';
-import type { DatspaceConfig } from '@shared/types';
+import { DuckspaceConfigSchema } from '@shared/schemas';
+import type { DuckspaceConfig } from '@shared/types';
 import { app } from 'electron';
 
-let currentConfig: DatspaceConfig | null = null;
+let currentConfig: DuckspaceConfig | null = null;
 
 function getConfigPath(): string {
   return path.join(app.getPath('userData'), 'config.json');
@@ -41,8 +41,8 @@ function deepMerge(
   return result;
 }
 
-function validateConfig(config: DatspaceConfig): DatspaceConfig {
-  return DatspaceConfigSchema.parse(config);
+function validateConfig(config: DuckspaceConfig): DuckspaceConfig {
+  return DuckspaceConfigSchema.parse(config);
 }
 
 /**
@@ -53,14 +53,14 @@ function validateConfig(config: DatspaceConfig): DatspaceConfig {
  *
  * @returns The validated, merged configuration.
  */
-export function loadConfig(): DatspaceConfig {
+export function loadConfig(): DuckspaceConfig {
   const configPath = getConfigPath();
 
-  let fileConfig: Partial<DatspaceConfig> = {};
+  let fileConfig: Partial<DuckspaceConfig> = {};
   try {
     if (fs.existsSync(configPath)) {
       const raw = fs.readFileSync(configPath, 'utf-8');
-      fileConfig = JSON.parse(raw) as Partial<DatspaceConfig>;
+      fileConfig = JSON.parse(raw) as Partial<DuckspaceConfig>;
     }
   } catch (err) {
     console.warn(
@@ -73,7 +73,7 @@ export function loadConfig(): DatspaceConfig {
   const merged = deepMerge(
     DEFAULT_CONFIG as unknown as Record<string, unknown>,
     fileConfig as unknown as Record<string, unknown>,
-  ) as unknown as DatspaceConfig;
+  ) as unknown as DuckspaceConfig;
 
   currentConfig = validateConfig(merged);
 
@@ -90,7 +90,7 @@ export function loadConfig(): DatspaceConfig {
  *
  * @param config - The full configuration object to save.
  */
-export function saveConfig(config: DatspaceConfig): void {
+export function saveConfig(config: DuckspaceConfig): void {
   const configPath = getConfigPath();
   const dir = path.dirname(configPath);
 
@@ -107,7 +107,7 @@ export function saveConfig(config: DatspaceConfig): void {
  *
  * @returns The current application configuration.
  */
-export function getConfig(): DatspaceConfig {
+export function getConfig(): DuckspaceConfig {
   if (!currentConfig) {
     return loadConfig();
   }
@@ -120,7 +120,7 @@ export function getConfig(): DatspaceConfig {
  * @param section - The configuration section key (e.g., 'duckdb', 'paths').
  * @returns The value of the requested configuration section.
  */
-export function getConfigValue<K extends keyof DatspaceConfig>(section: K): DatspaceConfig[K] {
+export function getConfigValue<K extends keyof DuckspaceConfig>(section: K): DuckspaceConfig[K] {
   return getConfig()[section];
 }
 
@@ -130,9 +130,9 @@ export function getConfigValue<K extends keyof DatspaceConfig>(section: K): Dats
  * @param section - The configuration section key to update.
  * @param value - The new value for the section.
  */
-export function setConfigValue<K extends keyof DatspaceConfig>(
+export function setConfigValue<K extends keyof DuckspaceConfig>(
   section: K,
-  value: DatspaceConfig[K],
+  value: DuckspaceConfig[K],
 ): void {
   const config = getConfig();
   config[section] = value;

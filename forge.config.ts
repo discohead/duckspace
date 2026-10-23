@@ -5,8 +5,8 @@ import { MakerZIP } from '@electron-forge/maker-zip';
 
 const config: ForgeConfig = {
   packagerConfig: {
-    name: 'Datspace',
-    appBundleId: 'com.datspace.app',
+    name: 'Duckspace',
+    appBundleId: 'com.duckspace.app',
     asar: true,
     // T069: Bundle DuckDB extensions into app resources for offline loading
     extraResource: ['resources/duckdb-extensions'],

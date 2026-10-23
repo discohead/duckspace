@@ -27,7 +27,7 @@ const batchCache = new Map<string, DecodedBatch[]>();
 
 /**
  * Virtualized data grid that displays Arrow IPC query results.
- * Listens for `datspace:arrow-batch` custom events, decodes and merges batches,
+ * Listens for `duckspace:arrow-batch` custom events, decodes and merges batches,
  * and renders rows with virtual scrolling for large result sets.
  *
  * @param props - Component props containing the active query ID.
@@ -141,9 +141,9 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
       }
     };
 
-    window.addEventListener('datspace:result-reset', handler);
+    window.addEventListener('duckspace:result-reset', handler);
     return () => {
-      window.removeEventListener('datspace:result-reset', handler);
+      window.removeEventListener('duckspace:result-reset', handler);
     };
   }, [queryId]);
 
@@ -170,9 +170,9 @@ export function ResultGrid({ queryId }: ResultGridProps): ReactElement {
       }
     };
 
-    window.addEventListener('datspace:arrow-batch', handler);
+    window.addEventListener('duckspace:arrow-batch', handler);
     return () => {
-      window.removeEventListener('datspace:arrow-batch', handler);
+      window.removeEventListener('duckspace:arrow-batch', handler);
     };
   }, [queryId]);
 

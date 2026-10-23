@@ -1,11 +1,11 @@
 /**
- * Shared constants for the Datspace Electron application.
+ * Shared constants for the Duckspace Electron application.
  *
  * IPC channel names, push events, timeouts, backpressure config,
  * health-check config, default configuration values, and app metadata.
  */
 
-import type { DatspaceConfig } from './types';
+import type { DuckspaceConfig } from './types';
 
 // ---------------------------------------------------------------------------
 // 1. IPC Channel Names (ipcMain.handle / ipcRenderer.invoke)
@@ -136,7 +136,7 @@ export const HEALTH_CHECK = {
  * Default application configuration used when no config file exists or as a merge base.
  * Covers DuckDB settings, file paths, worker health, UI preferences, and lifecycle behavior.
  */
-export const DEFAULT_CONFIG: DatspaceConfig = {
+export const DEFAULT_CONFIG: DuckspaceConfig = {
   duckdb: {
     memoryLimitPercent: 50,
     memoryLimitOverrideMB: null,
@@ -194,10 +194,10 @@ export const WORKER_V8_HEAP_LIMIT_MB = 512;
 // ---------------------------------------------------------------------------
 
 /** Application display name. */
-export const APP_NAME = 'Datspace';
+export const APP_NAME = 'Duckspace';
 
 /** IndexedDB database name used by Dexie.js in the Renderer process. */
-export const DEXIE_DB_NAME = 'Datspace';
+export const DEXIE_DB_NAME = 'Duckspace';
 
 /** Current Dexie.js schema version; increment when adding/modifying tables. */
 export const DEXIE_SCHEMA_VERSION = 3;

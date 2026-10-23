@@ -4,16 +4,16 @@ import type { CatalogEntry, ColumnSchema } from '@shared/types';
 import Dexie from 'dexie';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Import the real DatspaceDB class directly (not from the mocked module)
+// Import the real DuckspaceDB class directly (not from the mocked module)
 // We need a fresh db for each test, but recovery.ts imports db as a singleton.
 // Strategy: use vi.mock with a mutable reference that we swap per test.
-let testDb: InstanceType<typeof import('@renderer/stores/db').DatspaceDB>;
+let testDb: InstanceType<typeof import('@renderer/stores/db').DuckspaceDB>;
 
 vi.mock('@renderer/stores/db', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@renderer/stores/db')>();
   return {
     ...actual,
-    DatspaceDB: actual.DatspaceDB,
+    DuckspaceDB: actual.DuckspaceDB,
     default: new Proxy(
       {},
       {
@@ -26,16 +26,16 @@ vi.mock('@renderer/stores/db', async (importOriginal) => {
 });
 
 // Import after mock setup
-const { DatspaceDB } = await import('@renderer/stores/db');
+const { DuckspaceDB } = await import('@renderer/stores/db');
 const { checkAndRecover, writeRecoveryLog } = await import('@renderer/lib/recovery');
 
-// Mock window.datspace
+// Mock window.duckspace
 const mockGetAppState = vi.fn();
 const mockListTables = vi.fn();
 const mockDescribeTable = vi.fn();
 
 beforeEach(async () => {
-  testDb = new DatspaceDB();
+  testDb = new DuckspaceDB();
   await testDb.open();
 
   mockGetAppState.mockResolvedValue({
@@ -51,7 +51,7 @@ beforeEach(async () => {
   mockListTables.mockResolvedValue([]);
   mockDescribeTable.mockResolvedValue([]);
 
-  Object.defineProperty(window, 'datspace', {
+  Object.defineProperty(window, 'duckspace', {
     value: {
       lifecycle: { getAppState: mockGetAppState },
       catalog: { listTables: mockListTables, describeTable: mockDescribeTable },
@@ -70,7 +70,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   testDb.close();
-  await Dexie.delete('Datspace');
+  await Dexie.delete('Duckspace');
   vi.restoreAllMocks();
 });
 

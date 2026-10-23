@@ -1,6 +1,6 @@
 # DuckDB Integration in Electron: Technology Evaluation
 
-**Research Finding** | datspace Project
+**Research Finding** | duckspace Project
 **Date:** 2026-02-04
 **Scope:** Evaluate DuckDB technology options for embedding in an Electron desktop analytics application
 
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-DuckDB is an embedded columnar OLAP database designed for analytical workloads. It offers two deployment paths for Electron: a native Node.js addon (`duckdb-node`) and a WebAssembly build (`duckdb-wasm`). This document evaluates both options against datspace's constraints: embedded-only databases, Apache Arrow-first data flow, stream-and-scan processing, Worker Thread isolation, and macOS-first targeting.
+DuckDB is an embedded columnar OLAP database designed for analytical workloads. It offers two deployment paths for Electron: a native Node.js addon (`duckdb-node`) and a WebAssembly build (`duckdb-wasm`). This document evaluates both options against duckspace's constraints: embedded-only databases, Apache Arrow-first data flow, stream-and-scan processing, Worker Thread isolation, and macOS-first targeting.
 
 The recommendation is to use **duckdb-node (native addon) hosted in a dedicated Worker Thread**, with Apache Arrow as the query result format.
 
@@ -38,7 +38,7 @@ The recommendation is to use **duckdb-node (native addon) hosted in a dedicated 
 
 **Electron-specific considerations:**
 - Electron ships its own version of Node.js; native addons must be compiled against Electron's headers. This is well-supported by `electron-rebuild`.
-- Since datspace targets macOS-first, only one platform binary is needed initially (arm64 for Apple Silicon, x64 for Intel Macs). Universal binaries are possible.
+- Since duckspace targets macOS-first, only one platform binary is needed initially (arm64 for Apple Silicon, x64 for Intel Macs). Universal binaries are possible.
 - Prebuilt binaries for `duckdb` npm package are published via `node-pre-gyp` for common Node.js versions; Electron ABI alignment must be verified.
 
 ### 1.2 duckdb-wasm
@@ -76,7 +76,7 @@ The recommendation is to use **duckdb-node (native addon) hosted in a dedicated 
 
 ### 1.4 Verdict: Native vs WASM
 
-For datspace, the **native addon is the clear choice**:
+For duckspace, the **native addon is the clear choice**:
 - The "stream and scan" principle demands maximum I/O throughput; native file access and mmap are essential.
 - The "Arrow-first data flow" principle benefits from DuckDB's native Arrow output, which avoids the WASM boundary copy.
 - The 4GB WASM memory limit conflicts with handling large analytical datasets.
@@ -144,7 +144,7 @@ DuckDB has first-class Apache Arrow support:
 - **Arrow input:** DuckDB can scan Arrow tables as virtual tables, enabling zero-copy ingestion of Arrow data from other sources.
 - **Arrow IPC format:** Results can be serialized in Arrow IPC format (Feather v2), which is the standard wire format for inter-process Arrow data transfer.
 
-### 3.2 Arrow Flow in datspace
+### 3.2 Arrow Flow in duckspace
 
 The intended Arrow data flow for queries:
 
@@ -211,14 +211,14 @@ Use **streaming by default** for all queries. Materialize only when the consumer
 
 ### 5.1 Relevant Extensions
 
-| Extension | Purpose | Relevance to datspace |
+| Extension | Purpose | Relevance to duckspace |
 |-----------|---------|------------------------|
 | **parquet** | Read/write Parquet files | **Critical.** Primary columnar file format for local data. DuckDB reads Parquet with predicate pushdown and column pruning. |
 | **json** | Read JSON/JSONL files | **High.** Supports JSON data ingestion. DuckDB auto-detects JSON schema. |
 | **httpfs** | Read files from HTTP/S3 | **High.** Enables remote data access (S3 buckets, HTTP-hosted Parquet/CSV). Supports S3 authentication. |
 | **icu** | Unicode collation | **Medium.** Correct text sorting for international data. Bundled by default. |
 | **fts** | Full-text search | **Medium.** Basic full-text search. LanceDB may serve this role instead. |
-| **spatial** | Geospatial functions | **Low-Medium.** Only if datspace handles geospatial data. Adds ST_ functions, GeoJSON support. |
+| **spatial** | Geospatial functions | **Low-Medium.** Only if duckspace handles geospatial data. Adds ST_ functions, GeoJSON support. |
 | **excel** | Read Excel files | **Medium.** Common data format for desktop analytics users. |
 
 ### 5.2 Extension Loading in Electron
@@ -284,9 +284,9 @@ DuckDB supports multiple concurrent readers and a single writer:
 - **Single writer:** Only one transaction can write at a time. Write transactions block other writers but not readers.
 - **In-process threading:** DuckDB uses an internal thread pool (configurable via `SET threads=N`) for intra-query parallelism.
 
-### 7.2 Implications for datspace
+### 7.2 Implications for duckspace
 
-- **Read-heavy workload:** datspace is primarily an analytics tool. Most queries are reads (SELECT). Multiple visualization panels can query concurrently without contention.
+- **Read-heavy workload:** duckspace is primarily an analytics tool. Most queries are reads (SELECT). Multiple visualization panels can query concurrently without contention.
 - **Write operations:** Data ingestion (COPY INTO, INSERT) and metadata updates are writes. These should be serialized and managed by the Worker Thread's query queue.
 - **Query cancellation:** DuckDB supports query interruption via `duckdb_interrupt`. The Worker Thread should expose a cancel mechanism for long-running queries.
 
@@ -307,7 +307,7 @@ The Lance columnar format (used by LanceDB) has a DuckDB extension that allows D
 
 - **Extension name:** `lance` (community/experimental).
 - **Capability:** Register Lance datasets as DuckDB virtual tables, enabling SQL queries over Lance data.
-- **Use case for datspace:** Unified SQL interface across DuckDB's native tables and LanceDB's vector storage. A single query could join structured data (DuckDB) with vector search results (LanceDB).
+- **Use case for duckspace:** Unified SQL interface across DuckDB's native tables and LanceDB's vector storage. A single query could join structured data (DuckDB) with vector search results (LanceDB).
 
 ### 8.2 Current Status
 
@@ -318,7 +318,7 @@ The Lance columnar format (used by LanceDB) has a DuckDB extension that allows D
 ### 8.3 Evaluation
 
 - **Potential value:** High. A unified SQL query layer across DuckDB and LanceDB tables simplifies the query API significantly.
-- **Risk:** The extension is not mature. datspace should design the architecture to work without it (separate DuckDB and LanceDB query paths) but leave room to adopt it when stable.
+- **Risk:** The extension is not mature. duckspace should design the architecture to work without it (separate DuckDB and LanceDB query paths) but leave room to adopt it when stable.
 - **Alternative approach:** Use DuckDB's Arrow scan capability to import LanceDB query results as Arrow tables, then join/filter in DuckDB. This is more robust and doesn't depend on the Lance extension.
 
 ---
@@ -426,4 +426,4 @@ The native addon is larger but not prohibitively so. For a desktop application (
 
 ---
 
-*Research conducted for datspace system architecture design. This document evaluates technology options only; it does not design the database integration layer.*
+*Research conducted for duckspace system architecture design. This document evaluates technology options only; it does not design the database integration layer.*

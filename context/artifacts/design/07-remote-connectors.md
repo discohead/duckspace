@@ -1,4 +1,4 @@
-# datspace: Remote Data Source Connector Framework
+# duckspace: Remote Data Source Connector Framework
 
 **Document:** 07-remote-connectors.md
 **Version:** 1.0
@@ -11,7 +11,7 @@
 
 ## 1. Connector Framework Architecture
 
-The Remote Data Source Connector Framework enables datspace to connect to cloud storage, hosted databases, and SaaS analytics platforms. All remote connectors run in the **Main Process** (per doc 02, Section 2), which is the networking boundary for the application. The Renderer Process never makes direct network requests (enforced by `webSecurity: true` and the Chromium sandbox). Remote data, once fetched, is cached in DuckDB tables (per doc 04, Section 2) and registered in the shared metadata catalog (per doc 06, Section 5) so that downstream analytical queries operate identically on local and remote sources.
+The Remote Data Source Connector Framework enables duckspace to connect to cloud storage, hosted databases, and SaaS analytics platforms. All remote connectors run in the **Main Process** (per doc 02, Section 2), which is the networking boundary for the application. The Renderer Process never makes direct network requests (enforced by `webSecurity: true` and the Chromium sandbox). Remote data, once fetched, is cached in DuckDB tables (per doc 04, Section 2) and registered in the shared metadata catalog (per doc 06, Section 5) so that downstream analytical queries operate identically on local and remote sources.
 
 ### 1.1 Component Diagram
 
@@ -501,7 +501,7 @@ SELECT * FROM read_parquet('gcs://my-bucket/analytics/report.parquet');
 
 ### 3.3 Local Network Shares
 
-For local network shares (NAS devices, shared drives), datspace treats them as local file paths that may be intermittently available:
+For local network shares (NAS devices, shared drives), duckspace treats them as local file paths that may be intermittently available:
 
 ```typescript
 interface NetworkShareConfig {
@@ -685,7 +685,7 @@ async query(request: ConnectorQueryRequest): Promise<ConnectorQueryResult> {
 
 ### 4.3 PostgreSQL and MySQL Connectors
 
-For PostgreSQL and MySQL, the connectors provide read-only query access. These are optional connectors for users who need to pull data from operational databases into datspace for analysis.
+For PostgreSQL and MySQL, the connectors provide read-only query access. These are optional connectors for users who need to pull data from operational databases into duckspace for analysis.
 
 ```typescript
 interface PostgreSQLConnectorConfig {
@@ -1318,7 +1318,7 @@ class CacheManager {
 
 ## 7. Credential Management
 
-Secure credential storage is critical for remote connectors. datspace stores no credentials in plaintext. All secrets are encrypted using Electron's `safeStorage` API, which delegates to the macOS Keychain.
+Secure credential storage is critical for remote connectors. duckspace stores no credentials in plaintext. All secrets are encrypted using Electron's `safeStorage` API, which delegates to the macOS Keychain.
 
 ### 7.1 Secure Storage Architecture
 
@@ -1335,7 +1335,7 @@ graph TB
     end
 
     subgraph Keychain["macOS Keychain"]
-        KeychainEntry["datspace<br/>encryption key<br/>(managed by safeStorage)"]
+        KeychainEntry["duckspace<br/>encryption key<br/>(managed by safeStorage)"]
     end
 
     subgraph RendererProcess["Renderer Process"]
@@ -1753,8 +1753,8 @@ const S3_CONFIG_SCHEMA: JSONSchema = {
 The remote connector framework extends the Preload Bridge API (doc 02, Section 5) with remote-specific operations:
 
 ```typescript
-// Extensions to DatspaceAPI (doc 02, Section 5.1)
-interface DatspaceAPI {
+// Extensions to DuckspaceAPI (doc 02, Section 5.1)
+interface DuckspaceAPI {
   // ... existing API ...
 
   // === Remote Connector Operations ===
@@ -1842,5 +1842,5 @@ interface DatspaceAPI {
 
 ---
 
-*Document 07 of the datspace Architecture Series*
-*Generated: 2026-02-05 | Plan: datspace-system-design-2026-02-04 | Task: design-remote-connectors*
+*Document 07 of the duckspace Architecture Series*
+*Generated: 2026-02-05 | Plan: duckspace-system-design-2026-02-04 | Task: design-remote-connectors*

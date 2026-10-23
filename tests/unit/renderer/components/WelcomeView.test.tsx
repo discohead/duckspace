@@ -5,9 +5,9 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 describe('WelcomeView', () => {
-  it('renders "Datspace" heading', () => {
+  it('renders "Duckspace" heading', () => {
     render(<WelcomeView />);
-    expect(screen.getByText('Datspace')).toBeDefined();
+    expect(screen.getByText('Duckspace')).toBeDefined();
   });
 
   it('renders subtitle "Embedded Analytics Workbench"', () => {

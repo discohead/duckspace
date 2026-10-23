@@ -8,7 +8,7 @@ const steps = [
 
 /**
  * Landing page shown when no tabs are open.
- * Displays the Datspace branding and a numbered getting-started guide.
+ * Displays the Duckspace branding and a numbered getting-started guide.
  */
 export const WelcomeView: React.FC = () => {
   return (
@@ -33,7 +33,7 @@ export const WelcomeView: React.FC = () => {
           margin: 0,
         }}
       >
-        Datspace
+        Duckspace
       </h1>
       <p
         style={{

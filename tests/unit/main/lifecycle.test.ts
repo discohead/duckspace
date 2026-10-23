@@ -81,8 +81,8 @@ vi.mock('@main/config', () => ({
   ensureDirectories: vi.fn(),
   computeMemoryLimit: vi.fn(() => '4096MB'),
   computeThreadCount: vi.fn(() => 6),
-  getDatabasePath: vi.fn(() => '/tmp/datspace-test/analytics.duckdb'),
-  getTempDirectory: vi.fn(() => '/tmp/datspace-test/tmp'),
+  getDatabasePath: vi.fn(() => '/tmp/duckspace-test/analytics.duckdb'),
+  getTempDirectory: vi.fn(() => '/tmp/duckspace-test/tmp'),
 }));
 
 vi.mock('@main/ipc-handlers', () => ({
@@ -285,10 +285,10 @@ describe('lifecycle module', () => {
 
       expect(WorkerManager).toHaveBeenCalledWith(
         expect.objectContaining({
-          dbPath: '/tmp/datspace-test/analytics.duckdb',
+          dbPath: '/tmp/duckspace-test/analytics.duckdb',
           memoryLimit: '4096MB',
           threads: 6,
-          tempDirectory: '/tmp/datspace-test/tmp',
+          tempDirectory: '/tmp/duckspace-test/tmp',
           extensions: ['parquet', 'json', 'icu'],
           v8HeapLimitMB: 512,
           healthCheckIntervalMs: 60_000,
@@ -445,7 +445,7 @@ describe('lifecycle module', () => {
 
       await shutdownSequence();
 
-      expect(fs.readdirSync).toHaveBeenCalledWith('/tmp/datspace-test/tmp', {
+      expect(fs.readdirSync).toHaveBeenCalledWith('/tmp/duckspace-test/tmp', {
         withFileTypes: true,
       });
       expect(fs.rmSync).toHaveBeenCalledTimes(2);

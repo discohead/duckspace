@@ -56,7 +56,7 @@ export function SourceDetail({ dataSourceId }: { readonly dataSourceId: string }
     setError(undefined);
 
     try {
-      const response = await window.datspace.catalog.getColumnStats(
+      const response = await window.duckspace.catalog.getColumnStats(
         dataSourceId,
         true,
         source.duckdbTableName,
